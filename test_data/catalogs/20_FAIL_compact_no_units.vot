@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<VOTABLE version="1.4" xmlns="http://www.ivoa.net/xml/VOTable/v1.3">
+ <DESCRIPTION>EXPECTED TO PLOT NOTHING. The same compact values as 05 but with no units. Nothing in '100002.754' says it is sexagesimal, so it must be read as a decimal degree value, which puts the declination beyond a pole and drops every row.</DESCRIPTION>
+ <RESOURCE type="results">
+  <COOSYS ID="system" system="eq_FK5" equinox="J2000"/>
+  <TABLE name="variant">
+   <FIELD name="RAJ2000" ref="system" datatype="char" arraysize="*"></FIELD>
+   <FIELD name="DEJ2000" ref="system" datatype="char" arraysize="*"></FIELD>
+   <FIELD name="Name" ucd="meta.id;meta.main" ref="system" datatype="char" arraysize="*"></FIELD>
+   <FIELD name="Jmag" ref="system" datatype="double" unit="mag"></FIELD>
+   <FIELD name="Hmag" ref="system" datatype="double" unit="mag"></FIELD>
+   <FIELD name="Kmag" ref="system" datatype="double" unit="mag"></FIELD>
+   <DATA><TABLEDATA>
+    <TR><TD>100002.754</TD><TD>+023127.45</TD><TD>10000275+0231274</TD><TD>14.517</TD><TD>13.824</TD><TD>13.493</TD></TR>
+    <TR><TD>100001.960</TD><TD>+022917.17</TD><TD>10000196+0229171</TD><TD>14.543</TD><TD>13.956</TD><TD>13.974</TD></TR>
+    <TR><TD>095957.436</TD><TD>+023157.35</TD><TD>09595743+0231573</TD><TD>13.908</TD><TD>13.298</TD><TD>13.032</TD></TR>
+    <TR><TD>100004.062</TD><TD>+022926.31</TD><TD>10000406+0229263</TD><TD>16.724</TD><TD>16.068</TD><TD>16.946</TD></TR>
+    <TR><TD>100005.565</TD><TD>+022949.43</TD><TD>10000556+0229494</TD><TD>16.166</TD><TD>15.668</TD><TD>14.902</TD></TR>
+    <TR><TD>095957.296</TD><TD>+023222.28</TD><TD>09595729+0232222</TD><TD>15.633</TD><TD>15.150</TD><TD>14.994</TD></TR>
+    <TR><TD>100001.100</TD><TD>+022835.64</TD><TD>10000110+0228356</TD><TD>16.875</TD><TD>16.206</TD><TD>15.645</TD></TR>
+    <TR><TD>100005.518</TD><TD>+023154.74</TD><TD>10000551+0231547</TD><TD>16.447</TD><TD>15.848</TD><TD>16.929</TD></TR>
+    <TR><TD>095959.030</TD><TD>+022823.30</TD><TD>09595903+0228232</TD><TD>16.906</TD><TD>16.494</TD><TD>15.462</TD></TR>
+    <TR><TD>100007.920</TD><TD>+023052.01</TD><TD>10000791+0230520</TD><TD>13.806</TD><TD>13.525</TD><TD>13.513</TD></TR>
+    <TR><TD>100002.420</TD><TD>+022824.45</TD><TD>10000241+0228244</TD><TD>16.915</TD><TD>16.370</TD><TD>15.220</TD></TR>
+    <TR><TD>100002.337</TD><TD>+023259.38</TD><TD>10000233+0232593</TD><TD>10.123</TD><TD>9.862</TD><TD>9.802</TD></TR>
+    <TR><TD>100006.619</TD><TD>+023219.39</TD><TD>10000661+0232193</TD><TD>12.247</TD><TD>11.786</TD><TD>11.707</TD></TR>
+    <TR><TD>100005.235</TD><TD>+023246.61</TD><TD>10000523+0232466</TD><TD>14.145</TD><TD>13.531</TD><TD>13.259</TD></TR>
+    <TR><TD>100002.430</TD><TD>+022759.61</TD><TD>10000242+0227596</TD><TD>16.479</TD><TD>15.769</TD><TD>15.260</TD></TR>
+    <TR><TD>100010.177</TD><TD>+023006.08</TD><TD>10001017+0230060</TD><TD>16.185</TD><TD>15.528</TD><TD>15.718</TD></TR>
+    <TR><TD>095958.534</TD><TD>+022746.49</TD><TD>09595853+0227464</TD><TD>15.948</TD><TD>15.376</TD><TD>15.189</TD></TR>
+    <TR><TD>100003.142</TD><TD>+023317.50</TD><TD>10000314+0233175</TD><TD>16.542</TD><TD>15.848</TD><TD>15.521</TD></TR>
+    <TR><TD>100000.186</TD><TD>+023331.31</TD><TD>10000018+0233313</TD><TD>16.358</TD><TD>15.804</TD><TD>15.707</TD></TR>
+    <TR><TD>100011.106</TD><TD>+023038.42</TD><TD>10001110+0230384</TD><TD>17.385</TD><TD>16.271</TD><TD>16.054</TD></TR>
+   </TABLEDATA></DATA>
+  </TABLE>
+ </RESOURCE>
+</VOTABLE>

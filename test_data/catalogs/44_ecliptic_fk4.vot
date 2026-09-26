@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<VOTABLE version="1.4" xmlns="http://www.ivoa.net/xml/VOTable/v1.3">
+ <DESCRIPTION>Ecliptic coordinates on the B1950 ecliptic, declared the VOTable way as ecl_FK4. The system name alone implies B1950; reading it on the J2000 ecliptic moves every source by 0.69 degrees.</DESCRIPTION>
+ <RESOURCE type="results">
+  <COOSYS ID="system" system="ecl_FK4" equinox="B1950"/>
+  <TABLE name="variant">
+   <FIELD name="ELON" ref="system" datatype="double" unit="deg"></FIELD>
+   <FIELD name="ELAT" ref="system" datatype="double" unit="deg"></FIELD>
+   <FIELD name="Name" ucd="meta.id;meta.main" ref="system" datatype="char" arraysize="*"></FIELD>
+   <FIELD name="Jmag" ref="system" datatype="double" unit="mag"></FIELD>
+   <FIELD name="Hmag" ref="system" datatype="double" unit="mag"></FIELD>
+   <FIELD name="Kmag" ref="system" datatype="double" unit="mag"></FIELD>
+   <DATA><TABLEDATA>
+    <TR><TD>150.504529</TD><TD>-9.106101</TD><TD>10000275+0231274</TD><TD>14.517</TD><TD>13.824</TD><TD>13.493</TD></TR>
+    <TR><TD>150.514185</TD><TD>-9.141167</TD><TD>10000196+0229171</TD><TD>14.543</TD><TD>13.956</TD><TD>13.974</TD></TR>
+    <TR><TD>150.480584</TD><TD>-9.106045</TD><TD>09595743+0231573</TD><TD>13.908</TD><TD>13.298</TD><TD>13.032</TD></TR>
+    <TR><TD>150.521593</TD><TD>-9.135736</TD><TD>10000406+0229263</TD><TD>16.724</TD><TD>16.068</TD><TD>16.946</TD></TR>
+    <TR><TD>150.525259</TD><TD>-9.127533</TD><TD>10000556+0229494</TD><TD>16.166</TD><TD>15.668</TD><TD>14.902</TD></TR>
+    <TR><TD>150.477584</TD><TD>-9.099756</TD><TD>09595729+0232222</TD><TD>15.633</TD><TD>15.150</TD><TD>14.994</TD></TR>
+    <TR><TD>150.514867</TD><TD>-9.153228</TD><TD>10000110+0228356</TD><TD>16.875</TD><TD>16.206</TD><TD>15.645</TD></TR>
+    <TR><TD>150.512768</TD><TD>-9.094983</TD><TD>10000551+0231547</TD><TD>16.447</TD><TD>15.848</TD><TD>16.929</TD></TR>
+    <TR><TD>150.507900</TD><TD>-9.159449</TD><TD>09595903+0228232</TD><TD>16.906</TD><TD>16.494</TD><TD>15.462</TD></TR>
+    <TR><TD>150.528417</TD><TD>-9.107821</TD><TD>10000791+0230520</TD><TD>13.806</TD><TD>13.525</TD><TD>13.513</TD></TR>
+    <TR><TD>150.521178</TD><TD>-9.154223</TD><TD>10000241+0228244</TD><TD>16.915</TD><TD>16.370</TD><TD>15.220</TD></TR>
+    <TR><TD>150.493855</TD><TD>-9.082776</TD><TD>10000233+0232593</TD><TD>10.123</TD><TD>9.862</TD><TD>9.802</TD></TR>
+    <TR><TD>150.514699</TD><TD>-9.086965</TD><TD>10000661+0232193</TD><TD>12.247</TD><TD>11.786</TD><TD>11.707</TD></TR>
+    <TR><TD>150.506558</TD><TD>-9.081892</TD><TD>10000523+0232466</TD><TD>14.145</TD><TD>13.531</TD><TD>13.259</TD></TR>
+    <TR><TD>150.523658</TD><TD>-9.160675</TD><TD>10000242+0227596</TD><TD>16.479</TD><TD>15.769</TD><TD>15.260</TD></TR>
+    <TR><TD>150.541846</TD><TD>-9.116497</TD><TD>10001017+0230060</TD><TD>16.185</TD><TD>15.528</TD><TD>15.718</TD></TR>
+    <TR><TD>150.509551</TD><TD>-9.169751</TD><TD>09595853+0227464</TD><TD>15.948</TD><TD>15.376</TD><TD>15.189</TD></TR>
+    <TR><TD>150.495255</TD><TD>-9.076891</TD><TD>10000314+0233175</TD><TD>16.542</TD><TD>15.848</TD><TD>15.521</TD></TR>
+    <TR><TD>150.482226</TD><TD>-9.077590</TD><TD>10000018+0233313</TD><TD>16.358</TD><TD>15.804</TD><TD>15.707</TD></TR>
+    <TR><TD>150.542340</TD><TD>-9.106728</TD><TD>10001110+0230384</TD><TD>17.385</TD><TD>16.271</TD><TD>16.054</TD></TR>
+   </TABLEDATA></DATA>
+  </TABLE>
+ </RESOURCE>
+</VOTABLE>

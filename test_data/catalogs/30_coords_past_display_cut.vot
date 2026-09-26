@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<VOTABLE version="1.4" xmlns="http://www.ivoa.net/xml/VOTable/v1.3">
+ <DESCRIPTION>Coordinates sit at positions 31 and 32, far past the displayed column count. They must still be displayed and auto-selected on load.</DESCRIPTION>
+ <RESOURCE type="results">
+  <COOSYS ID="system" system="eq_FK5" equinox="J2000"/>
+  <TABLE name="variant">
+   <FIELD name="aux_00" ref="system" datatype="double"></FIELD>
+   <FIELD name="aux_01" ref="system" datatype="double"></FIELD>
+   <FIELD name="aux_02" ref="system" datatype="double"></FIELD>
+   <FIELD name="aux_03" ref="system" datatype="double"></FIELD>
+   <FIELD name="aux_04" ref="system" datatype="double"></FIELD>
+   <FIELD name="aux_05" ref="system" datatype="double"></FIELD>
+   <FIELD name="aux_06" ref="system" datatype="double"></FIELD>
+   <FIELD name="aux_07" ref="system" datatype="double"></FIELD>
+   <FIELD name="aux_08" ref="system" datatype="double"></FIELD>
+   <FIELD name="aux_09" ref="system" datatype="double"></FIELD>
+   <FIELD name="aux_10" ref="system" datatype="double"></FIELD>
+   <FIELD name="aux_11" ref="system" datatype="double"></FIELD>
+   <FIELD name="aux_12" ref="system" datatype="double"></FIELD>
+   <FIELD name="aux_13" ref="system" datatype="double"></FIELD>
+   <FIELD name="aux_14" ref="system" datatype="double"></FIELD>
+   <FIELD name="aux_15" ref="system" datatype="double"></FIELD>
+   <FIELD name="aux_16" ref="system" datatype="double"></FIELD>
+   <FIELD name="aux_17" ref="system" datatype="double"></FIELD>
+   <FIELD name="aux_18" ref="system" datatype="double"></FIELD>
+   <FIELD name="aux_19" ref="system" datatype="double"></FIELD>
+   <FIELD name="aux_20" ref="system" datatype="double"></FIELD>
+   <FIELD name="aux_21" ref="system" datatype="double"></FIELD>
+   <FIELD name="aux_22" ref="system" datatype="double"></FIELD>
+   <FIELD name="aux_23" ref="system" datatype="double"></FIELD>
+   <FIELD name="aux_24" ref="system" datatype="double"></FIELD>
+   <FIELD name="aux_25" ref="system" datatype="double"></FIELD>
+   <FIELD name="aux_26" ref="system" datatype="double"></FIELD>
+   <FIELD name="aux_27" ref="system" datatype="double"></FIELD>
+   <FIELD name="aux_28" ref="system" datatype="double"></FIELD>
+   <FIELD name="aux_29" ref="system" datatype="double"></FIELD>
+   <FIELD name="RAJ2000" ref="system" datatype="double" unit="deg"></FIELD>
+   <FIELD name="DEJ2000" ref="system" datatype="double" unit="deg"></FIELD>
+   <FIELD name="Name" ucd="meta.id;meta.main" ref="system" datatype="char" arraysize="*"></FIELD>
+   <FIELD name="Jmag" ref="system" datatype="double" unit="mag"></FIELD>
+   <FIELD name="Hmag" ref="system" datatype="double" unit="mag"></FIELD>
+   <FIELD name="Kmag" ref="system" datatype="double" unit="mag"></FIELD>
+   <DATA><TABLEDATA>
+    <TR><TD>0.0</TD><TD>1.0</TD><TD>2.0</TD><TD>3.0</TD><TD>4.0</TD><TD>5.0</TD><TD>6.0</TD><TD>7.0</TD><TD>8.0</TD><TD>9.0</TD><TD>10.0</TD><TD>11.0</TD><TD>12.0</TD><TD>13.0</TD><TD>14.0</TD><TD>15.0</TD><TD>16.0</TD><TD>17.0</TD><TD>18.0</TD><TD>19.0</TD><TD>20.0</TD><TD>21.0</TD><TD>22.0</TD><TD>23.0</TD><TD>24.0</TD><TD>25.0</TD><TD>26.0</TD><TD>27.0</TD><TD>28.0</TD><TD>29.0</TD><TD>150.011475</TD><TD>2.524293</TD><TD>10000275+0231274</TD><TD>14.517</TD><TD>13.824</TD><TD>13.493</TD></TR>
+    <TR><TD>0.1</TD><TD>1.1</TD><TD>2.1</TD><TD>3.1</TD><TD>4.1</TD><TD>5.1</TD><TD>6.1</TD><TD>7.1</TD><TD>8.1</TD><TD>9.1</TD><TD>10.1</TD><TD>11.1</TD><TD>12.1</TD><TD>13.1</TD><TD>14.1</TD><TD>15.1</TD><TD>16.1</TD><TD>17.1</TD><TD>18.1</TD><TD>19.1</TD><TD>20.1</TD><TD>21.1</TD><TD>22.1</TD><TD>23.1</TD><TD>24.1</TD><TD>25.1</TD><TD>26.1</TD><TD>27.1</TD><TD>28.1</TD><TD>29.1</TD><TD>150.008167</TD><TD>2.488104</TD><TD>10000196+0229171</TD><TD>14.543</TD><TD>13.956</TD><TD>13.974</TD></TR>
+    <TR><TD>0.2</TD><TD>1.2</TD><TD>2.2</TD><TD>3.2</TD><TD>4.2</TD><TD>5.2</TD><TD>6.2</TD><TD>7.2</TD><TD>8.2</TD><TD>9.2</TD><TD>10.2</TD><TD>11.2</TD><TD>12.2</TD><TD>13.2</TD><TD>14.2</TD><TD>15.2</TD><TD>16.2</TD><TD>17.2</TD><TD>18.2</TD><TD>19.2</TD><TD>20.2</TD><TD>21.2</TD><TD>22.2</TD><TD>23.2</TD><TD>24.2</TD><TD>25.2</TD><TD>26.2</TD><TD>27.2</TD><TD>28.2</TD><TD>29.2</TD><TD>149.989316</TD><TD>2.532596</TD><TD>09595743+0231573</TD><TD>13.908</TD><TD>13.298</TD><TD>13.032</TD></TR>
+    <TR><TD>0.3</TD><TD>1.3</TD><TD>2.3</TD><TD>3.3</TD><TD>4.3</TD><TD>5.3</TD><TD>6.3</TD><TD>7.3</TD><TD>8.3</TD><TD>9.3</TD><TD>10.3</TD><TD>11.3</TD><TD>12.3</TD><TD>13.3</TD><TD>14.3</TD><TD>15.3</TD><TD>16.3</TD><TD>17.3</TD><TD>18.3</TD><TD>19.3</TD><TD>20.3</TD><TD>21.3</TD><TD>22.3</TD><TD>23.3</TD><TD>24.3</TD><TD>25.3</TD><TD>26.3</TD><TD>27.3</TD><TD>28.3</TD><TD>29.3</TD><TD>150.016925</TD><TD>2.490641</TD><TD>10000406+0229263</TD><TD>16.724</TD><TD>16.068</TD><TD>16.946</TD></TR>
+    <TR><TD>0.4</TD><TD>1.4</TD><TD>2.4</TD><TD>3.4</TD><TD>4.4</TD><TD>5.4</TD><TD>6.4</TD><TD>7.4</TD><TD>8.4</TD><TD>9.4</TD><TD>10.4</TD><TD>11.4</TD><TD>12.4</TD><TD>13.4</TD><TD>14.4</TD><TD>15.4</TD><TD>16.4</TD><TD>17.4</TD><TD>18.4</TD><TD>19.4</TD><TD>20.4</TD><TD>21.4</TD><TD>22.4</TD><TD>23.4</TD><TD>24.4</TD><TD>25.4</TD><TD>26.4</TD><TD>27.4</TD><TD>28.4</TD><TD>29.4</TD><TD>150.023186</TD><TD>2.497064</TD><TD>10000556+0229494</TD><TD>16.166</TD><TD>15.668</TD><TD>14.902</TD></TR>
+    <TR><TD>0.5</TD><TD>1.5</TD><TD>2.5</TD><TD>3.5</TD><TD>4.5</TD><TD>5.5</TD><TD>6.5</TD><TD>7.5</TD><TD>8.5</TD><TD>9.5</TD><TD>10.5</TD><TD>11.5</TD><TD>12.5</TD><TD>13.5</TD><TD>14.5</TD><TD>15.5</TD><TD>16.5</TD><TD>17.5</TD><TD>18.5</TD><TD>19.5</TD><TD>20.5</TD><TD>21.5</TD><TD>22.5</TD><TD>23.5</TD><TD>24.5</TD><TD>25.5</TD><TD>26.5</TD><TD>27.5</TD><TD>28.5</TD><TD>29.5</TD><TD>149.988734</TD><TD>2.539523</TD><TD>09595729+0232222</TD><TD>15.633</TD><TD>15.150</TD><TD>14.994</TD></TR>
+    <TR><TD>0.6</TD><TD>1.6</TD><TD>2.6</TD><TD>3.6</TD><TD>4.6</TD><TD>5.6</TD><TD>6.6</TD><TD>7.6</TD><TD>8.6</TD><TD>9.6</TD><TD>10.6</TD><TD>11.6</TD><TD>12.6</TD><TD>13.6</TD><TD>14.6</TD><TD>15.6</TD><TD>16.6</TD><TD>17.6</TD><TD>18.6</TD><TD>19.6</TD><TD>20.6</TD><TD>21.6</TD><TD>22.6</TD><TD>23.6</TD><TD>24.6</TD><TD>25.6</TD><TD>26.6</TD><TD>27.6</TD><TD>28.6</TD><TD>29.6</TD><TD>150.004585</TD><TD>2.476567</TD><TD>10000110+0228356</TD><TD>16.875</TD><TD>16.206</TD><TD>15.645</TD></TR>
+    <TR><TD>0.7</TD><TD>1.7</TD><TD>2.7</TD><TD>3.7</TD><TD>4.7</TD><TD>5.7</TD><TD>6.7</TD><TD>7.7</TD><TD>8.7</TD><TD>9.7</TD><TD>10.7</TD><TD>11.7</TD><TD>12.7</TD><TD>13.7</TD><TD>14.7</TD><TD>15.7</TD><TD>16.7</TD><TD>17.7</TD><TD>18.7</TD><TD>19.7</TD><TD>20.7</TD><TD>21.7</TD><TD>22.7</TD><TD>23.7</TD><TD>24.7</TD><TD>25.7</TD><TD>26.7</TD><TD>27.7</TD><TD>28.7</TD><TD>29.7</TD><TD>150.022991</TD><TD>2.531872</TD><TD>10000551+0231547</TD><TD>16.447</TD><TD>15.848</TD><TD>16.929</TD></TR>
+    <TR><TD>0.8</TD><TD>1.8</TD><TD>2.8</TD><TD>3.8</TD><TD>4.8</TD><TD>5.8</TD><TD>6.8</TD><TD>7.8</TD><TD>8.8</TD><TD>9.8</TD><TD>10.8</TD><TD>11.8</TD><TD>12.8</TD><TD>13.8</TD><TD>14.8</TD><TD>15.8</TD><TD>16.8</TD><TD>17.8</TD><TD>18.8</TD><TD>19.8</TD><TD>20.8</TD><TD>21.8</TD><TD>22.8</TD><TD>23.8</TD><TD>24.8</TD><TD>25.8</TD><TD>26.8</TD><TD>27.8</TD><TD>28.8</TD><TD>29.8</TD><TD>149.995960</TD><TD>2.473138</TD><TD>09595903+0228232</TD><TD>16.906</TD><TD>16.494</TD><TD>15.462</TD></TR>
+    <TR><TD>0.9</TD><TD>1.9</TD><TD>2.9</TD><TD>3.9</TD><TD>4.9</TD><TD>5.9</TD><TD>6.9</TD><TD>7.9</TD><TD>8.9</TD><TD>9.9</TD><TD>10.9</TD><TD>11.9</TD><TD>12.9</TD><TD>13.9</TD><TD>14.9</TD><TD>15.9</TD><TD>16.9</TD><TD>17.9</TD><TD>18.9</TD><TD>19.9</TD><TD>20.9</TD><TD>21.9</TD><TD>22.9</TD><TD>23.9</TD><TD>24.9</TD><TD>25.9</TD><TD>26.9</TD><TD>27.9</TD><TD>28.9</TD><TD>29.9</TD><TD>150.032999</TD><TD>2.514448</TD><TD>10000791+0230520</TD><TD>13.806</TD><TD>13.525</TD><TD>13.513</TD></TR>
+    <TR><TD>0.10</TD><TD>1.10</TD><TD>2.10</TD><TD>3.10</TD><TD>4.10</TD><TD>5.10</TD><TD>6.10</TD><TD>7.10</TD><TD>8.10</TD><TD>9.10</TD><TD>10.10</TD><TD>11.10</TD><TD>12.10</TD><TD>13.10</TD><TD>14.10</TD><TD>15.10</TD><TD>16.10</TD><TD>17.10</TD><TD>18.10</TD><TD>19.10</TD><TD>20.10</TD><TD>21.10</TD><TD>22.10</TD><TD>23.10</TD><TD>24.10</TD><TD>25.10</TD><TD>26.10</TD><TD>27.10</TD><TD>28.10</TD><TD>29.10</TD><TD>150.010082</TD><TD>2.473459</TD><TD>10000241+0228244</TD><TD>16.915</TD><TD>16.370</TD><TD>15.220</TD></TR>
+    <TR><TD>0.11</TD><TD>1.11</TD><TD>2.11</TD><TD>3.11</TD><TD>4.11</TD><TD>5.11</TD><TD>6.11</TD><TD>7.11</TD><TD>8.11</TD><TD>9.11</TD><TD>10.11</TD><TD>11.11</TD><TD>12.11</TD><TD>13.11</TD><TD>14.11</TD><TD>15.11</TD><TD>16.11</TD><TD>17.11</TD><TD>18.11</TD><TD>19.11</TD><TD>20.11</TD><TD>21.11</TD><TD>22.11</TD><TD>23.11</TD><TD>24.11</TD><TD>25.11</TD><TD>26.11</TD><TD>27.11</TD><TD>28.11</TD><TD>29.11</TD><TD>150.009737</TD><TD>2.549829</TD><TD>10000233+0232593</TD><TD>10.123</TD><TD>9.862</TD><TD>9.802</TD></TR>
+    <TR><TD>0.12</TD><TD>1.12</TD><TD>2.12</TD><TD>3.12</TD><TD>4.12</TD><TD>5.12</TD><TD>6.12</TD><TD>7.12</TD><TD>8.12</TD><TD>9.12</TD><TD>10.12</TD><TD>11.12</TD><TD>12.12</TD><TD>13.12</TD><TD>14.12</TD><TD>15.12</TD><TD>16.12</TD><TD>17.12</TD><TD>18.12</TD><TD>19.12</TD><TD>20.12</TD><TD>21.12</TD><TD>22.12</TD><TD>23.12</TD><TD>24.12</TD><TD>25.12</TD><TD>26.12</TD><TD>27.12</TD><TD>28.12</TD><TD>29.12</TD><TD>150.027581</TD><TD>2.538720</TD><TD>10000661+0232193</TD><TD>12.247</TD><TD>11.786</TD><TD>11.707</TD></TR>
+    <TR><TD>0.13</TD><TD>1.13</TD><TD>2.13</TD><TD>3.13</TD><TD>4.13</TD><TD>5.13</TD><TD>6.13</TD><TD>7.13</TD><TD>8.13</TD><TD>9.13</TD><TD>10.13</TD><TD>11.13</TD><TD>12.13</TD><TD>13.13</TD><TD>14.13</TD><TD>15.13</TD><TD>16.13</TD><TD>17.13</TD><TD>18.13</TD><TD>19.13</TD><TD>20.13</TD><TD>21.13</TD><TD>22.13</TD><TD>23.13</TD><TD>24.13</TD><TD>25.13</TD><TD>26.13</TD><TD>27.13</TD><TD>28.13</TD><TD>29.13</TD><TD>150.021813</TD><TD>2.546280</TD><TD>10000523+0232466</TD><TD>14.145</TD><TD>13.531</TD><TD>13.259</TD></TR>
+    <TR><TD>0.14</TD><TD>1.14</TD><TD>2.14</TD><TD>3.14</TD><TD>4.14</TD><TD>5.14</TD><TD>6.14</TD><TD>7.14</TD><TD>8.14</TD><TD>9.14</TD><TD>10.14</TD><TD>11.14</TD><TD>12.14</TD><TD>13.14</TD><TD>14.14</TD><TD>15.14</TD><TD>16.14</TD><TD>17.14</TD><TD>18.14</TD><TD>19.14</TD><TD>20.14</TD><TD>21.14</TD><TD>22.14</TD><TD>23.14</TD><TD>24.14</TD><TD>25.14</TD><TD>26.14</TD><TD>27.14</TD><TD>28.14</TD><TD>29.14</TD><TD>150.010124</TD><TD>2.466559</TD><TD>10000242+0227596</TD><TD>16.479</TD><TD>15.769</TD><TD>15.260</TD></TR>
+    <TR><TD>0.15</TD><TD>1.15</TD><TD>2.15</TD><TD>3.15</TD><TD>4.15</TD><TD>5.15</TD><TD>6.15</TD><TD>7.15</TD><TD>8.15</TD><TD>9.15</TD><TD>10.15</TD><TD>11.15</TD><TD>12.15</TD><TD>13.15</TD><TD>14.15</TD><TD>15.15</TD><TD>16.15</TD><TD>17.15</TD><TD>18.15</TD><TD>19.15</TD><TD>20.15</TD><TD>21.15</TD><TD>22.15</TD><TD>23.15</TD><TD>24.15</TD><TD>25.15</TD><TD>26.15</TD><TD>27.15</TD><TD>28.15</TD><TD>29.15</TD><TD>150.042404</TD><TD>2.501688</TD><TD>10001017+0230060</TD><TD>16.185</TD><TD>15.528</TD><TD>15.718</TD></TR>
+    <TR><TD>0.16</TD><TD>1.16</TD><TD>2.16</TD><TD>3.16</TD><TD>4.16</TD><TD>5.16</TD><TD>6.16</TD><TD>7.16</TD><TD>8.16</TD><TD>9.16</TD><TD>10.16</TD><TD>11.16</TD><TD>12.16</TD><TD>13.16</TD><TD>14.16</TD><TD>15.16</TD><TD>16.16</TD><TD>17.16</TD><TD>18.16</TD><TD>19.16</TD><TD>20.16</TD><TD>21.16</TD><TD>22.16</TD><TD>23.16</TD><TD>24.16</TD><TD>25.16</TD><TD>26.16</TD><TD>27.16</TD><TD>28.16</TD><TD>29.16</TD><TD>149.993890</TD><TD>2.462915</TD><TD>09595853+0227464</TD><TD>15.948</TD><TD>15.376</TD><TD>15.189</TD></TR>
+    <TR><TD>0.17</TD><TD>1.17</TD><TD>2.17</TD><TD>3.17</TD><TD>4.17</TD><TD>5.17</TD><TD>6.17</TD><TD>7.17</TD><TD>8.17</TD><TD>9.17</TD><TD>10.17</TD><TD>11.17</TD><TD>12.17</TD><TD>13.17</TD><TD>14.17</TD><TD>15.17</TD><TD>16.17</TD><TD>17.17</TD><TD>18.17</TD><TD>19.17</TD><TD>20.17</TD><TD>21.17</TD><TD>22.17</TD><TD>23.17</TD><TD>24.17</TD><TD>25.17</TD><TD>26.17</TD><TD>27.17</TD><TD>28.17</TD><TD>29.17</TD><TD>150.013090</TD><TD>2.554862</TD><TD>10000314+0233175</TD><TD>16.542</TD><TD>15.848</TD><TD>15.521</TD></TR>
+    <TR><TD>0.18</TD><TD>1.18</TD><TD>2.18</TD><TD>3.18</TD><TD>4.18</TD><TD>5.18</TD><TD>6.18</TD><TD>7.18</TD><TD>8.18</TD><TD>9.18</TD><TD>10.18</TD><TD>11.18</TD><TD>12.18</TD><TD>13.18</TD><TD>14.18</TD><TD>15.18</TD><TD>16.18</TD><TD>17.18</TD><TD>18.18</TD><TD>19.18</TD><TD>20.18</TD><TD>21.18</TD><TD>22.18</TD><TD>23.18</TD><TD>24.18</TD><TD>25.18</TD><TD>26.18</TD><TD>27.18</TD><TD>28.18</TD><TD>29.18</TD><TD>150.000777</TD><TD>2.558697</TD><TD>10000018+0233313</TD><TD>16.358</TD><TD>15.804</TD><TD>15.707</TD></TR>
+    <TR><TD>0.19</TD><TD>1.19</TD><TD>2.19</TD><TD>3.19</TD><TD>4.19</TD><TD>5.19</TD><TD>6.19</TD><TD>7.19</TD><TD>8.19</TD><TD>9.19</TD><TD>10.19</TD><TD>11.19</TD><TD>12.19</TD><TD>13.19</TD><TD>14.19</TD><TD>15.19</TD><TD>16.19</TD><TD>17.19</TD><TD>18.19</TD><TD>19.19</TD><TD>20.19</TD><TD>21.19</TD><TD>22.19</TD><TD>23.19</TD><TD>24.19</TD><TD>25.19</TD><TD>26.19</TD><TD>27.19</TD><TD>28.19</TD><TD>29.19</TD><TD>150.046276</TD><TD>2.510672</TD><TD>10001110+0230384</TD><TD>17.385</TD><TD>16.271</TD><TD>16.054</TD></TR>
+   </TABLEDATA></DATA>
+  </TABLE>
+ </RESOURCE>
+</VOTABLE>

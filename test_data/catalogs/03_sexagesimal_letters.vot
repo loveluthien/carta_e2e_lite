@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<VOTABLE version="1.4" xmlns="http://www.ivoa.net/xml/VOTable/v1.3">
+ <DESCRIPTION>Explicit h/m/s and d/m/s markers, no units. The markers alone settle the scaling.</DESCRIPTION>
+ <RESOURCE type="results">
+  <COOSYS ID="system" system="eq_FK5" equinox="J2000"/>
+  <TABLE name="variant">
+   <FIELD name="RAJ2000" ref="system" datatype="char" arraysize="*"></FIELD>
+   <FIELD name="DEJ2000" ref="system" datatype="char" arraysize="*"></FIELD>
+   <FIELD name="Name" ucd="meta.id;meta.main" ref="system" datatype="char" arraysize="*"></FIELD>
+   <FIELD name="Jmag" ref="system" datatype="double" unit="mag"></FIELD>
+   <FIELD name="Hmag" ref="system" datatype="double" unit="mag"></FIELD>
+   <FIELD name="Kmag" ref="system" datatype="double" unit="mag"></FIELD>
+   <DATA><TABLEDATA>
+    <TR><TD>10h00m02.754s</TD><TD>+02d31m27.45s</TD><TD>10000275+0231274</TD><TD>14.517</TD><TD>13.824</TD><TD>13.493</TD></TR>
+    <TR><TD>10h00m01.960s</TD><TD>+02d29m17.17s</TD><TD>10000196+0229171</TD><TD>14.543</TD><TD>13.956</TD><TD>13.974</TD></TR>
+    <TR><TD>09h59m57.436s</TD><TD>+02d31m57.35s</TD><TD>09595743+0231573</TD><TD>13.908</TD><TD>13.298</TD><TD>13.032</TD></TR>
+    <TR><TD>10h00m04.062s</TD><TD>+02d29m26.31s</TD><TD>10000406+0229263</TD><TD>16.724</TD><TD>16.068</TD><TD>16.946</TD></TR>
+    <TR><TD>10h00m05.565s</TD><TD>+02d29m49.43s</TD><TD>10000556+0229494</TD><TD>16.166</TD><TD>15.668</TD><TD>14.902</TD></TR>
+    <TR><TD>09h59m57.296s</TD><TD>+02d32m22.28s</TD><TD>09595729+0232222</TD><TD>15.633</TD><TD>15.150</TD><TD>14.994</TD></TR>
+    <TR><TD>10h00m01.100s</TD><TD>+02d28m35.64s</TD><TD>10000110+0228356</TD><TD>16.875</TD><TD>16.206</TD><TD>15.645</TD></TR>
+    <TR><TD>10h00m05.518s</TD><TD>+02d31m54.74s</TD><TD>10000551+0231547</TD><TD>16.447</TD><TD>15.848</TD><TD>16.929</TD></TR>
+    <TR><TD>09h59m59.030s</TD><TD>+02d28m23.30s</TD><TD>09595903+0228232</TD><TD>16.906</TD><TD>16.494</TD><TD>15.462</TD></TR>
+    <TR><TD>10h00m07.920s</TD><TD>+02d30m52.01s</TD><TD>10000791+0230520</TD><TD>13.806</TD><TD>13.525</TD><TD>13.513</TD></TR>
+    <TR><TD>10h00m02.420s</TD><TD>+02d28m24.45s</TD><TD>10000241+0228244</TD><TD>16.915</TD><TD>16.370</TD><TD>15.220</TD></TR>
+    <TR><TD>10h00m02.337s</TD><TD>+02d32m59.38s</TD><TD>10000233+0232593</TD><TD>10.123</TD><TD>9.862</TD><TD>9.802</TD></TR>
+    <TR><TD>10h00m06.619s</TD><TD>+02d32m19.39s</TD><TD>10000661+0232193</TD><TD>12.247</TD><TD>11.786</TD><TD>11.707</TD></TR>
+    <TR><TD>10h00m05.235s</TD><TD>+02d32m46.61s</TD><TD>10000523+0232466</TD><TD>14.145</TD><TD>13.531</TD><TD>13.259</TD></TR>
+    <TR><TD>10h00m02.430s</TD><TD>+02d27m59.61s</TD><TD>10000242+0227596</TD><TD>16.479</TD><TD>15.769</TD><TD>15.260</TD></TR>
+    <TR><TD>10h00m10.177s</TD><TD>+02d30m06.08s</TD><TD>10001017+0230060</TD><TD>16.185</TD><TD>15.528</TD><TD>15.718</TD></TR>
+    <TR><TD>09h59m58.534s</TD><TD>+02d27m46.49s</TD><TD>09595853+0227464</TD><TD>15.948</TD><TD>15.376</TD><TD>15.189</TD></TR>
+    <TR><TD>10h00m03.142s</TD><TD>+02d33m17.50s</TD><TD>10000314+0233175</TD><TD>16.542</TD><TD>15.848</TD><TD>15.521</TD></TR>
+    <TR><TD>10h00m00.186s</TD><TD>+02d33m31.31s</TD><TD>10000018+0233313</TD><TD>16.358</TD><TD>15.804</TD><TD>15.707</TD></TR>
+    <TR><TD>10h00m11.106s</TD><TD>+02d30m38.42s</TD><TD>10001110+0230384</TD><TD>17.385</TD><TD>16.271</TD><TD>16.054</TD></TR>
+   </TABLEDATA></DATA>
+  </TABLE>
+ </RESOURCE>
+</VOTABLE>

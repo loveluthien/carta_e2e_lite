@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<VOTABLE version="1.4" xmlns="http://www.ivoa.net/xml/VOTable/v1.3">
+ <DESCRIPTION>Error and proper-motion columns are named like coordinates and come first. Auto-select must pick RAJ2000 / DEJ2000, and the decoys must still be selectable by hand, ranked below.</DESCRIPTION>
+ <RESOURCE type="results">
+  <COOSYS ID="system" system="eq_FK5" equinox="J2000"/>
+  <TABLE name="variant">
+   <FIELD name="e_RAJ2000" ref="system" datatype="double" unit="arcsec"></FIELD>
+   <FIELD name="pmRA" ref="system" datatype="double" unit="mas/yr"></FIELD>
+   <FIELD name="RA_err" ref="system" datatype="double" unit="arcsec"></FIELD>
+   <FIELD name="sigma_DE" ref="system" datatype="double" unit="arcsec"></FIELD>
+   <FIELD name="RAJ2000" ref="system" datatype="double" unit="deg"></FIELD>
+   <FIELD name="DEJ2000" ref="system" datatype="double" unit="deg"></FIELD>
+   <FIELD name="Name" ucd="meta.id;meta.main" ref="system" datatype="char" arraysize="*"></FIELD>
+   <FIELD name="Jmag" ref="system" datatype="double" unit="mag"></FIELD>
+   <FIELD name="Hmag" ref="system" datatype="double" unit="mag"></FIELD>
+   <FIELD name="Kmag" ref="system" datatype="double" unit="mag"></FIELD>
+   <DATA><TABLEDATA>
+    <TR><TD>0.0100</TD><TD>-5.0000</TD><TD>0.0100</TD><TD>0.0100</TD><TD>150.011475</TD><TD>2.524293</TD><TD>10000275+0231274</TD><TD>14.517</TD><TD>13.824</TD><TD>13.493</TD></TR>
+    <TR><TD>0.0200</TD><TD>-4.4737</TD><TD>0.0200</TD><TD>0.0200</TD><TD>150.008167</TD><TD>2.488104</TD><TD>10000196+0229171</TD><TD>14.543</TD><TD>13.956</TD><TD>13.974</TD></TR>
+    <TR><TD>0.0300</TD><TD>-3.9474</TD><TD>0.0300</TD><TD>0.0300</TD><TD>149.989316</TD><TD>2.532596</TD><TD>09595743+0231573</TD><TD>13.908</TD><TD>13.298</TD><TD>13.032</TD></TR>
+    <TR><TD>0.0400</TD><TD>-3.4211</TD><TD>0.0400</TD><TD>0.0400</TD><TD>150.016925</TD><TD>2.490641</TD><TD>10000406+0229263</TD><TD>16.724</TD><TD>16.068</TD><TD>16.946</TD></TR>
+    <TR><TD>0.0500</TD><TD>-2.8947</TD><TD>0.0500</TD><TD>0.0500</TD><TD>150.023186</TD><TD>2.497064</TD><TD>10000556+0229494</TD><TD>16.166</TD><TD>15.668</TD><TD>14.902</TD></TR>
+    <TR><TD>0.0600</TD><TD>-2.3684</TD><TD>0.0600</TD><TD>0.0600</TD><TD>149.988734</TD><TD>2.539523</TD><TD>09595729+0232222</TD><TD>15.633</TD><TD>15.150</TD><TD>14.994</TD></TR>
+    <TR><TD>0.0700</TD><TD>-1.8421</TD><TD>0.0700</TD><TD>0.0700</TD><TD>150.004585</TD><TD>2.476567</TD><TD>10000110+0228356</TD><TD>16.875</TD><TD>16.206</TD><TD>15.645</TD></TR>
+    <TR><TD>0.0800</TD><TD>-1.3158</TD><TD>0.0800</TD><TD>0.0800</TD><TD>150.022991</TD><TD>2.531872</TD><TD>10000551+0231547</TD><TD>16.447</TD><TD>15.848</TD><TD>16.929</TD></TR>
+    <TR><TD>0.0900</TD><TD>-0.7895</TD><TD>0.0900</TD><TD>0.0900</TD><TD>149.995960</TD><TD>2.473138</TD><TD>09595903+0228232</TD><TD>16.906</TD><TD>16.494</TD><TD>15.462</TD></TR>
+    <TR><TD>0.1000</TD><TD>-0.2632</TD><TD>0.1000</TD><TD>0.1000</TD><TD>150.032999</TD><TD>2.514448</TD><TD>10000791+0230520</TD><TD>13.806</TD><TD>13.525</TD><TD>13.513</TD></TR>
+    <TR><TD>0.1100</TD><TD>0.2632</TD><TD>0.1100</TD><TD>0.1100</TD><TD>150.010082</TD><TD>2.473459</TD><TD>10000241+0228244</TD><TD>16.915</TD><TD>16.370</TD><TD>15.220</TD></TR>
+    <TR><TD>0.1200</TD><TD>0.7895</TD><TD>0.1200</TD><TD>0.1200</TD><TD>150.009737</TD><TD>2.549829</TD><TD>10000233+0232593</TD><TD>10.123</TD><TD>9.862</TD><TD>9.802</TD></TR>
+    <TR><TD>0.1300</TD><TD>1.3158</TD><TD>0.1300</TD><TD>0.1300</TD><TD>150.027581</TD><TD>2.538720</TD><TD>10000661+0232193</TD><TD>12.247</TD><TD>11.786</TD><TD>11.707</TD></TR>
+    <TR><TD>0.1400</TD><TD>1.8421</TD><TD>0.1400</TD><TD>0.1400</TD><TD>150.021813</TD><TD>2.546280</TD><TD>10000523+0232466</TD><TD>14.145</TD><TD>13.531</TD><TD>13.259</TD></TR>
+    <TR><TD>0.1500</TD><TD>2.3684</TD><TD>0.1500</TD><TD>0.1500</TD><TD>150.010124</TD><TD>2.466559</TD><TD>10000242+0227596</TD><TD>16.479</TD><TD>15.769</TD><TD>15.260</TD></TR>
+    <TR><TD>0.1600</TD><TD>2.8947</TD><TD>0.1600</TD><TD>0.1600</TD><TD>150.042404</TD><TD>2.501688</TD><TD>10001017+0230060</TD><TD>16.185</TD><TD>15.528</TD><TD>15.718</TD></TR>
+    <TR><TD>0.1700</TD><TD>3.4211</TD><TD>0.1700</TD><TD>0.1700</TD><TD>149.993890</TD><TD>2.462915</TD><TD>09595853+0227464</TD><TD>15.948</TD><TD>15.376</TD><TD>15.189</TD></TR>
+    <TR><TD>0.1800</TD><TD>3.9474</TD><TD>0.1800</TD><TD>0.1800</TD><TD>150.013090</TD><TD>2.554862</TD><TD>10000314+0233175</TD><TD>16.542</TD><TD>15.848</TD><TD>15.521</TD></TR>
+    <TR><TD>0.1900</TD><TD>4.4737</TD><TD>0.1900</TD><TD>0.1900</TD><TD>150.000777</TD><TD>2.558697</TD><TD>10000018+0233313</TD><TD>16.358</TD><TD>15.804</TD><TD>15.707</TD></TR>
+    <TR><TD>0.2000</TD><TD>5.0000</TD><TD>0.2000</TD><TD>0.2000</TD><TD>150.046276</TD><TD>2.510672</TD><TD>10001110+0230384</TD><TD>17.385</TD><TD>16.271</TD><TD>16.054</TD></TR>
+   </TABLEDATA></DATA>
+  </TABLE>
+ </RESOURCE>
+</VOTABLE>

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<VOTABLE version="1.4" xmlns="http://www.ivoa.net/xml/VOTable/v1.3">
+ <RESOURCE type="results"><COOSYS ID="coords" system="eq_FK5"/>
+  <TABLE name="e2e">
+   <FIELD name="Name" datatype="char" arraysize="*" ref="coords"/>
+   <FIELD name="RAJ2000" datatype="double" unit="deg" ref="coords"/>
+   <FIELD name="DEJ2000" datatype="double" unit="deg" ref="coords"/>
+   <FIELD name="Flux" datatype="double" unit="Jy" ref="coords"/>
+   <FIELD name="Size" datatype="double" unit="pix" ref="coords"/>
+   <DATA><TABLEDATA>
+    <TR><TD>Alpha</TD><TD>180.004000</TD><TD>-30.003000</TD><TD>10</TD><TD>4</TD></TR>
+    <TR><TD>Beta</TD><TD>179.999000</TD><TD>-30.000000</TD><TD>20</TD><TD>6</TD></TR>
+    <TR><TD>Gamma</TD><TD>179.995000</TD><TD>-29.996000</TD><TD>30</TD><TD>8</TD></TR>
+    <TR><TD>Delta</TD><TD>180.002000</TD><TD>-29.994000</TD><TD>40</TD><TD>10</TD></TR>
+    <TR><TD>Outside</TD><TD>179.977000</TD><TD>-29.977000</TD><TD>50</TD><TD>12</TD></TR>
+   </TABLEDATA></DATA>
+  </TABLE>
+ </RESOURCE>
+</VOTABLE>

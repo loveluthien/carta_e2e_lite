@@ -1,0 +1,24 @@
+{
+    "name": "e2e-lite",
+    "version": "1.0.0",
+    "description": "",
+    "main": "index.js",
+    "directories": {
+        "test": "tests"
+    },
+    "scripts": {
+        "format": "prettier --write .",
+        "format:check": "prettier --check ."
+    },
+    "keywords": [],
+    "author": "",
+    "license": "ISC",
+    "devDependencies": {
+        "@playwright/test": "^1.59.1",
+        "@types/node": "^25.6.0",
+        "prettier": "^3.9.6"
+    },
+    "dependencies": {
+        "dotenv": "^17.4.2"
+    }
+}
