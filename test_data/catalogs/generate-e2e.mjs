@@ -17,6 +17,16 @@ const card = (key, value) =>
                         : value,
               ).padStart(20))
     ).padEnd(80);
+const writeFits = (name, imageHeader, imagePixels) => {
+    const cards = Object.entries(imageHeader).map(([key, value]) =>
+        card(key, value),
+    );
+    cards.push('END'.padEnd(80));
+    const fitsHeader = Buffer.from(
+        cards.join('').padEnd(Math.ceil(cards.length / 36) * 2880),
+    );
+    writeFileSync(output(name), Buffer.concat([fitsHeader, imagePixels]));
+};
 
 // Four planes keep the image useful for spectral and spatial profiler checks.
 const header = {
@@ -55,16 +65,32 @@ for (let z = 0; z < 4; z++)
 for (const [name, ra] of [
     ['catalog-image.fits', 180],
     ['catalog-image-shifted.fits', 181],
-]) {
-    const cards = Object.entries({ ...header, CRVAL1: ra }).map(
-        ([key, value]) => card(key, value),
-    );
-    cards.push('END'.padEnd(80));
-    const fitsHeader = Buffer.from(
-        cards.join('').padEnd(Math.ceil(cards.length / 36) * 2880),
-    );
-    writeFileSync(output(name), Buffer.concat([fitsHeader, pixels]));
-}
+])
+    writeFits(name, { ...header, CRVAL1: ra }, pixels);
+
+// One arcsecond per pixel makes angular source sizes easy to verify visually.
+const angularImageSize = 24;
+const angularPixels = Buffer.alloc(4 * 2880);
+for (let z = 0; z < 4; z++)
+    for (let y = 0; y < angularImageSize; y++)
+        for (let x = 0; x < angularImageSize; x++)
+            angularPixels.writeFloatBE(
+                (x + y + 1) * (z + 1),
+                4 * (z * angularImageSize ** 2 + y * angularImageSize + x),
+            );
+writeFits(
+    'catalog-angular-size-image.fits',
+    {
+        ...header,
+        NAXIS1: angularImageSize,
+        NAXIS2: angularImageSize,
+        CRPIX1: 12,
+        CRPIX2: 12,
+        CDELT1: -1 / 3600,
+        CDELT2: 1 / 3600,
+    },
+    angularPixels,
+);
 
 const sources = [
     ['Alpha', 3, 4, 10, 4],
@@ -102,6 +128,42 @@ const skyRows = sources.map(([name, x, y, flux, size]) => [
     size,
 ]);
 writeFileSync(output('catalog-sky.vot'), vot('eq_FK5', numeric, skyRows));
+const angularSources = [
+    ['Compact', 4, 5, 4, 2, 0, 10],
+    ['Tilted', 9, 8, 8, 3, 30, 20],
+    ['Elongated', 15, 14, 12, 5, 75, 30],
+    ['Large', 19, 18, 16, 8, 120, 40],
+    ['EmptyMinor', 7, 18, 10, '', 45, 50],
+    ['EmptyMajor', 18, 6, '', 4, 90, 60],
+    ['EmptyAngle', 12, 3, 6, 3, '', 70],
+    ['NaNMajor', 2, 20, 'NaN', 2, -30, 80],
+    ['NaNMinor', 21, 10, 9, 'NaN', 150, 90],
+    ['NaNAngle', 13, 20, 7, 3, 'NaN', 100],
+];
+writeFileSync(
+    output('catalog-angular-size.vot'),
+    vot(
+        'eq_FK5',
+        [
+            ['Name', 'char'],
+            ['RAJ2000', 'double', 'deg'],
+            ['DEJ2000', 'double', 'deg'],
+            ['MajorAxis', 'double', 'arcsec'],
+            ['MinorAxis', 'double', 'arcsec'],
+            ['PositionAngle', 'double', 'deg'],
+            ['Flux', 'double', 'Jy'],
+        ],
+        angularSources.map(([name, x, y, major, minor, angle, flux]) => [
+            name,
+            (180 - (x - 11) / 3600).toFixed(8),
+            (-30 + (y - 11) / 3600).toFixed(8),
+            major,
+            minor,
+            angle,
+            flux,
+        ]),
+    ),
+);
 writeFileSync(
     output('catalog-pixel.vot'),
     vot(

@@ -1,6 +1,6 @@
 # CARTA E2E test plans
 
-This directory maps every currently collected Playwright test to its action and expected result. The collector reports **129 cases in 21 spec files**; the configured Chromium, Firefox and WebKit projects produce **387 browser runs**. These are plans derived from the current source, not execution results.
+This directory maps every currently collected Playwright test to its action and expected result. The collector reports **132 cases in 21 spec files**; the configured Chromium, Firefox and WebKit projects produce **396 browser runs**. These are plans derived from the current source, not execution results.
 
 ## Shared execution plan
 
@@ -21,7 +21,7 @@ npx playwright test
 | Plan                                    | Cases | Focus                                                                                         |
 | --------------------------------------- | ----: | --------------------------------------------------------------------------------------------- |
 | [Animator](./Animator.md)               |     3 | Channel and polarization navigation, playback modes and synchronization with viewer/profiles. |
-| [Catalog](./Catalog.md)                 |     3 | Local catalog table, overlay, plot, coordinate and styling behavior.                          |
+| [Catalog](./Catalog.md)                 |     6 | Local catalog table, overlay, plot, coordinate and styling behavior.                          |
 | [ChannelMap](./ChannelMap.md)           |     2 | Channel-map empty state, controls, image panels and selection synchronization.                |
 | [Contours](./Contours.md)               |     2 | Contour generation methods and rendered overlay styling.                                      |
 | [CursorInfo](./CursorInfo.md)           |     1 | Cursor values and coordinates across viewer, widget and profilers.                            |

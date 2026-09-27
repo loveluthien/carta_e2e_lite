@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<VOTABLE version="1.4" xmlns="http://www.ivoa.net/xml/VOTable/v1.3">
+ <RESOURCE type="results"><COOSYS ID="coords" system="eq_FK5"/>
+  <TABLE name="e2e">
+   <FIELD name="Name" datatype="char" arraysize="*" ref="coords"/>
+   <FIELD name="RAJ2000" datatype="double" unit="deg" ref="coords"/>
+   <FIELD name="DEJ2000" datatype="double" unit="deg" ref="coords"/>
+   <FIELD name="MajorAxis" datatype="double" unit="arcsec" ref="coords"/>
+   <FIELD name="MinorAxis" datatype="double" unit="arcsec" ref="coords"/>
+   <FIELD name="PositionAngle" datatype="double" unit="deg" ref="coords"/>
+   <FIELD name="Flux" datatype="double" unit="Jy" ref="coords"/>
+   <DATA><TABLEDATA>
+    <TR><TD>Compact</TD><TD>180.00194444</TD><TD>-30.00166667</TD><TD>4</TD><TD>2</TD><TD>0</TD><TD>10</TD></TR>
+    <TR><TD>Tilted</TD><TD>180.00055556</TD><TD>-30.00083333</TD><TD>8</TD><TD>3</TD><TD>30</TD><TD>20</TD></TR>
+    <TR><TD>Elongated</TD><TD>179.99888889</TD><TD>-29.99916667</TD><TD>12</TD><TD>5</TD><TD>75</TD><TD>30</TD></TR>
+    <TR><TD>Large</TD><TD>179.99777778</TD><TD>-29.99805556</TD><TD>16</TD><TD>8</TD><TD>120</TD><TD>40</TD></TR>
+    <TR><TD>EmptyMinor</TD><TD>180.00111111</TD><TD>-29.99805556</TD><TD>10</TD><TD></TD><TD>45</TD><TD>50</TD></TR>
+    <TR><TD>EmptyMajor</TD><TD>179.99805556</TD><TD>-30.00138889</TD><TD></TD><TD>4</TD><TD>90</TD><TD>60</TD></TR>
+    <TR><TD>EmptyAngle</TD><TD>179.99972222</TD><TD>-30.00222222</TD><TD>6</TD><TD>3</TD><TD></TD><TD>70</TD></TR>
+    <TR><TD>NaNMajor</TD><TD>180.00250000</TD><TD>-29.99750000</TD><TD>NaN</TD><TD>2</TD><TD>-30</TD><TD>80</TD></TR>
+    <TR><TD>NaNMinor</TD><TD>179.99722222</TD><TD>-30.00027778</TD><TD>9</TD><TD>NaN</TD><TD>150</TD><TD>90</TD></TR>
+    <TR><TD>NaNAngle</TD><TD>179.99944444</TD><TD>-29.99750000</TD><TD>7</TD><TD>3</TD><TD>NaN</TD><TD>100</TD></TR>
+   </TABLEDATA></DATA>
+  </TABLE>
+ </RESOURCE>
+</VOTABLE>
