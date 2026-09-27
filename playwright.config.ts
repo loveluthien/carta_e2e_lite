@@ -42,15 +42,15 @@ export default defineConfig({
             use: { ...devices['Desktop Chrome'] },
         },
 
-        {
-            name: 'firefox',
-            use: { ...devices['Desktop Firefox'] },
-        },
+        // {
+        //     name: 'firefox',
+        //     use: { ...devices['Desktop Firefox'] },
+        // },
 
-        {
-            name: 'webkit',
-            use: { ...devices['Desktop Safari'] },
-        },
+        // {
+        //     name: 'webkit',
+        //     use: { ...devices['Desktop Safari'] },
+        // },
 
         /* Test against mobile viewports. */
         // {
@@ -76,7 +76,7 @@ export default defineConfig({
     /* Run your local dev server before starting the tests */
     webServer: {
         command:
-            '/Users/kchou/bz/carta_build/carta-backend-dev/build/carta_backend /Users/kchou/bz/carta_build/e2e-lite/test_data --top_level_folder /Users/kchou/bz --frontend_folder /Users/kchou/bz/carta_build/carta-frontend-dev/build --no_browser --port 3002 --debug_no_auth --omp_threads 8',
+            '/Users/kchou/bz/carta_build/carta-backend-dev1/build/carta_backend /Users/kchou/bz/carta_build/e2e-lite/test_data --top_level_folder /Users/kchou/bz --frontend_folder /Users/kchou/bz/carta_build/carta-frontend-dev2/build --no_browser --port 3002 --debug_no_auth --omp_threads 8',
         url: 'http://localhost:3002/',
         reuseExistingServer: !process.env.CI,
         stdout: 'pipe',
