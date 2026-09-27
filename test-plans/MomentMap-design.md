@@ -1,4 +1,6 @@
-# Moment Map end-to-end test plan
+# Moment Map end-to-end test design
+
+This earlier comprehensive design is retained for reference. The current case inventory is in [`MomentMap.md`](./MomentMap.md).
 
 ## Scope and status
 

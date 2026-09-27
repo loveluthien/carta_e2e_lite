@@ -612,9 +612,10 @@ export class PlaywrightDevPage {
         try {
             await expect(fbDialog).toBeVisible({ timeout: 400 });
         } catch {
-            (await isAppended)
-                ? this.selectMenuItem('File', 'Append Image')
-                : this.selectMenuItem('File', 'Open Image');
+            await this.selectMenuItem(
+                'File',
+                isAppended ? 'Append Image' : 'Open Image',
+            );
             await expect(fbDialog).toBeVisible({ timeout: 1000 });
         }
         // If needed to navigate subdirectories:

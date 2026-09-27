@@ -75,7 +75,7 @@ Moment generator data, controls, lifecycle and failure recovery.
 
 - `MM-19 result load failure warns and retry succeeds [injected]` uses `test.fail` for a known missing warning. Keep it marked as an expected failure until the product behavior is fixed.
 - The 13 `MM-06` cases correspond to tags −1 and 0 through 11. The five `MM-08` and seven `MM-13/MM-14` rows are separate Playwright cases.
-- The checked-in [`specs/MomentMap.md`](../specs/MomentMap.md) is an older design document. This file indexes the current implemented suite.
+- The earlier comprehensive Moment Map design is retained in [`MomentMap-design.md`](./MomentMap-design.md). This file indexes the current implemented suite.
 
 ## Run
 

@@ -8,5 +8,5 @@ This is a lightweight end-to-end testing framework for CARTA. The goal is to ens
 - Take PNG snapshots if the test related to image viewer and profiler.
 - Generate lightweight mock data for testing.
 - All the buttons on widgets and dialogs should be tested.
-- Update the test plan in `specs` folder when new tests are added or tests are modified.
+- Update the test plan in `test-plans` when new tests are added or tests are modified.
 - Check the RGB values of rendered components and ensure they match the expected values.

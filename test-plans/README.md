@@ -1,6 +1,6 @@
 # CARTA E2E test plans
 
-This directory maps every currently collected Playwright test to its action and expected result. The collector reports **132 cases in 21 spec files**; the configured Chromium, Firefox and WebKit projects produce **396 browser runs**. These are plans derived from the current source, not execution results.
+This directory maps every currently collected Playwright test to its action and expected result. The collector reports **134 cases in 21 spec files**. The current Playwright configuration enables Chromium. These are plans derived from the current source, not execution results.
 
 ## Shared execution plan
 
@@ -8,7 +8,7 @@ This directory maps every currently collected Playwright test to its action and 
 2. Drive each dialog or widget through its visible controls. Assert enabled/disabled state, labels, numeric values, generated frames and error/recovery behavior.
 3. For changes affecting an image or profile, check both the state and rendered output. Review PNG baselines for viewer, profile or overlay changes; use deterministic values for numerical assertions.
 4. Use the small FITS fixtures in `test_data` or extend `test_data/create.mjs` with bounded, deterministic data. Keep failures explicit, including invalid input and retry paths.
-5. Run the focused spec in Chromium while developing, then all three configured browser projects. Review screenshot baselines per platform and inspect the HTML report for failures.
+5. Run the focused spec in Chromium while developing, then all configured browser projects. Review screenshot baselines per platform and inspect the HTML report for failures.
 
 ```sh
 npx playwright test --list --project=chromium
@@ -23,7 +23,7 @@ npx playwright test
 | [Animator](./Animator.md)               |     3 | Channel and polarization navigation, playback modes and synchronization with viewer/profiles. |
 | [Catalog](./Catalog.md)                 |     6 | Local catalog table, overlay, plot, coordinate and styling behavior.                          |
 | [ChannelMap](./ChannelMap.md)           |     2 | Channel-map empty state, controls, image panels and selection synchronization.                |
-| [Contours](./Contours.md)               |     2 | Contour generation methods and rendered overlay styling.                                      |
+| [Contours](./Contours.md)               |     4 | Generators, scaling, Apply/Clear recovery, and rendered overlay styling.                      |
 | [CursorInfo](./CursorInfo.md)           |     1 | Cursor values and coordinates across viewer, widget and profilers.                            |
 | [Histogram](./Histogram.md)             |     1 | Channel-dependent histogram and pixel-bound validation.                                       |
 | [ImageFitting](./ImageFitting.md)       |     1 | Fit validation and derived model/residual images.                                             |
@@ -46,5 +46,5 @@ npx playwright test
 
 - Several current tests inspect app stores or compare screenshots without asserting all user-visible values. The per-case expected results are the checks to retain or add when tests are updated.
 - Some spec files have no PNG assertion even when they affect an image or profiler. Add focused reviewed snapshots there rather than treating canvas visibility as a visual regression check.
-- The existing `specs/MomentMap.md` describes an earlier design and includes stale implementation status. Use `spces/MomentMap.md` for the inventory of current tests.
-- These files document the suite; no CARTA browser test was executed as part of writing them.
+- `MomentMap.md` and `Contours.md` map current cases to their expected outcomes; plans are not claims that every suite case has passed.
+- The Contours spec passed all 4 cases in the currently configured Chromium project.
