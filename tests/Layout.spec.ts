@@ -1,1103 +1,603 @@
-import { test, expect } from '@playwright/test';
-import { PlaywrightDevPage } from '../utilities';
+import { expect, test, type Page } from '@playwright/test';
+import { LayoutName, PlaywrightDevPage, pixel } from '../utilities';
 
-test.describe('Layout', () => {
-    test('CARTA provided layout', async ({ page }) => {
-        const devPage = new PlaywrightDevPage(page);
-        await devPage.goto();
-        await page
-            .getByTestId('file-browser-dialog-header-close-button')
-            .click();
+test.describe.configure({ mode: 'default' });
 
-        await expect(page.locator('#root')).toMatchAriaSnapshot(`
-      - menu:
-        - menuitem "File"
-      - menu:
-        - menuitem "View"
-      - menu:
-        - menuitem "Widgets"
-      - menu:
-        - menuitem "Snippets"
-      - menu:
-        - menuitem "Help"
-      - button [disabled]
-      - button [disabled]:
-        - img
-      - button [disabled]
-      - button [disabled]
-      - button [disabled]
-      - button [disabled]:
-        - img
-      - button [disabled]
-      - button:
-        - img
-      - button
-      - button:
-        - img
-      - button:
-        - img
-      - button
-      - button
-      - button
-      - button
-      - button
-      - button:
-        - img
-      - button
-      - button
-      - button:
-        - img
-      - button:
-        - img
-      - button:
-        - img
-      - button [disabled]
-      - button
-      - button [disabled]:
-        - img
-      - button [disabled]:
-        - img
-      - button [disabled]:
-        - img: xy
-      - button
-      - button
-      - text: FindBorderBarSize No image loaded
-      - button ""
-      - button "" [disabled]
-      - button ""
-      - button "" [disabled]
-      - button ""
-      - button ""
-      - button "Pop out to a new window":
-        - img
-      - button "Maximise":
-        - img
-      - text: Render Configuration
-      - img
-      - button ""
-      - button ""
-      - button ""
-      - button "Maximise":
-        - img
-      - text: "X Profile: Cursor"
-      - img
-      - button ""
-      - button ""
-      - button ""
-      - button "Maximise":
-        - img
-      - text: "Y Profile: Cursor"
-      - img
-      - button ""
-      - button ""
-      - button ""
-      - button "Maximise":
-        - img
-      - text: Image List
-      - img
-      - text: Animator
-      - img
-      - text: Region List
-      - img
-      - button ""
-      - button ""
-      - button ""
-      - button "Maximise":
-        - img
-      - heading "No file loaded" [level=4]
-      - text: Load a file using the menu
-      - heading "No file loaded" [level=4]
-      - text: Load a file using the menu Image
-      - combobox [disabled]:
-        - option "Active" [selected]
-      - img "Open dropdown"
-      - text: Region
-      - combobox [disabled]:
-        - option "Active" [selected]
-      - img "Open dropdown"
-      - img
-      - text: Image
-      - combobox [disabled]:
-        - option "Active" [selected]
-      - img "Open dropdown"
-      - text: Region
-      - combobox [disabled]:
-        - option "Active" [selected]
-      - img "Open dropdown"
-      - img
-      - heading "No file loaded" [level=4]
-      - text: "Load a file using the menu No image loaded Render Configuration X Profile: Cursor Y Profile: Cursor Image List Animator Region List"
-      `);
-
-        await page.getByRole('menuitem', { name: 'View' }).click();
-        await page.getByRole('menuitem', { name: 'Layout' }).click();
-        await page.getByRole('button', { name: 'Apply' }).nth(1).click();
-        await page.getByTestId('layout-dialog-header-close-button').click();
-        await expect(page.locator('#root')).toMatchAriaSnapshot(`
-        - menu:
-            - menuitem "File"
-        - menu:
-            - menuitem "View"
-        - menu:
-            - menuitem "Widgets"
-        - menu:
-            - menuitem "Snippets"
-        - menu:
-            - menuitem "Help"
-        - button [disabled]
-        - button [disabled]:
-            - img
-        - button [disabled]
-        - button [disabled]
-        - button [disabled]
-        - button [disabled]:
-            - img
-        - button [disabled]
-        - button:
-            - img
-        - button
-        - button:
-            - img
-        - button:
-            - img
-        - button
-        - button
-        - button
-        - button
-        - button
-        - button:
-            - img
-        - button
-        - button
-        - button:
-            - img
-        - button:
-            - img
-        - button:
-            - img
-        - button [disabled]
-        - button
-        - button [disabled]:
-            - img
-        - button [disabled]:
-            - img
-        - button [disabled]:
-            - img: xy
-        - button
-        - button
-        - text: FindBorderBarSize No image loaded
-        - button ""
-        - button "" [disabled]
-        - button ""
-        - button "" [disabled]
-        - button ""
-        - button ""
-        - button "Pop out to a new window":
-            - img
-        - button "Maximise":
-            - img
-        - text: Animator
-        - img
-        - text: Render Configuration
-        - img
-        - text: Region List
-        - img
-        - text: Image List
-        - img
-        - button ""
-        - button ""
-        - button "Maximise":
-            - img
-        - text: "X Profile: Cursor"
-        - img
-        - button ""
-        - button ""
-        - button ""
-        - button "Maximise":
-            - img
-        - text: "Y Profile: Cursor"
-        - img
-        - button ""
-        - button ""
-        - button ""
-        - button "Maximise":
-            - img
-        - text: Z Profile
-        - img
-        - button ""
-        - button ""
-        - button ""
-        - button "Maximise":
-            - img
-        - heading "No file loaded" [level=4]
-        - text: Load a file using the menu
-        - heading "No file loaded" [level=4]
-        - text: Load a file using the menu Image
-        - combobox [disabled]:
-            - option "Active" [selected]
-        - img "Open dropdown"
-        - text: Region
-        - combobox [disabled]:
-            - option "Active" [selected]
-        - img "Open dropdown"
-        - img
-        - text: Image
-        - combobox [disabled]:
-            - option "Active" [selected]
-        - img "Open dropdown"
-        - text: Region
-        - combobox [disabled]:
-            - option "Active" [selected]
-        - img "Open dropdown"
-        - img
-        - checkbox "Image" [disabled]
-        - text: Image
-        - button "Active" [disabled]
-        - checkbox "Region" [disabled]
-        - text: Region
-        - button "Active" [disabled]
-        - checkbox "Statistic" [disabled]
-        - text: Statistic
-        - button "Mean" [disabled]
-        - checkbox "Polarization" [disabled]
-        - text: Polarization
-        - button "Current" [disabled]
-        - button:
-            - img
-        - button:
-            - img
-        - button:
-            - img: z
-        - img
-        - separator "horizontal divider 1"
-        - text: "No image loaded Animator Render Configuration Region List Image List X Profile: Cursor Y Profile: Cursor Z Profile"
-        `);
-
-        await page.getByRole('menuitem', { name: 'View' }).click();
-        await page.getByRole('menuitem', { name: 'Layout' }).click();
-        await page.getByRole('button', { name: 'Apply' }).nth(2).click();
-        await page.getByTestId('layout-dialog-header-close-button').click();
-        await expect(page.locator('#root')).toMatchAriaSnapshot(`
-            - menu:
-            - menuitem "File"
-            - menu:
-            - menuitem "View"
-            - menu:
-            - menuitem "Widgets"
-            - menu:
-            - menuitem "Snippets"
-            - menu:
-            - menuitem "Help"
-            - button [disabled]
-            - button [disabled]:
-            - img
-            - button [disabled]
-            - button [disabled]
-            - button [disabled]
-            - button [disabled]:
-            - img
-            - button [disabled]
-            - button:
-            - img
-            - button
-            - button:
-            - img
-            - button:
-            - img
-            - button
-            - button
-            - button
-            - button
-            - button
-            - button:
-            - img
-            - button
-            - button
-            - button:
-            - img
-            - button:
-            - img
-            - button:
-            - img
-            - button [disabled]
-            - button
-            - button [disabled]:
-            - img
-            - button [disabled]:
-            - img
-            - button [disabled]:
-            - img: xy
-            - button
-            - button
-            - text: FindBorderBarSize No image loaded
-            - button ""
-            - button "" [disabled]
-            - button ""
-            - button "" [disabled]
-            - button ""
-            - button ""
-            - button "Pop out to a new window":
-            - img
-            - button "Maximise":
-            - img
-            - text: Animator
-            - img
-            - text: Render Configuration
-            - img
-            - text: Region List
-            - img
-            - text: Image List
-            - img
-            - button ""
-            - button ""
-            - button "Maximise":
-            - img
-            - text: Z Profile
-            - img
-            - button ""
-            - button ""
-            - button ""
-            - button "Maximise":
-            - img
-            - text: Statistics
-            - img
-            - button ""
-            - button ""
-            - button "Maximise":
-            - img
-            - heading "No file loaded" [level=4]
-            - text: Load a file using the menu
-            - heading "No file loaded" [level=4]
-            - text: Load a file using the menu
-            - checkbox "Image" [disabled]
-            - text: Image
-            - button "Active" [disabled]
-            - checkbox "Region" [disabled]
-            - text: Region
-            - button "Active" [disabled]
-            - checkbox "Statistic" [disabled]
-            - text: Statistic
-            - button "Mean" [disabled]
-            - checkbox "Polarization" [disabled]
-            - text: Polarization
-            - button "Current" [disabled]
-            - button:
-            - img
-            - button:
-            - img
-            - button:
-            - img: z
-            - img
-            - separator "horizontal divider 1"
-            - text: Image
-            - combobox [disabled]:
-            - option "Active" [selected]
-            - img "Open dropdown"
-            - text: Region
-            - combobox [disabled]:
-            - option "Active" [selected]
-            - img "Open dropdown"
-            - text: Polarization
-            - combobox [disabled]:
-            - option "Current" [selected]
-            - img "Open dropdown"
-            - heading "No stats data" [level=4]
-            - text: Select a valid region from the dropdown No image loaded Animator Render Configuration Region List Image List Z Profile Statistics
-            `);
-
-        await page.getByRole('menuitem', { name: 'View' }).click();
-        await page.getByRole('menuitem', { name: 'Layout' }).click();
-        await page.getByRole('button', { name: 'Apply' }).nth(3).click();
-        await page.getByTestId('layout-dialog-header-close-button').click();
-        await expect(page.locator('#root')).toMatchAriaSnapshot(`
-        - menu:
-        - menuitem "File"
-        - menu:
-        - menuitem "View"
-        - menu:
-        - menuitem "Widgets"
-        - menu:
-        - menuitem "Snippets"
-        - menu:
-        - menuitem "Help"
-        - button [disabled]
-        - button [disabled]:
-        - img
-        - button [disabled]
-        - button [disabled]
-        - button [disabled]
-        - button [disabled]:
-        - img
-        - button [disabled]
-        - button:
-        - img
-        - button
-        - button:
-        - img
-        - button:
-        - img
-        - button
-        - button
-        - button
-        - button
-        - button
-        - button:
-        - img
-        - button
-        - button
-        - button:
-        - img
-        - button:
-        - img
-        - button:
-        - img
-        - button [disabled]
-        - button
-        - button [disabled]:
-        - img
-        - button [disabled]:
-        - img
-        - button [disabled]:
-        - img: xy
-        - button
-        - button
-        - text: FindBorderBarSize No image loaded
-        - button ""
-        - button "" [disabled]
-        - button ""
-        - button "" [disabled]
-        - button ""
-        - button ""
-        - button "Pop out to a new window":
-        - img
-        - button "Maximise":
-        - img
-        - text: Render Configuration
-        - img
-        - text: Region List
-        - img
-        - text: Animator
-        - img
-        - text: Image List
-        - img
-        - button ""
-        - button ""
-        - button ""
-        - button "Maximise":
-        - img
-        - text: "X Profile: Cursor"
-        - img
-        - button ""
-        - button ""
-        - button ""
-        - button "Maximise":
-        - img
-        - text: "Y Profile: Cursor"
-        - img
-        - button ""
-        - button ""
-        - button ""
-        - button "Maximise":
-        - img
-        - text: Statistics
-        - img
-        - button ""
-        - button ""
-        - button "Maximise":
-        - img
-        - heading "No file loaded" [level=4]
-        - text: Load a file using the menu
-        - heading "No file loaded" [level=4]
-        - text: Load a file using the menu Image
-        - combobox [disabled]:
-        - option "Active" [selected]
-        - img "Open dropdown"
-        - text: Region
-        - combobox [disabled]:
-        - option "Active" [selected]
-        - img "Open dropdown"
-        - img
-        - text: Image
-        - combobox [disabled]:
-        - option "Active" [selected]
-        - img "Open dropdown"
-        - text: Region
-        - combobox [disabled]:
-        - option "Active" [selected]
-        - img "Open dropdown"
-        - img
-        - text: Image
-        - combobox [disabled]:
-        - option "Active" [selected]
-        - img "Open dropdown"
-        - text: Region
-        - combobox [disabled]:
-        - option "Active" [selected]
-        - img "Open dropdown"
-        - text: Polarization
-        - combobox [disabled]:
-        - option "Current" [selected]
-        - img "Open dropdown"
-        - heading "No stats data" [level=4]
-        - text: "Select a valid region from the dropdown No image loaded Render Configuration Region List Animator Image List X Profile: Cursor Y Profile: Cursor Statistics"
-        `);
-
-        await page.getByRole('menuitem', { name: 'View' }).click();
-        await page.getByRole('menuitem', { name: 'Layout' }).click();
-        await page.getByRole('button', { name: 'Apply' }).first().click();
-        await page.getByTestId('layout-dialog-header-close-button').click();
-        await page
-            .locator(
-                'div:nth-child(3) > div > .flexlayout__tabset > .flexlayout__tabset_tabbar_outer > .flexlayout__mini_scrollbar_container > .flexlayout__tabset_tabbar_inner > .flexlayout__tabset_tabbar_inner_tab_container > .flexlayout__tab_button > .flexlayout__tab_button_trailing > svg > path:nth-child(2)',
-            )
-            .first()
-            .click();
-        await page
-            .locator(
-                'div:nth-child(3) > div > .flexlayout__tabset > .flexlayout__tabset_tabbar_outer > .flexlayout__mini_scrollbar_container > .flexlayout__tabset_tabbar_inner > .flexlayout__tabset_tabbar_inner_tab_container > .flexlayout__tab_button > .flexlayout__tab_button_trailing > svg',
-            )
-            .first()
-            .click();
-        await page
-            .locator('.flexlayout__tab_button_trailing > svg')
-            .first()
-            .click();
-        await expect(page.locator('#root')).toMatchAriaSnapshot(`
-        - menu:
-            - menuitem "File"
-        - menu:
-            - menuitem "View"
-        - menu:
-            - menuitem "Widgets"
-        - menu:
-            - menuitem "Snippets"
-        - menu:
-            - menuitem "Help"
-        - button [disabled]
-        - button [disabled]:
-            - img
-        - button [disabled]
-        - button [disabled]
-        - button [disabled]
-        - button [disabled]:
-            - img
-        - button [disabled]
-        - button:
-            - img
-        - button
-        - button:
-            - img
-        - button:
-            - img
-        - button
-        - button
-        - button
-        - button
-        - button
-        - button:
-            - img
-        - button
-        - button
-        - button:
-            - img
-        - button:
-            - img
-        - button:
-            - img
-        - button [disabled]
-        - button
-        - button [disabled]:
-            - img
-        - button [disabled]:
-            - img
-        - button [disabled]:
-            - img: xy
-        - button
-        - button
-        - text: FindBorderBarSize No image loaded
-        - button ""
-        - button "" [disabled]
-        - button ""
-        - button "" [disabled]
-        - button ""
-        - button ""
-        - button "Pop out to a new window":
-            - img
-        - button "Maximise":
-            - img
-        - text: Image List
-        - img
-        - text: Animator
-        - img
-        - text: Region List
-        - img
-        - button ""
-        - button ""
-        - button ""
-        - button "Maximise":
-            - img
-        - heading "No file loaded" [level=4]
-        - text: Load a file using the menu
-        - heading "No file loaded" [level=4]
-        - text: Load a file using the menu No image loaded Image List Animator Region List
-    `);
-    });
-
-    test('Drag and dock', async ({ page }) => {
-        const devPage = new PlaywrightDevPage(page);
-        await devPage.goto();
-        await page
-            .getByTestId('file-browser-dialog-header-close-button')
-            .click();
-
-        await page.locator('#SpatialProfilerButton').click();
-        await page.locator('#SpectralProfilerButton').click();
-        const xProfiler = page
-            .locator('div')
-            .filter({ hasText: /^X Profile: Cursor$/ })
-            .nth(4);
-        await devPage.dragAndDock(
-            page.locator('#SpectralProfilerButton'),
-            xProfiler,
+const tabGroups = (page: Page) =>
+    page
+        .locator('.flexlayout__tabset')
+        .evaluateAll((sets) =>
+            sets.map((set) =>
+                Array.from(
+                    set.querySelectorAll('.flexlayout__tab_button'),
+                    (tab) => tab.textContent?.trim(),
+                ),
+            ),
         );
 
-        await expect(page.locator('#root')).toMatchAriaSnapshot(`
-      - menu:
-        - menuitem "File"
-      - menu:
-        - menuitem "View"
-      - menu:
-        - menuitem "Widgets"
-      - menu:
-        - menuitem "Snippets"
-      - menu:
-        - menuitem "Help"
-      - button [disabled]
-      - button [disabled]:
-        - img
-      - button [disabled]
-      - button [disabled]
-      - button [disabled]
-      - button [disabled]:
-        - img
-      - button [disabled]
-      - button:
-        - img
-      - button
-      - button:
-        - img
-      - button:
-        - img
-      - button
-      - button
-      - button
-      - button
-      - button
-      - button:
-        - img
-      - button
-      - button
-      - button:
-        - img
-      - button:
-        - img
-      - button:
-        - img
-      - button [disabled]
-      - button
-      - button [disabled]:
-        - img
-      - button [disabled]:
-        - img
-      - button [disabled]:
-        - img: xy
-      - button
-      - button
-      - text: FindBorderBarSize No image loaded
-      - button ""
-      - button "" [disabled]
-      - button ""
-      - button "" [disabled]
-      - button ""
-      - button ""
-      - button "Pop out to a new window":
-        - img
-      - button "Maximise":
-        - img
-      - text: Render Configuration
-      - img
-      - button ""
-      - button ""
-      - button ""
-      - button "Maximise":
-        - img
-      - text: "X Profile: Cursor"
-      - img
-      - text: Z Profile
-      - img
-      - button ""
-      - button ""
-      - button ""
-      - button "Maximise":
-        - img
-      - text: "Y Profile: Cursor"
-      - img
-      - button ""
-      - button ""
-      - button ""
-      - button "Maximise":
-        - img
-      - text: Image List
-      - img
-      - text: Animator
-      - img
-      - text: Region List
-      - img
-      - button ""
-      - button ""
-      - button ""
-      - button "Maximise":
-        - img
-      - heading "No file loaded" [level=4]
-      - text: Load a file using the menu
-      - heading "No file loaded" [level=4]
-      - text: Load a file using the menu Image
-      - combobox [disabled]:
-        - option "Active" [selected]
-      - img "Open dropdown"
-      - text: Region
-      - combobox [disabled]:
-        - option "Active" [selected]
-      - img "Open dropdown"
-      - img
-      - heading "No file loaded" [level=4]
-      - text: Load a file using the menu
-      - checkbox "Image" [disabled]
-      - text: Image
-      - button "Active" [disabled]
-      - checkbox "Region" [disabled]
-      - text: Region
-      - button "Active" [disabled]
-      - checkbox "Statistic" [disabled]
-      - text: Statistic
-      - button "Mean" [disabled]
-      - checkbox "Polarization" [disabled]
-      - text: Polarization
-      - button "Current" [disabled]
-      - button:
-        - img
-      - button:
-        - img
-      - button:
-        - img: z
-      - img
-      - separator "horizontal divider 1"
-      - text: "No image loaded Render Configuration X Profile: Cursor Z Profile Y Profile: Cursor Image List Animator Region List X Profile: Cursor Image"
-      - combobox [disabled]:
-        - option "Active" [selected]
-      - img "Open dropdown"
-      - text: Region
-      - combobox [disabled]:
-        - option "Active" [selected]
-      - img "Open dropdown"
-      - img
-      - text: Z Profile
-      - checkbox "Image" [disabled]
-      - text: Image
-      - button "Active" [disabled]
-      - checkbox "Region" [disabled]
-      - text: Region
-      - button "Active" [disabled]
-      - checkbox "Statistic" [disabled]
-      - text: Statistic
-      - button "Mean" [disabled]
-      - checkbox "Polarization" [disabled]
-      - text: Polarization
-      - button "Current" [disabled]
-      - button:
-        - img
-      - button:
-        - img
-      - button:
-        - img: z
-      - img
-      - separator "horizontal divider 1"
-      `);
+const layoutColumns = (page: Page) =>
+    page.evaluate(() => {
+        const model = (window as any).app.layoutStore.layoutModel.toJson();
+        return model.layout.children.map((column: any) =>
+            column.type === 'tabset'
+                ? column.children.map((tab: any) => tab.component)
+                : column.children.flatMap((set: any) =>
+                      set.children.map((tab: any) => tab.component),
+                  ),
+        );
     });
 
-    test('Drag to new column', async ({ page }) => {
-        const devPage = new PlaywrightDevPage(page);
-        await devPage.goto();
-        await page
-            .getByTestId('file-browser-dialog-header-close-button')
-            .click();
-
-        const source = page.locator('#SpectralProfilerButton');
-        const steps = 5;
-        const viewportSize = page.viewportSize();
-        await source.hover();
-        await page.mouse.down();
-        await page.mouse.move(5, (viewportSize!.height - 40) / 2, {
-            steps: steps,
+const rasterRgb = (page: Page) =>
+    page
+        .locator('#raster-canvas')
+        .first()
+        .evaluate((source: HTMLCanvasElement) => {
+            const copy = document.createElement('canvas');
+            copy.width = source.width;
+            copy.height = source.height;
+            const context = copy.getContext('2d')!;
+            context.drawImage(source, 0, 0);
+            return Array.from(
+                context.getImageData(
+                    Math.floor(copy.width / 2),
+                    Math.floor(copy.height / 2),
+                    1,
+                    1,
+                ).data,
+            ).slice(0, 3);
         });
-        await page.mouse.up();
+
+async function boot(page: Page) {
+    const carta = new PlaywrightDevPage(page);
+    await carta.goto();
+    await page.getByTestId('file-browser-dialog-header-close-button').click();
+    return carta;
+}
+
+async function openLayout(page: Page) {
+    await page.getByRole('menuitem', { name: 'View' }).click();
+    await page.getByRole('menuitem', { name: 'Layout' }).click();
+    return page.getByTestId('layout-table');
+}
+
+test.describe('Layout', () => {
+    test('preset layouts place the viewer and widgets in the expected groups', async ({
+        page,
+    }) => {
+        const carta = await boot(page);
+        const presets = [
+            {
+                name: LayoutName.Default,
+                groups: [
+                    ['No image loaded'],
+                    ['Render Configuration'],
+                    ['X Profile: Cursor'],
+                    ['Y Profile: Cursor'],
+                    ['Image List', 'Animator', 'Region List'],
+                ],
+            },
+            {
+                name: LayoutName.CubeView,
+                groups: [
+                    ['No image loaded'],
+                    [
+                        'Animator',
+                        'Render Configuration',
+                        'Region List',
+                        'Image List',
+                    ],
+                    ['X Profile: Cursor'],
+                    ['Y Profile: Cursor'],
+                    ['Z Profile'],
+                ],
+            },
+            {
+                name: LayoutName.CubeAnalysis,
+                groups: [
+                    ['No image loaded'],
+                    [
+                        'Animator',
+                        'Render Configuration',
+                        'Region List',
+                        'Image List',
+                    ],
+                    ['Z Profile'],
+                    ['Statistics'],
+                ],
+            },
+            {
+                name: LayoutName.ContinuumAnalysis,
+                groups: [
+                    ['No image loaded'],
+                    [
+                        'Render Configuration',
+                        'Region List',
+                        'Animator',
+                        'Image List',
+                    ],
+                    ['X Profile: Cursor'],
+                    ['Y Profile: Cursor'],
+                    ['Statistics'],
+                ],
+            },
+        ];
+
+        for (const preset of presets) {
+            await carta.applyLayout(preset.name);
+            await expect.poll(() => tabGroups(page)).toEqual(preset.groups);
+            await expect(
+                page.getByTestId('image-view-header-title'),
+            ).toContainText('No image loaded');
+        }
+    });
+
+    test('docking and a new column preserve the viewer and profiler', async ({
+        page,
+    }) => {
+        const carta = await boot(page);
+        await carta.loadImage('cube.fits');
+        await carta.applyLayout(LayoutName.CubeView);
+        await expect(page.getByTestId('image-view-header-title')).toContainText(
+            'cube.fits',
+        );
+        await expect(page.locator('#raster-canvas').first()).toBeVisible();
+        await expect(page.locator('#raster-canvas').first()).toHaveScreenshot(
+            'layout-cube-raster.png',
+            { maxDiffPixelRatio: 0.015 },
+        );
+        const rgb = await rasterRgb(page);
+        for (const [channel, min, max] of [
+            [0, 235, 250],
+            [1, 210, 235],
+            [2, 65, 105],
+        ]) {
+            expect(rgb[channel]).toBeGreaterThanOrEqual(min);
+            expect(rgb[channel]).toBeLessThanOrEqual(max);
+        }
+
+        await carta.dragAndDock(
+            page.getByTestId('spectral-profiler-0-header-title'),
+            page.getByTestId('spatial-profiler-0-header-title'),
+        );
+        await expect
+            .poll(() => tabGroups(page))
+            .toContainEqual(['Z Profile', 'X Profile: Cursor']);
+        await page.getByText('Z Profile', { exact: true }).first().click();
+        await expect(
+            page.getByTestId('spectral-profiler-0-content'),
+        ).toBeVisible();
+        expect(await pixel(page, 8, 8)).toBeCloseTo(1.5);
+        await expect(
+            page
+                .getByTestId('spectral-profiler-0-content')
+                .locator('.line-plot-component'),
+        ).toHaveScreenshot('layout-z-profile.png');
+
+        await carta.dragToNewColumn(
+            page.getByTestId('spectral-profiler-0-header-title'),
+        );
+        await expect
+            .poll(() => layoutColumns(page))
+            .toEqual([
+                ['spectral-profiler'],
+                [
+                    'image-view',
+                    'animator',
+                    'render-config',
+                    'region-list',
+                    'layer-list',
+                ],
+                ['spatial-profiler', 'spatial-profiler'],
+            ]);
+        await expect(page.getByTestId('image-view-header-title')).toContainText(
+            'cube.fits',
+        );
+        await expect(
+            page.getByTestId('spectral-profiler-0-content'),
+        ).toBeVisible();
+    });
+
+    test('saved layout validates names and can be applied, renamed, and deleted', async ({
+        page,
+    }) => {
+        await boot(page);
+        const table = await openLayout(page);
+        const name = table.getByPlaceholder('New layout name');
+        const save = table.getByRole('button', { name: 'Save' });
+        const previousRun = table
+            .getByRole('row')
+            .filter({ hasText: 'Layout E2E' });
+        if (await previousRun.count()) {
+            await previousRun.getByRole('button').nth(2).click();
+            await page.getByRole('button', { name: 'OK' }).click();
+            await expect(previousRun).toHaveCount(0);
+        }
+        for (const preset of [
+            'Default',
+            'Cube View',
+            'Cube Analysis',
+            'Continuum Analysis',
+        ]) {
+            const buttons = table
+                .getByRole('row')
+                .filter({ hasText: preset })
+                .getByRole('button');
+            await expect(buttons.nth(1)).toBeDisabled();
+            await expect(buttons.nth(2)).toBeDisabled();
+        }
+        await expect(save).toBeDisabled();
+        await name.fill('bad/name');
+        await expect(save).toBeDisabled();
+        await name.fill('Default');
+        await save.click();
+        await expect(
+            page.getByText('Layout name cannot be the same as system presets.'),
+        ).toBeVisible();
+        await page.getByRole('button', { name: 'OK' }).click();
+
+        await name.fill('Layout E2E');
+        await save.click();
+        const row = table.getByRole('row').filter({ hasText: 'Layout E2E' });
+        await expect(row).toBeVisible();
+        await name.fill('Layout E2E');
+        await save.click();
+        await expect(
+            page.getByText(
+                'Are you sure to overwrite the existing layout Layout E2E?',
+            ),
+        ).toBeVisible();
+        await page.getByRole('button', { name: 'Cancel' }).click();
+        await expect(row).toBeVisible();
+
+        await table
+            .getByRole('row')
+            .filter({ hasText: 'Cube View' })
+            .getByRole('button', { name: 'Apply' })
+            .click();
+        await expect.poll(() => tabGroups(page)).toContainEqual(['Z Profile']);
+        await row.getByRole('button', { name: 'Apply' }).click();
+        await expect
+            .poll(() =>
+                page.evaluate(
+                    () => (window as any).app.layoutStore.currentLayoutName,
+                ),
+            )
+            .toBe('Layout E2E');
+        await expect
+            .poll(() => tabGroups(page))
+            .toContainEqual(['Image List', 'Animator', 'Region List']);
+
+        await row.getByRole('button').nth(1).click();
+        const rename = table.getByPlaceholder('Layout E2E');
+        await rename.fill('bad/name');
+        await expect(
+            table.getByRole('button', { name: 'Rename' }),
+        ).toBeDisabled();
+        await rename.fill('Layout E2E renamed');
+        await table.getByRole('button', { name: 'Rename' }).click();
+        const renamedRow = table
+            .getByRole('row')
+            .filter({ hasText: 'Layout E2E renamed' });
+        await expect(renamedRow).toBeVisible();
+        await renamedRow.getByRole('button').nth(2).click();
+        await expect(
+            page.getByText('Do you delete layout Layout E2E renamed?'),
+        ).toBeVisible();
+        await page.getByRole('button', { name: 'Cancel' }).click();
+        await expect(renamedRow).toBeVisible();
+        await renamedRow.getByRole('button').nth(2).click();
+        await page.getByRole('button', { name: 'OK' }).click();
+        await expect(renamedRow).toHaveCount(0);
+    });
+
+    test('dynamic layouts switch between 2D and 3D images', async ({
+        page,
+    }) => {
+        test.setTimeout(90000);
+        const carta = new PlaywrightDevPage(page);
+        await carta.goto();
+        await carta.loadImage('m16_f0444w.fits');
+        await expect
+            .poll(() =>
+                page.evaluate(
+                    () => (window as any).app.activeFrame.dynamicLayout.ctype,
+                ),
+            )
+            .toBe('XY,XY');
+
+        const table = await openLayout(page);
+        const oldNames: string[] = await page.evaluate(
+            () => (window as any).app.layoutStore.userLayoutNames,
+        );
+        for (const name of oldNames) {
+            const row = table
+                .getByRole('cell', { name, exact: true })
+                .locator('..');
+            await row.getByRole('button').nth(2).click();
+            await page
+                .getByRole('alertdialog')
+                .getByRole('button', { name: 'OK' })
+                .click();
+            await expect(row).toHaveCount(0);
+        }
+        await expect
+            .poll(() =>
+                page.evaluate(
+                    () => (window as any).app.layoutStore.userLayoutNames,
+                ),
+            )
+            .toEqual([]);
+        await table
+            .getByRole('row', { name: 'Default Apply' })
+            .getByRole('button', { name: 'Apply' })
+            .click();
+        await page.getByTestId('layout-dialog-header-close-button').click();
+
+        await page.getByRole('menuitem', { name: 'File' }).click();
+        await page.getByRole('menuitem', { name: 'Preferences' }).click();
+        const preferences = page.getByRole('dialog', { name: 'Preferences' });
+        await preferences.getByRole('tab', { name: 'Layout' }).click();
+        await preferences
+            .locator('.bp6-form-group')
+            .filter({ hasText: 'Initial layout' })
+            .getByRole('combobox')
+            .selectOption({ label: 'Default' });
+        const dynamicPreference = preferences
+            .locator('.bp6-form-group')
+            .filter({ hasText: 'Dynamic layout' });
+        if (!(await dynamicPreference.getByRole('checkbox').isChecked())) {
+            await dynamicPreference.locator('.bp6-control-indicator').click();
+        }
+        await expect
+            .poll(() =>
+                page.evaluate(
+                    () =>
+                        (window as any).app.preferenceStore
+                            .isDynamicLayoutEnabled,
+                ),
+            )
+            .toBe(true);
+        await preferences.getByRole('button', { name: 'Close' }).click();
+
+        const saveDynamicLayout = async (
+            preset: LayoutName,
+            name: string,
+            ctype: string,
+        ) => {
+            await carta.applyLayout(preset);
+            const layoutTable = await openLayout(page);
+            const saveRow = layoutTable.getByRole('row').first();
+            await saveRow.getByPlaceholder('New layout name').fill(name);
+            await saveRow.locator('.bp6-control-indicator').click();
+            await saveRow.getByRole('button', { name: 'Save' }).click();
+            await expect
+                .poll(() =>
+                    page.evaluate(
+                        (key) =>
+                            (window as any).app.preferenceStore
+                                .existLayoutMapping[key],
+                        ctype,
+                    ),
+                )
+                .toBe(name);
+            await expect(
+                layoutTable.getByRole('cell', { name, exact: true }),
+            ).toBeVisible();
+            await page.getByTestId('layout-dialog-header-close-button').click();
+        };
+
+        await saveDynamicLayout(
+            LayoutName.ContinuumAnalysis,
+            '2D Image',
+            'XY,XY',
+        );
+        await carta.loadImage('cube.fits');
+        await expect
+            .poll(() =>
+                page.evaluate(
+                    () => (window as any).app.activeFrame.dynamicLayout.ctype,
+                ),
+            )
+            .toBe('XY,XY,Z');
+        await saveDynamicLayout(LayoutName.CubeAnalysis, '3D Cube', 'XY,XY,Z');
+        await openLayout(page);
+        await page
+            .getByRole('dialog', { name: 'Layout' })
+            .getByRole('tab', { name: 'Dynamic Layout' })
+            .click();
+        const mappedNames = await page
+            .getByTestId('dynamic-layout-table')
+            .getByRole('combobox')
+            .evaluateAll((selects) =>
+                selects
+                    .map((select) => (select as HTMLSelectElement).value)
+                    .sort(),
+            );
+        expect(mappedNames).toEqual(['2D Image', '3D Cube']);
+        await page.getByTestId('layout-dialog-header-close-button').click();
+
+        await carta.loadImage('m16_f0444w.fits');
+        await expect
+            .poll(() =>
+                page.evaluate(
+                    () => (window as any).app.layoutStore.currentLayoutName,
+                ),
+            )
+            .toBe('2D Image');
+        await expect(page.getByTestId('image-view-header-title')).toContainText(
+            'm16_f0444w.fits',
+        );
+        await expect(page.getByTestId('stats-0-header-title')).toContainText(
+            'Statistics',
+        );
+        await expect(
+            page.getByTestId('spatial-profiler-0-header-title'),
+        ).toContainText('X Profile');
+        await expect(page.locator('#raster-canvas').first()).toBeVisible();
+        await expect(page.locator('#raster-canvas').first()).toHaveScreenshot(
+            'dynamic-2d-raster.png',
+            { maxDiffPixelRatio: 0.02 },
+        );
+        const rgb2d = await rasterRgb(page);
+        for (const [channel, min, max] of [
+            [0, 240, 255],
+            [1, 240, 255],
+            [2, 140, 190],
+        ]) {
+            expect(rgb2d[channel]).toBeGreaterThanOrEqual(min);
+            expect(rgb2d[channel]).toBeLessThanOrEqual(max);
+        }
+
+        await carta.loadImage('cube.fits');
+        await expect
+            .poll(() =>
+                page.evaluate(
+                    () => (window as any).app.layoutStore.currentLayoutName,
+                ),
+            )
+            .toBe('3D Cube');
+        await expect(page.getByTestId('image-view-header-title')).toContainText(
+            'cube.fits',
+        );
+        await expect(
+            page.getByTestId('spectral-profiler-0-header-title'),
+        ).toContainText('Z Profile');
+        expect(await pixel(page, 8, 8)).toBeCloseTo(1.5);
+        await expect(
+            page
+                .getByTestId('spectral-profiler-0-content')
+                .locator('.line-plot-component'),
+        ).toHaveScreenshot('dynamic-3d-profile.png', {
+            maxDiffPixelRatio: 0.02,
+        });
+        const rgb3d = await rasterRgb(page);
+        for (const [channel, min, max] of [
+            [0, 235, 250],
+            [1, 210, 235],
+            [2, 65, 105],
+        ]) {
+            expect(rgb3d[channel]).toBeGreaterThanOrEqual(min);
+            expect(rgb3d[channel]).toBeLessThanOrEqual(max);
+        }
+
+        await page.reload();
+        await expect(page.locator('.root-menu')).toBeVisible();
+        await expect
+            .poll(() =>
+                page.evaluate(
+                    () => (window as any).app.layoutStore.userLayoutNames,
+                ),
+            )
+            .toEqual(['2D Image', '3D Cube']);
+        await expect
+            .poll(() =>
+                page.evaluate(
+                    () =>
+                        (window as any).app.preferenceStore.existLayoutMapping,
+                ),
+            )
+            .toEqual({
+                'XY,XY': '2D Image',
+                'XY,XY,Z': '3D Cube',
+            });
     });
 });
 
-test.describe('Menu bar', () => {
-    test('Menu bar items', async ({ page }) => {
-        const carta = new PlaywrightDevPage(page);
+test('menu bar reflects whether an image is loaded', async ({ page }) => {
+    const carta = new PlaywrightDevPage(page);
+    await carta.goto();
+    await page.getByRole('menuitem', { name: 'File' }).click();
+    await expect(
+        page.getByRole('menuitem', { name: /Open Image/ }),
+    ).toBeEnabled();
+    await expect(
+        page.getByRole('menuitem', { name: /Append Image/ }),
+    ).toBeDisabled();
+    await expect(
+        page.getByRole('menuitem', { name: /Save Image/ }),
+    ).toBeDisabled();
+    for (const name of [
+        /Close Image/,
+        'Multi-Color Blending',
+        'Import Regions',
+        'Export Regions',
+        /Import Catalog/,
+    ]) {
+        await expect(page.getByRole('menuitem', { name })).toBeDisabled();
+    }
+    for (const name of ['Open Workspace', 'Save Workspace', 'Preferences']) {
+        await expect(page.getByRole('menuitem', { name })).toBeEnabled();
+    }
+    await page.getByRole('menuitem', { name: 'View' }).click();
+    for (const name of ['Layout', 'Online Data Query', 'Code Snippets']) {
+        await expect(page.getByRole('menuitem', { name })).toBeEnabled();
+    }
+    for (const name of [
+        'File Header',
+        'Contours',
+        'Vector Overlay',
+        'Image Fitting',
+    ]) {
+        await expect(page.getByRole('menuitem', { name })).toBeDisabled();
+    }
 
-        // Boot up CARTA application
-        await carta.goto();
-
-        await expect(page.locator('#root')).toMatchAriaSnapshot(`
-          - menu:
-            - menuitem "File"
-          - menu:
-            - menuitem "View"
-          - menu:
-            - menuitem "Widgets"
-          - menu:
-            - menuitem "Snippets"
-          - menu:
-            - menuitem "Help"
-          - button [disabled]
-          - button [disabled]:
-            - img
-          - button [disabled]
-          - button [disabled]
-          - button [disabled]
-          - button [disabled]:
-            - img
-          - button [disabled]
-          - button:
-            - img
-          - button
-          - button:
-            - img
-          - button:
-            - img
-          - button
-          - button
-          - button
-          - button
-          - button
-          - button:
-            - img
-          - button
-          - button
-          - button:
-            - img
-          - button:
-            - img
-          - button:
-            - img
-          - button [disabled]
-          - button
-          - button [disabled]:
-            - img
-          - button [disabled]:
-            - img
-          - button [disabled]:
-            - img: xy
-          - button
-          - button
-          `);
-
-        await page.getByRole('menuitem', { name: 'File' }).click();
-        await expect(page.getByText('Open Imagealt + OAppend'))
-            .toMatchAriaSnapshot(`
-          - menu:
-            - menuitem "Open Image alt + O"
-            - menuitem "Append Image alt + L" [disabled]
-            - menuitem "Save Image alt + S" [disabled]
-            - menuitem "Close Image alt + W" [disabled]
-            - menuitem "Multi-Color Blending" [disabled]
-            - separator
-            - menuitem "Import Regions" [disabled]
-            - menuitem "Export Regions" [disabled]
-            - menuitem "Import Catalog alt + G" [disabled]
-            - menuitem "Export Image Open sub menu":
-              - text: ""
-              - img "Open sub menu"
-            - separator
-            - menuitem "Open Workspace"
-            - menuitem "Save Workspace"
-            - separator
-            - menuitem "Preferences"
-            - menuitem "Server Open sub menu":
-              - text: ""
-              - img "Open sub menu"
-        `);
-        await page.getByRole('menuitem', { name: 'View' }).click();
-        await expect(page.getByText('ThemeOpen sub menuLayoutFile'))
-            .toMatchAriaSnapshot(`
-          - menu:
-            - menuitem "Theme Open sub menu":
-              - text: ""
-              - img "Open sub menu"
-            - menuitem "Layout"
-            - menuitem "File Header" [disabled]
-            - menuitem "Contours" [disabled]
-            - menuitem "Vector Overlay" [disabled]
-            - menuitem "Image Fitting" [disabled]
-            - menuitem "Online Data Query"
-            - menuitem "Code Snippets"
-        `);
-
-        // Load test data and create regions on the first image
-        await carta.loadImage('HD163296_13CO_2-1_subimage.fits');
-
-        await expect(page.locator('#root')).toMatchAriaSnapshot(`
-          - menu:
-            - menuitem "File"
-          - menu:
-            - menuitem "View"
-          - menu:
-            - menuitem "Widgets"
-          - menu:
-            - menuitem "Snippets"
-          - menu:
-            - menuitem "Help"
-          - button
-          - button:
-            - img
-          - button
-          - button
-          - button
-          - button:
-            - img
-          - button
-          - button:
-            - img
-          - button
-          - button:
-            - img
-          - button:
-            - img
-          - button
-          - button
-          - button
-          - button
-          - button
-          - button:
-            - img
-          - button
-          - button
-          - button:
-            - img
-          - button:
-            - img
-          - button:
-            - img
-          - button
-          - button
-          - button:
-            - img
-          - button:
-            - img
-          - button:
-            - img: xy
-          - button
-          - button
-          `);
-
-        await page.getByRole('menuitem', { name: 'File' }).click();
-        await expect(page.getByText('Open Imagealt + OAppend'))
-            .toMatchAriaSnapshot(`
-          - menu:
-            - menuitem "Open Image alt + O"
-            - menuitem "Append Image alt + L"
-            - menuitem "Save Image alt + S"
-            - menuitem "Close Image alt + W"
-            - menuitem "Multi-Color Blending"
-            - separator
-            - menuitem "Import Regions"
-            - menuitem "Export Regions" [disabled]
-            - menuitem "Import Catalog alt + G"
-            - menuitem "Export Image Open sub menu":
-              - text: ""
-              - img "Open sub menu"
-            - separator
-            - menuitem "Open Workspace"
-            - menuitem "Save Workspace"
-            - separator
-            - menuitem "Preferences"
-            - menuitem "Server Open sub menu":
-              - text: ""
-              - img "Open sub menu"
-        `);
-
-        await page.getByRole('menuitem', { name: 'View' }).click();
+    await carta.loadImage('single.fits');
+    await page.getByRole('menuitem', { name: 'File' }).click();
+    for (const name of [
+        /Append Image/,
+        /Save Image/,
+        /Close Image/,
+        /Import Regions/,
+        /Import Catalog/,
+        'Multi-Color Blending',
+    ]) {
+        await expect(page.getByRole('menuitem', { name })).toBeEnabled();
+    }
+    await page.getByRole('menuitem', { name: 'View' }).click();
+    for (const name of [
+        'Layout',
+        'File Header',
+        'Contours',
+        'Vector Overlay',
+        'Image Fitting',
+        'Online Data Query',
+        'Code Snippets',
+    ]) {
+        await expect(page.getByRole('menuitem', { name })).toBeEnabled();
+    }
+    await page.getByRole('menuitem', { name: 'Widgets' }).click();
+    for (const name of [
+        'Statistics Widget',
+        'Histogram Widget',
+        'Animator Widget',
+        'Channel Map Control',
+        'Render Configuration Widget',
+        'Stokes Analysis Widget',
+        'Catalog Widget',
+        'Spectral Line Query Widget',
+        'PV Generator',
+    ]) {
+        await expect(page.getByRole('menuitem', { name })).toBeEnabled();
+    }
+    await page.getByRole('menuitem', { name: /Info Panels/ }).hover();
+    for (const name of [
+        'Region List Widget',
+        'Image List Widget',
+        'Cursor Info Widget',
+        'Log Widget',
+    ]) {
         await expect(
-            page.getByText(
-                'ThemeOpen sub menuLayoutImagesOpen sub menuFile HeaderContoursVector',
-            ),
-        ).toMatchAriaSnapshot(`
-          - menu:
-            - menuitem "Theme Open sub menu":
-              - text: ""
-              - img "Open sub menu"
-            - menuitem "Layout"
-            - menuitem "Images Open sub menu":
-              - text: ""
-              - img "Open sub menu"
-            - menuitem "File Header"
-            - menuitem "Contours"
-            - menuitem "Vector Overlay"
-            - menuitem "Image Fitting"
-            - menuitem "Online Data Query"
-            - menuitem "Code Snippets"
-        `);
-
-        await page.getByRole('menuitem', { name: 'Widgets' }).click();
+            page.getByRole('menuitem', { name, exact: true }),
+        ).toBeEnabled();
+    }
+    await page.getByRole('menuitem', { name: /Profiles/ }).hover();
+    for (const name of ['Spatial Profiler', 'Spectral Profiler']) {
         await expect(
-            page.getByRole('menu').filter({ hasText: 'Info PanelsOpen sub' }),
-        ).toMatchAriaSnapshot(`
-          - menu:
-            - menuitem "Info Panels Open sub menu":
-              - text: ""
-              - img "Open sub menu"
-            - menuitem "Profiles Open sub menu":
-              - text: ""
-              - img "Open sub menu"
-            - menuitem "Statistics Widget"
-            - menuitem "Histogram Widget"
-            - menuitem "Animator Widget"
-            - menuitem "Channel Map Control"
-            - menuitem "Render Configuration Widget"
-            - menuitem "Stokes Analysis Widget"
-            - menuitem "Catalog Widget"
-            - menuitem "Spectral Line Query Widget"
-            - menuitem "PV Generator"
-        `);
-
-        await page.getByText('Info PanelsOpen sub menu').click();
-        await expect(page.getByText('Region List WidgetImage List'))
-            .toMatchAriaSnapshot(`
-          - menu:
-            - menuitem "Region List Widget"
-            - menuitem "Image List Widget"
-            - menuitem "Cursor Info Widget"
-            - menuitem "Log Widget"
-        `);
-
-        await page.getByText('ProfilesOpen sub menu').click();
-        await expect(page.getByText('Spatial ProfilerSpectral'))
-            .toMatchAriaSnapshot(`
-          - menu:
-            - menuitem "Spatial Profiler"
-            - menuitem "Spectral Profiler"
-        `);
-
-        await page.getByRole('menuitem', { name: 'Help' }).click();
-        await expect(page.getByText('Online ManualControls and'))
-            .toMatchAriaSnapshot(`
-          - menu:
-            - menuitem "Online Manual"
-            - menuitem "Controls and Shortcuts Shift + ?"
-            - menuitem "About"
-        `);
-    });
+            page.getByRole('menuitem', { name, exact: true }),
+        ).toBeEnabled();
+    }
+    await page.getByRole('menuitem', { name: 'Help' }).click();
+    for (const name of ['Online Manual', /Controls and Shortcuts/, 'About']) {
+        await expect(page.getByRole('menuitem', { name })).toBeEnabled();
+    }
 });

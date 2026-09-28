@@ -1,30 +1,26 @@
 # Layout test plan
 
-**Source:** [`tests/Layout.spec.ts`](../tests/Layout.spec.ts) · **Cases:** 4
-
-Built-in layouts, docking and context-aware menus.
-
-## Setup and checks
-
-- Run each Playwright case in a fresh page against the configured CARTA server. Use the existing fixture and helper calls named by the source test.
-- Check the requested widget/dialog state, data or store values, and the effect in the image viewer and applicable profiler. Treat a visible canvas alone as insufficient for a numerical result.
-- For viewer or profile changes, compare a stable PNG with a reviewed baseline; inspect overlay text and numeric readouts as well.
-- For rejected input or a failed operation, verify no unwanted image is created and the user can recover. Exercise every button relevant to the scenario.
-- Referenced FITS fixtures: `HD163296_13CO_2-1_subimage.fits`.
-- Current source contains no named PNG baseline check; the table below describes intended outcomes and does not claim any test has passed.
+**Source:** [`tests/Layout.spec.ts`](../tests/Layout.spec.ts) · **Cases:** 5
 
 ## Cases
 
-| Test (source line)                                  | Action                                                                               | Expected result                                                                                                   |
-| --------------------------------------------------- | ------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
-| [CARTA provided layout](../tests/Layout.spec.ts#L5) | Apply CARTA-provided layouts from the View menu.                                     | Root accessibility snapshots show the expected viewer, profiler, animator and widget arrangement for each layout. |
-| [Drag and dock](../tests/Layout.spec.ts#L646)       | Drag widgets among dock areas and floating positions.                                | Dock tree and visible tab layout match accessibility snapshots after moves.                                       |
-| [Drag to new column](../tests/Layout.spec.ts#L828)  | Drag a widget into a new column.                                                     | A new column is created and the widget remains reachable in the resulting layout.                                 |
-| [Menu bar items](../tests/Layout.spec.ts#L848)      | Inspect File, View, Widgets and Help menus before and after loading an image/region. | Menu entries and disabled states match context; submenu controls are present and reachable.                       |
+| Test                                                                  | Action                                                                                                                                                                                                                          | Expected result                                                                                                                                                                                                                                                                                                                  |
+| --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Preset layouts place the viewer and widgets in the expected groups    | Apply Default, Cube View, Cube Analysis, and Continuum Analysis.                                                                                                                                                                | Each preset shows its intended viewer, profiler, statistics, and shared widget tab groups.                                                                                                                                                                                                                                       |
+| Docking and a new column preserve the viewer and profiler             | Load the small `cube.fits` fixture, dock Z Profile with X Profile, then drag Z Profile to the left edge.                                                                                                                        | The viewer remains on `cube.fits`; the dock tree gains a column; Z Profile remains visible and plots the cursor spectrum. The image raster and profile match reviewed PNG baselines, the raster center RGB stays within `R 235–250, G 210–235, B 65–105`, and image pixel `(8, 8)` reads `1.5`.                                  |
+| Saved layout validates names and can be applied, renamed, and deleted | Check preset edit/delete buttons, reject an invalid and reserved name, save a layout, cancel overwrite, switch presets, reapply the saved layout, reject an invalid rename, rename, cancel deletion, then delete.               | Validation disables or rejects bad input; cancellation preserves the saved layout; reapplication restores the saved tab groups; deletion removes the user layout.                                                                                                                                                                |
+| Dynamic layouts switch between 2D and 3D images                       | Delete every saved custom layout, apply Default, enable Dynamic Layout, save Continuum Analysis as `2D Image` for `m16_f0444w.fits` and Cube Analysis as `3D Cube` for `cube.fits`. Reload each image and then the application. | Only the two new custom layouts remain. The Dynamic Layout tab shows both mappings; each image type automatically restores its saved viewer and widget arrangement; mappings persist after reload. The 2D raster and 3D spectral plot match reviewed PNG baselines, and raster RGB and image pixel values match expected ranges. |
+| Menu bar reflects whether an image is loaded                          | Inspect File and View before loading `single.fits`, then inspect File, View, Widgets, and Help.                                                                                                                                 | Image-dependent commands change from disabled to enabled; the named widget and help entries remain available.                                                                                                                                                                                                                    |
+
+Raster PNGs allow a 1.5–2% pixel difference for canvas annotation text. The RGB ranges still check the rendered image color.
+
+## Coverage still needed
+
+- Layout save rejection while the image viewer is popped out.
+- User layout quota and server failure recovery.
 
 ## Run
 
 ```sh
 npx playwright test tests/Layout.spec.ts --project=chromium
-npx playwright test tests/Layout.spec.ts
 ```
