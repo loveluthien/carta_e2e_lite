@@ -31,6 +31,7 @@ type Point = {
 type Region = {
     regionId: number;
     controlPoints: Point[];
+    setControlPoints: (points: Point[], shouldSkipUpdate?: boolean) => void;
 };
 
 type CartaWindow = Window & {
@@ -102,6 +103,14 @@ test.describe('PV Generator Controls & Validation', () => {
         page,
     }) => {
         const carta = new PlaywrightDevPage(page);
+        const moveLine = (points: Point[]) =>
+            page.evaluate((points) => {
+                const regions = (window as unknown as CartaWindow).app
+                    .activeFrame.regionSet.regions;
+                const line = regions.find((region) => region.regionId === 1);
+                if (!line) throw new Error('Line region 1 was not created');
+                line.setControlPoints(points, true);
+            }, points);
 
         // Add a valid line region
         await page.getByTestId('line-region-shortcut-button').click();
@@ -115,69 +124,47 @@ test.describe('PV Generator Controls & Validation', () => {
         await expect(previewButton(page)).toBeEnabled();
 
         // Move line region completely outside image bounds
-        await page.evaluate(() => {
-            const frame = (window as unknown as CartaWindow).app.activeFrame;
-            const region = frame.regionSet.regions.find(
-                (region: Region) => region.regionId === 1,
-            );
-            if (region) {
-                region.controlPoints = [
-                    { x: -500, y: -500 },
-                    { x: -400, y: -400 },
-                ];
-            }
-        });
+        await moveLine([
+            { x: -500, y: -500 },
+            { x: -400, y: -400 },
+        ]);
 
         await expect(generateButton(page)).toBeDisabled();
         await expect(previewButton(page)).toBeDisabled();
 
         // Move line back inside image bounds
-        await page.evaluate(() => {
-            const frame = (window as unknown as CartaWindow).app.activeFrame;
-            const region = frame.regionSet.regions.find(
-                (region: Region) => region.regionId === 1,
-            );
-            if (region) {
-                region.controlPoints = [
-                    { x: 100, y: 100 },
-                    { x: 200, y: 200 },
-                ];
-            }
-        });
+        await moveLine([
+            { x: 20, y: 20 },
+            { x: 60, y: 60 },
+        ]);
         await expect(generateButton(page)).toBeEnabled();
         await expect(previewButton(page)).toBeEnabled();
 
         // Collapse line into a single pixel (same start and end coordinates)
-        await page.evaluate(() => {
-            const frame = (window as unknown as CartaWindow).app.activeFrame;
-            const region = frame.regionSet.regions.find(
-                (region: Region) => region.regionId === 1,
-            );
-            if (region) {
-                region.controlPoints = [
-                    { x: 150, y: 150 },
-                    { x: 150, y: 150 },
-                ];
-            }
-        });
+        await moveLine([
+            { x: 40, y: 40 },
+            { x: 40, y: 40 },
+        ]);
         await expect(generateButton(page)).toBeDisabled();
         await expect(previewButton(page)).toBeDisabled();
 
         // Restore normal line
-        await page.evaluate(() => {
-            const frame = (window as unknown as CartaWindow).app.activeFrame;
-            const region = frame.regionSet.regions.find(
-                (region: Region) => region.regionId === 1,
-            );
-            if (region) {
-                region.controlPoints = [
-                    { x: 120, y: 120 },
-                    { x: 250, y: 220 },
-                ];
-            }
-        });
+        await moveLine([
+            { x: 15, y: 25 },
+            { x: 75, y: 65 },
+        ]);
         await expect(generateButton(page)).toBeEnabled();
         await expect(previewButton(page)).toBeEnabled();
+        await carta.closeWidget('pv-generator');
+        await page.mouse.move(0, 0);
+        const viewer = page.getByTestId('viewer-div');
+        await expect(viewer.locator('.image-ratio-popup')).toHaveCSS(
+            'opacity',
+            '0',
+        );
+        await expect(viewer).toHaveScreenshot(
+            'image-viewer-pv-line-geometry.png',
+        );
     });
 
     test('PVG-03: Polyline region enables Generate but disables Preview', async ({
