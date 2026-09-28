@@ -1,14 +1,333 @@
-import { test, expect } from '@playwright/test';
+import { readFile } from 'node:fs/promises';
+import { test as base, expect, type Locator } from '@playwright/test';
 import { PlaywrightDevPage } from '../utilities';
 
-test.describe('Image viewer E2E set', () => {
-    test('Image Viewer', async ({ page }) => {
+const test = base.extend<{
+    carta: PlaywrightDevPage;
+    viewerCanvas: Locator;
+}>({
+    carta: async ({ page }, use) => {
         const carta = new PlaywrightDevPage(page);
-        const viewerCanvas = page.getByTestId('viewer-div');
-
-        // Boot up CARTA application
         await carta.goto();
+        await use(carta);
+    },
+    viewerCanvas: async ({ page }, use) => {
+        await use(page.getByTestId('viewer-div'));
+    },
+});
 
+test.describe('Image viewer control coverage', () => {
+    test.use({ viewport: { width: 1600, height: 1000 } });
+    test.setTimeout(90_000);
+    test.beforeEach(async ({ page }) => page.setDefaultTimeout(10_000));
+
+    test('toolbar toggle and all export resolutions', async ({
+        page,
+        carta,
+        viewerCanvas,
+    }, testInfo) => {
+        await carta.loadImage('cube.fits');
+        await viewerCanvas.hover();
+
+        const toggle = page.getByTestId('toggle-toolbar-button');
+        const zoom = page.getByTestId('zoom-in-button');
+        await expect(zoom).toBeVisible();
+        await toggle.click();
+        await expect(zoom).toHaveCount(0);
+        await toggle.click();
+        await expect(zoom).toBeVisible();
+
+        const sizes: Array<[number, number]> = [];
+        for (const [index, label] of [
+            'Normal (100%)',
+            'High (200%)',
+            'Highest (400%)',
+        ].entries()) {
+            await page.getByTestId('export-image-view-button').click();
+            const downloadPromise = page.waitForEvent('download');
+            await page.getByRole('menuitem', { name: label }).click();
+            const download = await downloadPromise;
+            expect(download.suggestedFilename()).toMatch(
+                /^cube\.fits-image-.*\.png$/,
+            );
+            const savedPath = testInfo.outputPath(`export-${index}.png`);
+            await download.saveAs(savedPath);
+            const png = await readFile(savedPath);
+            expect(png.subarray(0, 8)).toEqual(
+                Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+            );
+            sizes.push([png.readUInt32BE(16), png.readUInt32BE(20)]);
+        }
+        expect(sizes[0][0]).toBeGreaterThan(0);
+        expect(sizes[0][1]).toBeGreaterThan(0);
+        for (const [index, ratio] of [
+            [1, 2],
+            [2, 4],
+        ]) {
+            for (const dimension of [0, 1]) {
+                expect(
+                    Math.abs(
+                        sizes[index][dimension] - sizes[0][dimension] * ratio,
+                    ),
+                ).toBeLessThanOrEqual(ratio);
+            }
+        }
+        await expect(page.locator('#raster-canvas').first()).toHaveScreenshot(
+            'image-viewer-export-raster.png',
+        );
+    });
+
+    test('viewer matching controls spatial and spectral alignment', async ({
+        page,
+        carta,
+        viewerCanvas,
+    }) => {
+        await carta.setPreferenceDefaults();
+        await carta.loadImage('cube.fits');
+        await carta.loadImage('matching-cube.fits', true);
+
+        const panel = page.locator('#image-panel-1-0');
+        await panel
+            .locator('.region-stage canvas')
+            .first()
+            .click({ position: { x: 100, y: 100 } });
+        await expect
+            .poll(() =>
+                page.evaluate(() => (window as any).app.activeFrame?.filename),
+            )
+            .toBe('matching-cube.fits');
+        const state = () =>
+            page.evaluate(() => {
+                const frame = (window as any).app.frames[1];
+                return {
+                    spatial: frame.spatialReference?.filename ?? null,
+                    spectral: frame.spectralReference?.filename ?? null,
+                };
+            });
+        const choose = async (name: string) => {
+            await panel.getByTestId('match-button').click();
+            await page.getByRole('menuitem', { name, exact: true }).click();
+        };
+
+        await choose('None');
+        await expect.poll(state).toEqual({ spatial: null, spectral: null });
+        await choose('Spatial only');
+        await expect
+            .poll(state)
+            .toEqual({ spatial: 'cube.fits', spectral: null });
+        await choose('Spectral (VRAD) only');
+        await expect
+            .poll(state)
+            .toEqual({ spatial: null, spectral: 'cube.fits' });
+        await choose('Spectral (VRAD) and spatial');
+        await expect
+            .poll(state)
+            .toEqual({ spatial: 'cube.fits', spectral: 'cube.fits' });
+        await expect(viewerCanvas.locator('.image-ratio-popup')).toHaveCSS(
+            'opacity',
+            '0',
+        );
+        await expect(viewerCanvas).toHaveScreenshot('image-viewer-matched.png');
+        await choose('None');
+        await expect.poll(state).toEqual({ spatial: null, spectral: null });
+    });
+
+    test('header paging, help, maximize, restore, and popout', async ({
+        page,
+        carta,
+        viewerCanvas,
+    }) => {
+        await carta.setPreferenceDefaults();
+        await carta.loadImage('cube.fits');
+        await carta.loadImage('matching-cube.fits', true);
+
+        await page
+            .getByTestId('image-view-header-multipanel-view-switch')
+            .click();
+        await page
+            .getByTestId('image-view-header-previous-page-button')
+            .click();
+        await expect(page.getByTestId('image-view-header-title')).toContainText(
+            'cube.fits',
+        );
+        await page.getByTestId('image-view-header-next-page-button').click();
+        await expect(page.getByTestId('image-view-header-title')).toContainText(
+            'matching-cube.fits',
+        );
+        await page
+            .getByTestId('image-view-header-previous-page-button')
+            .click();
+        await expect(page.getByTestId('image-view-header-title')).toContainText(
+            'cube.fits',
+        );
+
+        const help = page.getByTestId('image-view-header-help-button');
+        await help.click();
+        await expect(page.locator('.help-drawer')).toBeVisible();
+        await page.keyboard.press('Escape');
+        await expect(page.locator('.help-drawer')).toBeHidden();
+
+        const maximize = page.getByTestId('image-view-header-maximize-button');
+        await maximize.click();
+        await expect(page.locator('.flexlayout__tabset-maximized')).toHaveCount(
+            1,
+        );
+        await expect(viewerCanvas.locator('.image-ratio-popup')).toHaveCSS(
+            'opacity',
+            '0',
+        );
+        await expect(viewerCanvas).toHaveScreenshot(
+            'image-viewer-maximized.png',
+        );
+        await maximize.click();
+        await expect(page.locator('.flexlayout__tabset-maximized')).toHaveCount(
+            0,
+        );
+        await expect(viewerCanvas).toBeVisible();
+
+        const popupPromise = page.waitForEvent('popup');
+        await page.getByTestId('image-view-header-popout-button').click();
+        const popup = await popupPromise;
+        await popup.waitForLoadState();
+        await expect(popup.getByTestId('viewer-div')).toBeVisible();
+        await popup.close();
+    });
+
+    test('ruler creation renders a measured region', async ({
+        page,
+        carta,
+        viewerCanvas,
+    }) => {
+        await carta.loadImage('M17_SWex.fits');
+        await viewerCanvas.hover();
+        const before = await page.evaluate(
+            () => (window as any).app.activeFrame.regionSet.regions.length,
+        );
+        await page.getByTestId('toolbar-distance-measuring-button').click();
+        const canvas = page.locator('.region-stage canvas').first();
+        await canvas.dragTo(canvas, {
+            sourcePosition: { x: 150, y: 150 },
+            targetPosition: { x: 300, y: 250 },
+        });
+        await expect
+            .poll(() =>
+                page.evaluate(
+                    () =>
+                        (window as any).app.activeFrame.regionSet.regions
+                            .length,
+                ),
+            )
+            .toBe(before + 1);
+        await expect
+            .poll(() =>
+                page.evaluate(() => {
+                    const region = (
+                        window as any
+                    ).app.activeFrame.regionSet.regions.at(-1);
+                    return (
+                        region && {
+                            type: region.regionType,
+                            width: region.size.x,
+                            height: region.size.y,
+                        }
+                    );
+                }),
+            )
+            .toMatchObject({
+                type: 14,
+                width: expect.any(Number),
+                height: expect.any(Number),
+            });
+        await page.mouse.move(0, 0);
+        await expect(viewerCanvas.locator('.image-ratio-popup')).toHaveCSS(
+            'opacity',
+            '0',
+        );
+        await expect(viewerCanvas).toHaveScreenshot('image-viewer-ruler.png');
+    });
+
+    test('raster RGB and invalid beam width', async ({
+        page,
+        carta,
+        viewerCanvas,
+    }) => {
+        await carta.loadImage('cube.fits');
+        const rgb = () =>
+            page
+                .locator('#raster-canvas')
+                .first()
+                .evaluate((source: HTMLCanvasElement) => {
+                    const copy = document.createElement('canvas');
+                    copy.width = source.width;
+                    copy.height = source.height;
+                    const context = copy.getContext('2d')!;
+                    context.drawImage(source, 0, 0);
+                    return Array.from(
+                        context.getImageData(
+                            Math.floor(copy.width / 2),
+                            Math.floor(copy.height / 2),
+                            1,
+                            1,
+                        ).data,
+                    );
+                });
+        const initial = await rgb();
+        for (const [channel, min, max] of [
+            [0, 235, 250],
+            [1, 210, 235],
+            [2, 65, 105],
+        ]) {
+            expect(initial[channel]).toBeGreaterThanOrEqual(min);
+            expect(initial[channel]).toBeLessThanOrEqual(max);
+        }
+        expect(initial[3]).toBe(255);
+
+        await carta.selectMenuItem('Widgets', 'Render Configuration Widget');
+        await page.getByTestId('colormap-dropdown').click();
+        await page.getByRole('menuitem', { name: 'gray', exact: true }).click();
+        await expect
+            .poll(async () => {
+                const [red, green, blue, alpha] = await rgb();
+                return { isGray: red === green && green === blue, alpha };
+            })
+            .toEqual({ isGray: true, alpha: 255 });
+        await carta.closeWidget('render-config');
+        await page.mouse.move(0, 0);
+        await expect(page.locator('#raster-canvas').first()).toHaveScreenshot(
+            'image-viewer-gray-raster.png',
+        );
+
+        await carta.loadImage('M17_SWex.fits');
+        await page.getByTestId('image-view-header-settings-button').click();
+        await page.getByRole('tab', { name: 'Beam' }).click();
+        const width = page.getByRole('spinbutton', { name: 'Width' });
+        const beamWidth = () =>
+            page.evaluate(
+                () =>
+                    (window as any).app.overlaySettings.beam.settingsForDisplay
+                        .width,
+            );
+        const original = await beamWidth();
+        await width.fill('20');
+        await width.press('Tab');
+        await expect.poll(beamWidth).toBe(original);
+        await width.fill('2');
+        await width.press('Tab');
+        await expect.poll(beamWidth).toBe(2);
+        await carta.closeWidget('image-view-floating-settings');
+        await page.mouse.move(0, 0);
+        await expect(viewerCanvas.locator('.image-ratio-popup')).toHaveCSS(
+            'opacity',
+            '0',
+        );
+        await expect(viewerCanvas).toHaveScreenshot(
+            'image-viewer-beam-width.png',
+        );
+    });
+});
+
+test.describe('Image viewer E2E set', () => {
+    test('Image Viewer', async ({ page, carta, viewerCanvas }) => {
         // Load test data cube
         await carta.loadImage('M17_SWex.fits');
         await expect(viewerCanvas).toBeVisible();
@@ -141,13 +460,7 @@ test.describe('Image viewer E2E set', () => {
         );
     });
 
-    test('Image Viewer Toolbar', async ({ page }) => {
-        const carta = new PlaywrightDevPage(page);
-        const viewerCanvas = page.getByTestId('viewer-div');
-
-        // Boot up CARTA application
-        await carta.goto();
-
+    test('Image Viewer Toolbar', async ({ page, carta, viewerCanvas }) => {
         // Load test data cube
         await carta.loadImage('M17_SWex.fits');
 
@@ -300,13 +613,11 @@ test.describe('Image viewer E2E set', () => {
         `);
     });
 
-    test('Image Viewer Settings - Pan and Zoom', async ({ page }) => {
-        const carta = new PlaywrightDevPage(page);
-        const viewerCanvas = page.getByTestId('viewer-div');
-
-        // Boot up CARTA application
-        await carta.goto();
-
+    test('Image Viewer Settings - Pan and Zoom', async ({
+        page,
+        carta,
+        viewerCanvas,
+    }) => {
         // Load test data cube
         await carta.loadImage('M17_SWex.fits');
 
@@ -456,13 +767,11 @@ test.describe('Image viewer E2E set', () => {
         );
     });
 
-    test('Image Viewer Settings - Global', async ({ page }) => {
-        const carta = new PlaywrightDevPage(page);
-        const viewerCanvas = page.getByTestId('viewer-div');
-
-        // Boot up CARTA application
-        await carta.goto();
-
+    test('Image Viewer Settings - Global', async ({
+        page,
+        carta,
+        viewerCanvas,
+    }) => {
         // set to default multi-panel layout
         await carta.setPreferenceDefaults();
 
@@ -631,13 +940,11 @@ test.describe('Image viewer E2E set', () => {
         );
     });
 
-    test('Image Viewer Settings - Title and ticks', async ({ page }) => {
-        const carta = new PlaywrightDevPage(page);
-        const viewerCanvas = page.getByTestId('viewer-div');
-
-        // Boot up CARTA application
-        await carta.goto();
-
+    test('Image Viewer Settings - Title and ticks', async ({
+        page,
+        carta,
+        viewerCanvas,
+    }) => {
         // set to default multi-panel layout
         await carta.setPreferenceDefaults();
 
@@ -795,13 +1102,11 @@ test.describe('Image viewer E2E set', () => {
         );
     });
 
-    test('Image Viewer Settings - Grid', async ({ page }) => {
-        const carta = new PlaywrightDevPage(page);
-        const viewerCanvas = page.getByTestId('viewer-div');
-
-        // Boot up CARTA application
-        await carta.goto();
-
+    test('Image Viewer Settings - Grid', async ({
+        page,
+        carta,
+        viewerCanvas,
+    }) => {
         // set to default preferences
         await carta.setPreferenceDefaults();
 
@@ -909,13 +1214,11 @@ test.describe('Image viewer E2E set', () => {
         );
     });
 
-    test('Image Viewer Settings - Border and Axes', async ({ page }) => {
-        const carta = new PlaywrightDevPage(page);
-        const viewerCanvas = page.getByTestId('viewer-div');
-
-        // Boot up CARTA application
-        await carta.goto();
-
+    test('Image Viewer Settings - Border and Axes', async ({
+        page,
+        carta,
+        viewerCanvas,
+    }) => {
         // set to default preferences
         await carta.setPreferenceDefaults();
 
@@ -1008,13 +1311,11 @@ test.describe('Image viewer E2E set', () => {
         );
     });
 
-    test('Image Viewer Settings - Numbers and Labels', async ({ page }) => {
-        const carta = new PlaywrightDevPage(page);
-        const viewerCanvas = page.getByTestId('viewer-div');
-
-        // Boot up CARTA application
-        await carta.goto();
-
+    test('Image Viewer Settings - Numbers and Labels', async ({
+        page,
+        carta,
+        viewerCanvas,
+    }) => {
         // set to default preferences
         await carta.setPreferenceDefaults();
 
@@ -1141,13 +1442,12 @@ test.describe('Image viewer E2E set', () => {
         );
     });
 
-    test('Image Viewer Settings - Colorbar', async ({ page }) => {
-        const carta = new PlaywrightDevPage(page);
-        const viewerCanvas = page.getByTestId('viewer-div');
+    test('Image Viewer Settings - Colorbar', async ({
+        page,
+        carta,
+        viewerCanvas,
+    }) => {
         const colorbarCanvas = page.locator('canvas').nth(5);
-
-        // Boot up CARTA application
-        await carta.goto();
 
         // set to default preferences
         await carta.setPreferenceDefaults();
@@ -1399,14 +1699,11 @@ test.describe('Image viewer E2E set', () => {
         );
     });
 
-    test('Image Viewer Settings - Beam', async ({ page }) => {
-        const carta = new PlaywrightDevPage(page);
-        const viewerCanvas = page.getByTestId('viewer-div');
-        const colorbarCanvas = page.locator('canvas').nth(5);
-
-        // Boot up CARTA application
-        await carta.goto();
-
+    test('Image Viewer Settings - Beam', async ({
+        page,
+        carta,
+        viewerCanvas,
+    }) => {
         // set to default preferences
         await carta.setMultiPanelLayout();
         await carta.enablePixelGrid(false);
@@ -1452,17 +1749,13 @@ test.describe('Image viewer E2E set', () => {
         );
     });
 
-    test('Raster Configuration', async ({ page }) => {
-        const carta = new PlaywrightDevPage(page);
+    test('Raster Configuration', async ({ page, carta }) => {
         const viewerCanvas = page.locator(
             '.region-stage > .konvajs-content > canvas',
         );
         const histogramCanvas = page
             .locator('.annotation-stage > .konvajs-content > canvas')
             .first();
-
-        // Boot up CARTA application
-        await carta.goto();
 
         // Load test data cube
         await carta.loadImage('M17_SWex.fits');

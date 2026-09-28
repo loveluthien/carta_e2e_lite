@@ -252,6 +252,53 @@ async function checkViewerAndProfiler(
 test.describe('Catalog widget', () => {
     test.setTimeout(90_000);
 
+    test('viewer toolbar selects a rendered catalog source', async ({
+        page,
+    }) => {
+        page.setDefaultTimeout(10_000);
+        const carta = new PlaywrightDevPage(page);
+        await carta.goto();
+        const usage = page.getByRole('button', {
+            name: 'No, do not send usage data',
+        });
+        if (await usage.isVisible()) await usage.click();
+        const alert = page
+            .getByRole('alertdialog')
+            .getByRole('button', { name: 'OK' });
+        if (await alert.isVisible()) await alert.click();
+        await pickFile(
+            page,
+            'catalog-image.fits',
+            imageDirectory,
+            'fileList',
+            'Load',
+        );
+        await expectCanvasInk(page, '#raster-canvas');
+        const catalog = await openCatalog(page, 'catalog-sky.vot');
+        await catalog.getByTestId('catalog-plot-button').click();
+        await expectCanvasInk(page, '#catalog-canvas');
+        await carta.closeWidget('catalog-overlay');
+
+        const viewer = page.getByTestId('viewer-div');
+        await viewer.hover();
+        const selection = page.getByTestId('toolbar-catalog-selection-button');
+        await expect(selection).toBeEnabled();
+        await selection.click();
+        await expect(selection).toHaveClass(/bp6-active/);
+        await page
+            .locator('#catalog-canvas')
+            .click({ position: { x: 100, y: 100 } });
+        await expect.poll(() => selectedSourceIndices(page)).toHaveLength(1);
+        await page.mouse.move(0, 0);
+        await expect(viewer.locator('.image-ratio-popup')).toHaveCSS(
+            'opacity',
+            '0',
+        );
+        await expect(viewer).toHaveScreenshot(
+            'image-viewer-catalog-selection.png',
+        );
+    });
+
     test('loads sky sources, filters and sorts the table, and edits overlay styling', async ({
         page,
     }, testInfo) => {

@@ -643,6 +643,98 @@ test.describe('PV Image Generation', () => {
             ),
         ).toBe(true);
     });
+
+    test('PVI-08: Image viewer conversion validates rest-frame input and renders correction', async ({
+        page,
+    }) => {
+        test.setTimeout(90_000);
+        page.setDefaultTimeout(10_000);
+        await generateButton(page).click();
+        await expect(page.getByTestId('image-view-header-title')).toContainText(
+            'HD163296_13CO_2-1_subimage_pv.fits',
+            { timeout: 30_000 },
+        );
+        await expect(page.locator('.task-progress-dialog')).toBeHidden({
+            timeout: 30_000,
+        });
+
+        await page.getByTestId('image-view-header-settings-button').click();
+        await page
+            .locator('.image-view-settings')
+            .getByRole('tab', { name: 'Conversion' })
+            .click();
+        const toggle = page.getByTestId(
+            'image-view-settings-rest-frame-toggle',
+        );
+        await toggle.locator('..').click();
+        await expect(toggle).toBeChecked();
+        await page
+            .getByTestId('image-view-settings-rest-frame-shift-mode-dropdown')
+            .selectOption({ label: 'Redshift (z)' });
+
+        const redshift = page.getByTestId(
+            'image-view-settings-rest-frame-redshift-input',
+        );
+        await redshift.fill('-2');
+        await redshift.press('Tab');
+        await expect(
+            page.getByText(/Correction is temporarily using z = 0/),
+        ).toBeVisible();
+        await expect
+            .poll(() =>
+                page.evaluate(
+                    () =>
+                        (window as any).app.activeFrame
+                            .effectiveRestFrameRedshift,
+                ),
+            )
+            .toBe(0);
+
+        await redshift.fill('0.1');
+        await redshift.press('Tab');
+        await expect
+            .poll(() =>
+                page.evaluate(
+                    () =>
+                        (window as any).app.activeFrame
+                            .effectiveRestFrameRedshift,
+                ),
+            )
+            .toBeCloseTo(0.1, 3);
+        await page
+            .getByTestId('image-view-settings-rest-frame-shift-mode-dropdown')
+            .selectOption({ label: 'Radial velocity (km/s)' });
+        await page
+            .getByTestId(
+                'image-view-settings-rest-frame-velocity-convention-dropdown',
+            )
+            .selectOption({ label: 'Optical' });
+        const velocity = page.getByTestId(
+            'image-view-settings-rest-frame-radial-velocity-input',
+        );
+        await velocity.fill('1000');
+        await velocity.press('Tab');
+        await expect
+            .poll(() =>
+                page.evaluate(
+                    () =>
+                        (window as any).app.activeFrame
+                            .effectiveRestFrameRedshift,
+                ),
+            )
+            .toBeGreaterThan(0);
+        await new PlaywrightDevPage(page).closeWidget(
+            'image-view-floating-settings',
+        );
+        await new PlaywrightDevPage(page).closeWidget('pv-generator');
+        await page.mouse.move(0, 0);
+        const viewer = page.getByTestId('viewer-div');
+        await expect(viewer.locator('.image-ratio-popup')).toHaveCSS(
+            'opacity',
+            '0',
+        );
+        await expect(viewer).toHaveScreenshot('image-viewer-pv-rest-frame.png');
+    });
 });
 
 test.describe('PV Preview', () => {
