@@ -1,24 +1,24 @@
-# ChannelMap test plan
+# Channel Map test plan
 
-**Source:** [`tests/ChannelMap.spec.ts`](../tests/ChannelMap.spec.ts) · **Cases:** 2
+**Source:** [`tests/ChannelMap.spec.ts`](../tests/ChannelMap.spec.ts) · **Cases:** 4
 
-Channel-map empty state, controls, image panels and selection synchronization.
+Channel-map empty state, navigation and bounds, rendered panels and labels, spectral-profile synchronization, and image selection.
 
 ## Setup and checks
 
-- Run each Playwright case in a fresh page against the configured CARTA server. Use the existing fixture and helper calls named by the source test.
-- Check the requested widget/dialog state, data or store values, and the effect in the image viewer and applicable profiler. Treat a visible canvas alone as insufficient for a numerical result.
-- For viewer or profile changes, compare a stable PNG with a reviewed baseline; inspect overlay text and numeric readouts as well.
-- For rejected input or a failed operation, verify no unwanted image is created and the user can recover. Exercise every button relevant to the scenario.
-- Referenced FITS fixtures: `cube.fits`.
-- Current source contains named PNG baseline checks; the table below describes intended outcomes and does not claim any test has passed.
+- Run each Playwright case in a fresh page against the configured CARTA server. Use the deterministic 5-channel `cube.fits` and one-channel `single.fits` fixtures.
+- Check widget and image-viewer state as well as rendered labels, raster RGB values, and profile data. Compare viewer and profiler PNGs with reviewed baselines.
+- Exercise the four navigation buttons, slider, numeric inputs and steppers, label and unit switches, font and color controls, image selector, and viewer mode button. Check rejected start-channel input and recovery.
+- The table describes intended outcomes; it does not claim the full suite has passed.
 
 ## Cases
 
-| Test (source line)                                                                               | Action                                                                                                                         | Expected result                                                                                                                |
-| ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
-| [CM-01 shows the empty state without an image](../tests/ChannelMap.spec.ts#L10)                  | Open Channel Map Control with no file loaded.                                                                                  | Widget appears with the “No file loaded” state.                                                                                |
-| [CM-02 configures, renders, and synchronizes channel selection](../tests/ChannelMap.spec.ts#L26) | Load cube.fits, create a point and spectral profile, enable the map and edit start, step, grid, labels, and channel selection. | Control defaults and edited values persist; rendered channel panels and selection synchronize with the viewer and profile PNG. |
+| Test                                                                                                        | Action                                                                                                                                                                         | Expected result                                                                                                                                                                                                                                                    |
+| ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [shows an empty state without an image](../tests/ChannelMap.spec.ts)                                        | Open Channel Map Control with no file loaded.                                                                                                                                  | Widget header and “No file loaded” state appear.                                                                                                                                                                                                                   |
+| [navigates channels and pages, resizes the grid, and rejects invalid input](../tests/ChannelMap.spec.ts)    | Load `cube.fits`, change row/column counts, use all four navigation buttons and the start slider, then enter an out-of-range channel.                                          | Panel labels follow the visible channels and grid; navigation stops at cube bounds; invalid input does not alter store state; navigation PNG matches.                                                                                                              |
+| [renders label styling and keeps the selected channel in the spectral profile](../tests/ChannelMap.spec.ts) | Toggle channel/frequency/velocity labels and units, change font and color, select a panel, and open a point-region spectral profile. Disable map mode using the viewer button. | Label text/style and active red border match; raster RGB samples and viewer PNG match; selecting panel 3 selects channel 3; profile values equal `[1.5, 3, 6, 12, 24]` and profile PNG matches; disabling removes map labels and restores the single-image viewer. |
+| [switches the displayed image and handles a single-channel cube](../tests/ChannelMap.spec.ts)               | Load `single.fits` alongside the cube, select each image, and try an invalid start channel on the single-channel image.                                                        | Selection updates the viewer; single-channel map has no multi-panel labels and its slider is disabled; invalid input leaves channel 0 unchanged; returning to `cube.fits` restores four panels and viewer PNG.                                                     |
 
 ## Run
 
