@@ -15,6 +15,53 @@ async function waitForVectorOverlay(page: Page) {
         .toBe(1);
 }
 
+async function vectorPixels(page: Page) {
+    return page
+        .locator('#vector-overlay-canvas')
+        .evaluate((canvas: HTMLCanvasElement) => {
+            const pixels = canvas
+                .getContext('2d')!
+                .getImageData(0, 0, canvas.width, canvas.height).data;
+            let visible = 0;
+            let white = 0;
+            let colored = 0;
+            for (let i = 0; i < pixels.length; i += 4) {
+                if (pixels[i + 3] > 0) {
+                    visible++;
+                    if (
+                        pixels[i] === 255 &&
+                        pixels[i + 1] === 255 &&
+                        pixels[i + 2] === 255
+                    )
+                        white++;
+                    if (
+                        pixels[i] !== pixels[i + 1] ||
+                        pixels[i + 1] !== pixels[i + 2]
+                    )
+                        colored++;
+                }
+            }
+            return { visible, white, colored };
+        });
+}
+
+async function vectorVertices(page: Page) {
+    return page.evaluate(() =>
+        (window as any).app.activeFrame.vectorOverlayStore.tiles.reduce(
+            (total: number, tile: { numVertices: number }) =>
+                total + tile.numVertices,
+            0,
+        ),
+    );
+}
+
+async function vectorPng(page: Page) {
+    const dataUrl = await page
+        .locator('#vector-overlay-canvas')
+        .evaluate((canvas: HTMLCanvasElement) => canvas.toDataURL('image/png'));
+    return Buffer.from(dataUrl.split(',')[1], 'base64');
+}
+
 test.describe('Vector overlay E2E set', () => {
     test('configures every dialog control and renders the output canvas', async ({
         page,
@@ -162,6 +209,50 @@ test.describe('Vector overlay E2E set', () => {
         await dialog.getByTestId('vector-field-apply-button').click();
         await waitForVectorOverlay(page);
 
+        expect(await vectorVertices(page)).toBeGreaterThan(0);
+        await expect
+            .poll(() => vectorPixels(page).then((pixels) => pixels.visible))
+            .toBeGreaterThan(0);
+        expect(
+            await page.evaluate(() => {
+                const config = (window as any).app.activeFrame
+                    .vectorOverlayConfig;
+                return {
+                    pixelAveraging: config.pixelAveraging,
+                    isFractionalIntensity: config.isFractionalIntensity,
+                    isThresholdEnabled: config.isThresholdEnabled,
+                    threshold: config.threshold,
+                    isDebiasing: config.isDebiasing,
+                    qError: config.qError,
+                    uError: config.uError,
+                    thickness: config.thickness,
+                    lengthMin: config.lengthMin,
+                    lengthMax: config.lengthMax,
+                    rotationOffset: config.rotationOffset,
+                    isColormapEnabled: config.isColormapEnabled,
+                    isColormapInverted: config.isColormapInverted,
+                    colormapBias: config.colormapBias,
+                    colormapContrast: config.colormapContrast,
+                };
+            }),
+        ).toEqual({
+            pixelAveraging: 4,
+            isFractionalIntensity: true,
+            isThresholdEnabled: true,
+            threshold: 0.5,
+            isDebiasing: true,
+            qError: 0.1,
+            uError: 0.2,
+            thickness: 2,
+            lengthMin: 1,
+            lengthMax: 12,
+            rotationOffset: 45,
+            isColormapEnabled: true,
+            isColormapInverted: true,
+            colormapBias: 0.2,
+            colormapContrast: 1.5,
+        });
+
         const renderedCanvas = await viewer.screenshot();
         expect(renderedCanvas).not.toEqual(canvasBefore);
         expect(await vectorCanvas.screenshot()).not.toEqual(overlayBefore);
@@ -174,6 +265,11 @@ test.describe('Vector overlay E2E set', () => {
             });
         await dialog.getByTestId('vector-field-apply-button').click();
         await waitForVectorOverlay(page);
+
+        expect(await vectorVertices(page)).toBeGreaterThan(0);
+        await expect
+            .poll(() => vectorPixels(page).then((pixels) => pixels.visible))
+            .toBeGreaterThan(0);
 
         await dialog
             .getByTestId('vector-field-angular-source-dropdown')
@@ -189,6 +285,11 @@ test.describe('Vector overlay E2E set', () => {
         await dialog.getByTestId('vector-field-apply-button').click();
         await waitForVectorOverlay(page);
 
+        expect(await vectorVertices(page)).toBeGreaterThan(0);
+        await expect
+            .poll(() => vectorPixels(page).then((pixels) => pixels.visible))
+            .toBeGreaterThan(0);
+
         await dialog.getByTestId('vector-field-clear-button').click();
         await expect
             .poll(() =>
@@ -202,5 +303,124 @@ test.describe('Vector overlay E2E set', () => {
         await expect(
             dialog.getByTestId('vector-field-clear-button'),
         ).toBeDisabled();
+        await expect
+            .poll(() => vectorPixels(page).then((pixels) => pixels.visible))
+            .toBe(0);
+    });
+
+    test('threshold rejects vectors and recovers with white rendered pixels', async ({
+        page,
+    }) => {
+        const carta = new PlaywrightDevPage(page);
+        await carta.goto();
+        await carta.loadImage('iquv.fits');
+
+        const dialog = page.getByTestId('vector-dialog');
+        await page.getByTestId('vector-dialog-button').click();
+        await dialog.getByTestId('vector-field-styling-tab').click();
+        await dialog
+            .getByTestId('vector-field-color-mode-dropdown')
+            .selectOption('0');
+        await dialog
+            .locator('.vector-overlay-style-panel .color-swatch-button')
+            .first()
+            .click();
+        await page.getByTitle('#FFFFFF').click();
+        await page.keyboard.press('Escape');
+        await dialog.getByTestId('vector-field-configuration-tab').click();
+
+        await dialog.getByTestId('vector-field-apply-button').click();
+        await waitForVectorOverlay(page);
+        expect(await vectorVertices(page)).toBeGreaterThan(0);
+        await expect
+            .poll(() => vectorPixels(page).then((pixels) => pixels.white))
+            .toBeGreaterThan(0);
+        expect(await vectorPng(page)).toMatchSnapshot(
+            'vector-overlay-white.png',
+        );
+        const thinPixels = await vectorPixels(page);
+        const whiteCanvas = await vectorPng(page);
+
+        await dialog
+            .getByTestId('vector-field-threshold-toggle')
+            .click({ force: true });
+        await dialog
+            .getByTestId('vector-field-threshold-option-dropdown')
+            .selectOption({ label: 'Stokes I' });
+        await dialog
+            .getByTestId('vector-field-threshold-input')
+            .fill('1000000');
+        await dialog.getByTestId('vector-field-threshold-input').press('Enter');
+        await dialog.getByTestId('vector-field-apply-button').click();
+        await waitForVectorOverlay(page);
+        await expect
+            .poll(() => vectorPixels(page).then((pixels) => pixels.visible))
+            .toBe(0);
+        expect(await vectorVertices(page)).toBe(0);
+        expect(await vectorPng(page)).toMatchSnapshot(
+            'vector-overlay-empty.png',
+        );
+
+        await dialog
+            .getByTestId('vector-field-threshold-toggle')
+            .click({ force: true });
+        await dialog.getByTestId('vector-field-apply-button').click();
+        await waitForVectorOverlay(page);
+        await expect
+            .poll(() => vectorPixels(page).then((pixels) => pixels.white))
+            .toBeGreaterThan(0);
+        expect(await vectorPng(page)).toMatchSnapshot(
+            'vector-overlay-white.png',
+        );
+
+        await dialog.getByTestId('vector-field-styling-tab').click();
+        await dialog.getByTestId('vector-field-line-input').fill('4');
+        await dialog.getByTestId('vector-field-line-input').press('Enter');
+        await expect
+            .poll(() => vectorPixels(page).then((pixels) => pixels.visible))
+            .toBeGreaterThan(thinPixels.visible);
+        const thickCanvas = await vectorPng(page);
+        expect(thickCanvas).not.toEqual(whiteCanvas);
+
+        await dialog
+            .getByTestId('vector-field-rotation-offset-input')
+            .fill('45');
+        await dialog
+            .getByTestId('vector-field-rotation-offset-input')
+            .press('Enter');
+        await expect.poll(() => vectorPng(page)).not.toEqual(thickCanvas);
+
+        await dialog
+            .getByTestId('vector-field-color-mode-dropdown')
+            .selectOption('1');
+        await dialog.getByTestId('colormap-dropdown').click();
+        await page.getByRole('menuitem', { name: 'tab10' }).click();
+        await expect
+            .poll(() => vectorPixels(page).then((pixels) => pixels.colored))
+            .toBeGreaterThan(0);
+        expect(await vectorPng(page)).toMatchSnapshot(
+            'vector-overlay-mapped.png',
+        );
+
+        await page.getByTestId('vector-dialog-header-close-button').click();
+        await carta.selectMenuItem('Widgets', [
+            'Info Panels',
+            'Image List Widget',
+        ]);
+        const layerList = page.locator('.layer-list-widget').last();
+        const visibility = layerList.getByRole('button', {
+            name: 'V',
+            exact: true,
+        });
+        await expect(visibility).toBeVisible();
+        await visibility.click();
+        await expect
+            .poll(() => vectorPixels(page).then((pixels) => pixels.visible))
+            .toBe(0);
+        expect(await vectorVertices(page)).toBeGreaterThan(0);
+        await visibility.click();
+        await expect
+            .poll(() => vectorPixels(page).then((pixels) => pixels.colored))
+            .toBeGreaterThan(0);
     });
 });
