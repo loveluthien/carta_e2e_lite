@@ -13,6 +13,7 @@ function write(
     spatialShift = 0,
     spectralShift = 0,
     observationMjd,
+    varyingStokes = false,
 ) {
     const values = {
         SIMPLE: true,
@@ -101,7 +102,14 @@ function write(
                     const value =
                         x === 1 && y === 1
                             ? NaN
-                            : scale * spectrum[z % 5] * (1 + y / 16) * (s + 1);
+                            : scale *
+                              spectrum[z % 5] *
+                              (1 + y / 16) *
+                              (varyingStokes && s === 1
+                                  ? 2 + z / 4
+                                  : varyingStokes && s === 2
+                                    ? 3 - z / 4
+                                    : s + 1);
                     data.writeFloatBE(
                         value,
                         4 * (((s * channels + z) * 16 + y) * 16 + x),
@@ -119,6 +127,7 @@ write('single.fits', 1);
 write('no-rest.fits', 5, 1, false);
 write('incompatible-spectral.fits', 5, 1, true, 1, true);
 write('iquv.fits', 5, 4);
+write('stokes-varying.fits', 5, 4, true, 1, false, 0, 0, undefined, true);
 write('stokes.I.fits');
 write('stokes.Q.fits', 5, 1, true, 2);
 write('stokes.U.fits', 5, 1, true, 3);

@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import { PlaywrightDevPage } from '../utilities';
 
 const stokesFiles = [
@@ -14,15 +14,41 @@ async function selectStokesFiles(page: Page) {
     });
     await filter.fill('stokes.');
     await filter.press('Enter');
+    await expect
+        .poll(() =>
+            page.evaluate(
+                () => (window as any).app.fileBrowserStore.isLoadingList,
+            ),
+        )
+        .toBe(false);
 
     for (const filename of stokesFiles) {
         const file = page.getByText(filename, { exact: true });
         await expect(file).toBeVisible();
     }
-    await page.getByText(stokesFiles[0], { exact: true }).click();
-    await page.getByText(stokesFiles.at(-1)!, { exact: true }).click({
-        modifiers: ['Shift'],
-    });
+    for (const [index, filename] of stokesFiles.entries()) {
+        await page
+            .getByText(filename, { exact: true })
+            .click(index ? { modifiers: ['ControlOrMeta'] } : {});
+        await expect
+            .poll(() =>
+                page.evaluate(() =>
+                    (window as any).app.fileBrowserStore.selectedFiles
+                        .map((file: any) => file.fileInfo.name)
+                        .sort(),
+                ),
+            )
+            .toEqual(stokesFiles.slice(0, index + 1).sort());
+    }
+}
+
+async function stokesDropdown(dialog: Locator, filename: string) {
+    const row = dialog
+        .locator('[data-testid^="stokes-table-filename-"]')
+        .filter({ hasText: filename });
+    await expect(row).toHaveCount(1);
+    const index = (await row.getAttribute('data-testid'))!.split('-').at(-1);
+    return dialog.getByTestId(`stokes-table-dropdown-${index}`);
 }
 
 async function stokesPlotState(page: Page) {
@@ -80,7 +106,7 @@ test.describe('Stokes hypercube E2E set', () => {
         page,
     }) => {
         const carta = new PlaywrightDevPage(page);
-        const outputCanvas = page.locator('#raster-canvas');
+        const outputCanvas = page.locator('#raster-canvas').first();
 
         await carta.goto();
         await selectStokesFiles(page);
@@ -95,22 +121,25 @@ test.describe('Stokes hypercube E2E set', () => {
             'Stokes V',
         ].entries()) {
             await expect(
-                dialog.getByTestId(`stokes-table-dropdown-${index}`),
+                await stokesDropdown(dialog, stokesFiles[index]),
             ).toHaveText(polarization);
         }
 
         // Duplicate assignments clear the prior row and prevent loading.
-        await dialog.getByTestId('stokes-table-dropdown-0').click();
+        const intensity = await stokesDropdown(dialog, stokesFiles[0]);
+        const q = await stokesDropdown(dialog, stokesFiles[1]);
+        await intensity.click();
         await page.getByRole('menuitem', { name: 'Stokes Q' }).last().click();
-        await expect(dialog.getByTestId('stokes-table-dropdown-1')).toHaveText(
-            'None',
-        );
+        await expect(q).toHaveText('None');
         await expect(
             dialog.getByTestId('load-hypercube-button'),
         ).toBeDisabled();
-        await dialog.getByTestId('stokes-table-dropdown-0').click();
+        await expect
+            .poll(() => page.evaluate(() => (window as any).app.frames.length))
+            .toBe(0);
+        await intensity.click();
         await page.getByRole('menuitem', { name: 'Stokes I' }).last().click();
-        await dialog.getByTestId('stokes-table-dropdown-1').click();
+        await q.click();
         await page.getByRole('menuitem', { name: 'Stokes Q' }).last().click();
         await expect(dialog.getByTestId('load-hypercube-button')).toBeEnabled();
 
@@ -144,9 +173,19 @@ test.describe('Stokes hypercube E2E set', () => {
             )
             .toBe('Stokes I');
         await expect(outputCanvas).toBeVisible();
-        const stokesI = await outputCanvas.screenshot();
-        for (const polarization of ['Stokes Q', 'Stokes U', 'Stokes V']) {
-            await polarizationSlider.press('ArrowRight');
+        const planes = [
+            'Stokes I',
+            'Stokes Q',
+            'Stokes U',
+            'Stokes V',
+            'Ptotal',
+            'Plinear',
+            'PFtotal',
+            'PFlinear',
+            'Pangle',
+        ];
+        for (const [index, polarization] of planes.entries()) {
+            if (index) await polarizationSlider.press('ArrowRight');
             await expect
                 .poll(() =>
                     page.evaluate(
@@ -156,7 +195,9 @@ test.describe('Stokes hypercube E2E set', () => {
                     ),
                 )
                 .toBe(polarization);
-            expect(await outputCanvas.screenshot()).not.toEqual(stokesI);
+            await expect(outputCanvas).toHaveScreenshot(
+                `stokes-plane-${polarization.replaceAll(' ', '-')}.png`,
+            );
         }
     });
 
@@ -164,7 +205,7 @@ test.describe('Stokes hypercube E2E set', () => {
         const carta = new PlaywrightDevPage(page);
 
         await carta.goto();
-        await carta.loadImage('iquv.fits');
+        await carta.loadImage('stokes-varying.fits');
         await carta.selectMenuItem('Widgets', 'Stokes Analysis Widget');
 
         const widget = page.getByTestId('stokes-0-content');
@@ -189,24 +230,39 @@ test.describe('Stokes hypercube E2E set', () => {
         await expect
             .poll(() => stokesPlotState(page))
             .toEqual({
-                qOverI: [200, 200, 200, 200, 200],
-                uOverI: [300, 300, 300, 300, 300],
+                qOverI: [200, 225, 250, 275, 300],
+                uOverI: [300, 275, 250, 225, 200],
             });
         const plots = widget.locator('.stokes-widget canvas[role="img"]');
         await expect(plots).toHaveCount(4);
         await expect
             .poll(async () => {
                 const colorfulPixels = await stokesPlotColorCounts(page);
-                return colorfulPixels[0] > 100 && colorfulPixels[3] > 5;
+                return colorfulPixels.every((count) => count > 0);
             })
             .toBe(true);
         await expect
             .poll(() => widget.locator('.profiler-info').innerText())
             .toContain('Q/I: 2.00e+2, U/I: 3.00e+2, PI/I: 3.61e+2, PA: 28.15');
+        await expect(widget.locator('.stokes-widget')).toHaveScreenshot(
+            'stokes-fractional-plots.png',
+        );
+        await fractionalPolarization.uncheck({ force: true });
+        await expect(fractionalPolarization).not.toBeChecked();
+        await expect(widget.locator('.stokes-widget')).toHaveScreenshot(
+            'stokes-absolute-plots.png',
+        );
+        await fractionalPolarization.check({ force: true });
+        await expect(widget.locator('.stokes-widget')).toHaveScreenshot(
+            'stokes-fractional-plots.png',
+        );
 
         await page.getByTestId('stokes-0-header-settings-button').click();
         const settings = page.getByTestId(
             'stokes-0-floating-settings-0-content',
+        );
+        const settingsCloseButton = page.locator(
+            '[data-testid^="stokes-0-floating-settings-"][data-testid$="-header-close-button"]',
         );
         await expect(settings).toBeVisible();
 
@@ -221,6 +277,12 @@ test.describe('Stokes hypercube E2E set', () => {
                 ),
             )
             .toBe('Channel');
+        await settingsCloseButton.click();
+        await expect(widget.locator('.stokes-widget')).toHaveScreenshot(
+            'stokes-channel-plots.png',
+        );
+        await page.getByTestId('stokes-0-header-settings-button').click();
+        await expect(settings).toBeVisible();
 
         // Line plot styling: both color selectors, line width, point size, and styles.
         await settings.getByRole('tab', { name: 'Line Plot Styling' }).click();
@@ -282,10 +344,28 @@ test.describe('Stokes hypercube E2E set', () => {
             .filter({ hasText: 'Reference axes' })
             .locator('input')
             .uncheck({ force: true });
+        await settingsCloseButton.click();
+        await expect(widget.locator('.stokes-widget')).toHaveScreenshot(
+            'stokes-styled-plots.png',
+        );
+        await widget
+            .locator('.stokes-analysis-toolbar .profile-buttons a')
+            .click();
+        await expect(settings).toBeVisible();
+        await expect(
+            settings.getByRole('tab', { name: 'Smoothing' }),
+        ).toHaveAttribute('aria-selected', 'true');
 
         // Every smoothing method exposed by this widget and its method-specific inputs.
-        await settings.getByRole('tab', { name: 'Smoothing' }).click();
         const smoothing = settings.locator('.smoothing-settings-panel');
+        const captureSmoothing = async (name: string) => {
+            await settingsCloseButton.click();
+            await expect(widget.locator('.stokes-widget')).toHaveScreenshot(
+                `stokes-${name}-plots.png`,
+            );
+            await page.getByTestId('stokes-0-header-settings-button').click();
+            await settings.getByRole('tab', { name: 'Smoothing' }).click();
+        };
         const smoothingMethod = smoothing.getByTestId(
             'smoothing-settings-method-dropdown',
         );
@@ -296,16 +376,27 @@ test.describe('Stokes hypercube E2E set', () => {
         await smoothing
             .getByTestId('smoothing-settings-kernel-input')
             .fill('3');
+        await captureSmoothing('boxcar-overlay');
+        await smoothing
+            .getByTestId('smoothing-settings-overlay-toggle')
+            .uncheck({ force: true });
+        await captureSmoothing('boxcar-only');
+        await smoothing
+            .getByTestId('smoothing-settings-overlay-toggle')
+            .check({ force: true });
         await smoothingMethod.selectOption('Gaussian');
         await smoothing.getByTestId('smoothing-settings-sigma-input').fill('2');
+        await captureSmoothing('gaussian');
         await smoothingMethod.selectOption('Hanning');
         await smoothing
             .getByTestId('smoothing-settings-kernel-input')
             .fill('5');
+        await captureSmoothing('hanning');
         await smoothingMethod.selectOption('Binning');
         await smoothing
             .getByTestId('smoothing-settings-binning-width-input')
             .fill('3');
+        await captureSmoothing('binning');
         await smoothingMethod.selectOption('Savitzky-Golay');
         await smoothing
             .getByTestId('smoothing-settings-kernel-input')
@@ -313,7 +404,12 @@ test.describe('Stokes hypercube E2E set', () => {
         await smoothing
             .getByTestId('smoothing-settings-fitting-order-input')
             .fill('2');
+        await captureSmoothing('savitzky-golay');
         await smoothingMethod.selectOption('None');
+        await settingsCloseButton.click();
+        await expect(widget.locator('.stokes-widget')).toHaveScreenshot(
+            'stokes-styled-plots.png',
+        );
 
         await expect
             .poll(() =>
@@ -367,5 +463,57 @@ test.describe('Stokes hypercube E2E set', () => {
                 savitzkyKernel: 5,
                 savitzkyOrder: 2,
             });
+    });
+
+    test('keeps fractional polarization unavailable without Q and U', async ({
+        page,
+    }) => {
+        const carta = new PlaywrightDevPage(page);
+        await carta.goto();
+        await carta.loadImage('stokes-varying.fits');
+        await carta.loadImage('stokes.I.fits', true);
+        await carta.selectMenuItem('Widgets', 'Stokes Analysis Widget');
+
+        const widget = page.getByTestId('stokes-0-content');
+        const images = widget.getByTestId('image-dropdown');
+        const fractionalPolarization = widget.locator(
+            '.stokes-analysis-toolbar input[type="checkbox"]',
+        );
+        await expect(images.locator('option')).toHaveCount(3);
+        await images.selectOption({ label: '0: stokes-varying.fits' });
+        const regionId = await page.evaluate(async () => {
+            const frame = (window as any).app.frames[0];
+            const region = await frame.regionSet.addRegionAsync(0, [
+                { x: 8, y: 8 },
+            ]);
+            frame.regionSet.setFocusedRegion(region);
+            return region.regionId;
+        });
+        await widget
+            .getByTestId('region-dropdown')
+            .selectOption(String(regionId));
+        await fractionalPolarization.check({ force: true });
+        await expect(widget.locator('.profiler-info')).toContainText(
+            'Q/I: 2.00e+2',
+        );
+
+        await images.selectOption({ label: '1: stokes.I.fits' });
+        await expect(fractionalPolarization).toBeDisabled();
+        await expect(fractionalPolarization).not.toBeChecked();
+        await expect(widget.locator('.profiler-info')).not.toContainText('Q:');
+        await expect(widget.locator('.stokes-widget')).toHaveScreenshot(
+            'stokes-unavailable-plots.png',
+        );
+        await expect(page.locator('#raster-canvas').first()).toBeVisible();
+
+        await images.selectOption({ label: '0: stokes-varying.fits' });
+        await widget
+            .getByTestId('region-dropdown')
+            .selectOption(String(regionId));
+        await expect(fractionalPolarization).toBeEnabled();
+        await fractionalPolarization.check({ force: true });
+        await expect(widget.locator('.stokes-widget')).toHaveScreenshot(
+            'stokes-recovered-plots.png',
+        );
     });
 });
