@@ -12,6 +12,7 @@ function write(
     swappedAxes = false,
     spatialShift = 0,
     spectralShift = 0,
+    observationMjd,
 ) {
     const values = {
         SIMPLE: true,
@@ -45,6 +46,7 @@ function write(
         CRVAL3: 1e9 - (spectralShift * 1e9) / 299792.458,
         CDELT3: -1e9 / 299792.458,
         BUNIT: 'K',
+        ...(observationMjd === undefined ? {} : { 'MJD-OBS': observationMjd }),
         ...(metadata ? { RESTFRQ: 1e9, SPECSYS: 'LSRK' } : {}),
         ...(swappedAxes
             ? {
@@ -121,3 +123,5 @@ write('stokes.I.fits');
 write('stokes.Q.fits', 5, 1, true, 2);
 write('stokes.U.fits', 5, 1, true, 3);
 write('stokes.V.fits', 5, 1, true, 4);
+write('time-early.fits', 5, 1, true, 1, false, 0, 0, 59000);
+write('time-late.fits', 5, 1, true, 2, false, 0, 0, 59002);
