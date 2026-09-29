@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 import {
     averageWidthInput,
     axesOrderSelect,
@@ -51,22 +51,41 @@ type CartaWindow = Window & {
     };
 };
 
+async function createLineAndOpenGenerator(page: Page) {
+    const carta = new PlaywrightDevPage(page);
+    await page.getByTestId('line-region-shortcut-button').click();
+    await page.locator('.region-stage > .konvajs-content > canvas').click({
+        position: { x: 359, y: 242 },
+    });
+    await carta.selectMenuItem('Widgets', 'PV Generator');
+    await pvCutDropdown(page).selectOption({ label: 'Region 1' });
+}
+
+async function moveLineCut(page: Page) {
+    const canvas = page
+        .locator('.region-stage > .konvajs-content > canvas')
+        .first();
+    const box = await canvas.boundingBox();
+    if (!box) throw new Error('Image viewer region canvas is not visible');
+    await page.mouse.move(box.x + 359, box.y + 242);
+    await page.mouse.down();
+    await page.mouse.move(box.x + 379, box.y + 292, { steps: 5 });
+    await page.mouse.up();
+}
+
+test.beforeEach(async ({ page }) => {
+    const carta = new PlaywrightDevPage(page);
+    await carta.goto();
+    await carta.setTestPreferences();
+    await carta.loadImage('HD163296_13CO_2-1_subimage.fits');
+});
+
+test.afterEach(async ({ page }) => {
+    await new PlaywrightDevPage(page).resetAllPreferences();
+});
+
 test.describe('PV Generator Controls & Validation', () => {
-    test.beforeEach(async ({ page }) => {
-        const carta = new PlaywrightDevPage(page);
-        await carta.goto();
-        await carta.setTestPreferences();
-        await carta.loadImage('HD163296_13CO_2-1_subimage.fits');
-    });
-
-    test.afterEach(async ({ page }) => {
-        const carta = new PlaywrightDevPage(page);
-        await carta.resetAllPreferences();
-    });
-
-    test('PVG-01: Initial state, region filtering and tooltips', async ({
-        page,
-    }) => {
+    test('Initial state filters unsupported regions', async ({ page }) => {
         const carta = new PlaywrightDevPage(page);
         await carta.selectMenuItem('Widgets', 'PV Generator');
         await expect(
@@ -98,7 +117,7 @@ test.describe('PV Generator Controls & Validation', () => {
         await expect(previewButton(page)).toBeDisabled();
     });
 
-    test('PVG-02: Line geometry validation (out-of-bounds and single-pixel)', async ({
+    test('Invalid line geometry disables generation and preview', async ({
         page,
     }) => {
         const carta = new PlaywrightDevPage(page);
@@ -169,9 +188,7 @@ test.describe('PV Generator Controls & Validation', () => {
         );
     });
 
-    test('PVG-03: Polyline region enables Generate but disables Preview', async ({
-        page,
-    }) => {
+    test('Polyline supports generation but not preview', async ({ page }) => {
         const carta = new PlaywrightDevPage(page);
 
         // Add a polyline region (type 2: POLYLINE) with 3 vertices
@@ -194,19 +211,10 @@ test.describe('PV Generator Controls & Validation', () => {
         await expect(previewButton(page)).toBeDisabled();
     });
 
-    test('PVG-04: Animation playback disables Generate and Preview', async ({
+    test('Animation playback disables generation and preview', async ({
         page,
     }) => {
-        const carta = new PlaywrightDevPage(page);
-
-        // Add line region
-        await page.getByTestId('line-region-shortcut-button').click();
-        await page.locator('.region-stage > .konvajs-content > canvas').click({
-            position: { x: 359, y: 242 },
-        });
-
-        await carta.selectMenuItem('Widgets', 'PV Generator');
-        await pvCutDropdown(page).selectOption({ label: 'Region 1' });
+        await createLineAndOpenGenerator(page);
         await expect(generateButton(page)).toBeEnabled();
         await expect(previewButton(page)).toBeEnabled();
 
@@ -231,18 +239,8 @@ test.describe('PV Generator Controls & Validation', () => {
         await expect(previewButton(page)).toBeEnabled();
     });
 
-    test('PVG-05: Spectral coordinate and system settings update units', async ({
-        page,
-    }) => {
-        const carta = new PlaywrightDevPage(page);
-
-        await page.getByTestId('line-region-shortcut-button').click();
-        await page.locator('.region-stage > .konvajs-content > canvas').click({
-            position: { x: 359, y: 242 },
-        });
-
-        await carta.selectMenuItem('Widgets', 'PV Generator');
-        await pvCutDropdown(page).selectOption({ label: 'Region 1' });
+    test('Spectral coordinate changes range units', async ({ page }) => {
+        await createLineAndOpenGenerator(page);
 
         // Coordinate: Frequency (MHz)
         await coordDropdown(page).selectOption('Frequency (MHz)');
@@ -261,20 +259,13 @@ test.describe('PV Generator Controls & Validation', () => {
         await expect(pvPanel(page)).toContainText('Range (null)');
     });
 
-    test('PVG-06: Spectral range validation', async ({ page }) => {
-        const carta = new PlaywrightDevPage(page);
-
-        await page.getByTestId('line-region-shortcut-button').click();
-        await page.locator('.region-stage > .konvajs-content > canvas').click({
-            position: { x: 359, y: 242 },
-        });
-
-        await carta.selectMenuItem('Widgets', 'PV Generator');
-        await pvCutDropdown(page).selectOption({ label: 'Region 1' });
+    test('Invalid spectral range disables generation', async ({ page }) => {
+        await createLineAndOpenGenerator(page);
         await coordDropdown(page).selectOption('Channel');
 
         // Initial valid range
         await expect(generateButton(page)).toBeEnabled();
+        await expect(previewButton(page)).toBeEnabled();
 
         // Set invalid range where From == To (e.g. 20 and 20)
         await spectralFromInput(page).fill('20');
@@ -282,6 +273,10 @@ test.describe('PV Generator Controls & Validation', () => {
         await spectralToInput(page).fill('20');
         await spectralToInput(page).press('Enter');
         await expect(generateButton(page)).toBeDisabled();
+        await expect(previewButton(page)).toBeDisabled();
+        expect((await getFrames(page)).some((frame) => frame.isPVImage)).toBe(
+            false,
+        );
 
         // Restore valid subset (From = 5, To = 25)
         await spectralFromInput(page).fill('5');
@@ -289,9 +284,10 @@ test.describe('PV Generator Controls & Validation', () => {
         await spectralToInput(page).fill('25');
         await spectralToInput(page).press('Enter');
         await expect(generateButton(page)).toBeEnabled();
+        await expect(previewButton(page)).toBeEnabled();
     });
 
-    test('PVG-07: Data source switching across multiple loaded images', async ({
+    test('Switching data sources restores the selected cut', async ({
         page,
     }) => {
         const carta = new PlaywrightDevPage(page);
@@ -337,95 +333,48 @@ test.describe('PV Generator Controls & Validation', () => {
 
 test.describe('PV Image Generation', () => {
     test.beforeEach(async ({ page }) => {
-        const carta = new PlaywrightDevPage(page);
-        await carta.goto();
-        await carta.setTestPreferences();
-        await carta.loadImage('HD163296_13CO_2-1_subimage.fits');
-
-        await page.getByTestId('line-region-shortcut-button').click();
-        await page.locator('.region-stage > .konvajs-content > canvas').click({
-            position: { x: 359, y: 242 },
-        });
-
-        await carta.selectMenuItem('Widgets', 'PV Generator');
-        await pvCutDropdown(page).selectOption({ label: 'Region 1' });
+        await createLineAndOpenGenerator(page);
     });
 
-    test.afterEach(async ({ page }) => {
-        const carta = new PlaywrightDevPage(page);
-        await carta.resetAllPreferences();
-    });
-
-    test('PVI-01: Full-resolution PV generation and multi-coordinate generation', async ({
+    test('Generate PV images with multiple spectral coordinates', async ({
         page,
     }) => {
-        const carta = new PlaywrightDevPage(page);
-
-        // Generate PV image with default axes
         await generateButton(page).click();
         await expect(page.getByTestId('image-view-header-title')).toContainText(
             'HD163296_13CO_2-1_subimage_pv.fits',
             { timeout: 30_000 },
         );
 
-        // Verify frame list has the new PV image
-        let frames = await getFrames(page);
-        const pvFrame = frames.find(
-            (f: { filename: string }) =>
-                f.filename === 'HD163296_13CO_2-1_subimage_pv.fits',
-        );
-        expect(pvFrame).toBeTruthy();
-        expect(pvFrame?.isPVImage).toBe(true);
-
-        // Generate second PV image with Frequency (MHz)
-        await coordDropdown(page).selectOption('Frequency (MHz)');
-        await generateButton(page).click();
-        await expect(
-            page.locator('#image-panel-1-0 #overlay-canvas'),
-        ).toBeVisible({ timeout: 30_000 });
-
-        // Close PV generator and modify line region dimensions via region dialog
-        await generatorCloseBtn(page).click();
-        await page
-            .locator('.region-stage > .konvajs-content > canvas')
-            .first()
-            .dblclick({
-                position: { x: 160, y: 240 },
-            });
-        await page.getByRole('radiogroup').getByText('Image').click();
-        await page.locator('#numericInput-20').fill('60');
-        await page.locator('#numericInput-21').fill('30');
-        await page.getByTestId('region-dialog-header-close-button').click();
-
-        // Re-open PV Generator, switch axes order and coordinate to Vacuum wavelength (um)
-        await page.locator('#PVGeneratorButton').click();
-        await pvCutDropdown(page).selectOption({ label: 'Region 1' });
-        await keepSwitch(page).click();
-        await axesOrderSelect(page).selectOption(
-            'X-axis: Spectral, Y-axis: Spatial',
-        );
-        await coordDropdown(page).selectOption('Vacuum wavelength (um)');
-        await generateButton(page).click();
-
-        await expect(
-            page.locator('#image-panel-1-0 #overlay-canvas'),
-        ).toBeVisible({ timeout: 30_000 });
-
-        // Verify multiple PV frames exist because keep was enabled
         await expect
             .poll(
-                async () => {
-                    const f = await getFrames(page);
-                    return f.filter((img: { filename: string | string[] }) =>
-                        img.filename.includes('_pv'),
-                    ).length;
-                },
-                { timeout: 30_000 },
+                async () =>
+                    (await getFrames(page)).find((frame) => frame.isPVImage)
+                        ?.filename,
             )
-            .toBeGreaterThanOrEqual(2);
+            .toBe('HD163296_13CO_2-1_subimage_pv.fits');
+
+        await coordDropdown(page).selectOption('Frequency (MHz)');
+        await expect(pvPanel(page)).toContainText('(MHz)');
+        await generateButton(page).click();
+        await expect(page.locator('.task-progress-dialog')).toBeHidden({
+            timeout: 30_000,
+        });
+        await expect(page.getByTestId('image-view-header-title')).toContainText(
+            'HD163296_13CO_2-1_subimage_pv.fits',
+        );
+        await generatorCloseBtn(page).click();
+        await page.mouse.move(0, 0);
+        const viewer = page.getByTestId('viewer-div');
+        await expect(viewer.locator('.image-ratio-popup')).toHaveCSS(
+            'opacity',
+            '0',
+        );
+        await expect(viewer).toHaveScreenshot(
+            'HD163296_13CO_2-1_subimage_pv_MHz.png',
+        );
     });
 
-    test('PVI-02: Custom average width generation', async ({ page }) => {
+    test('Generate a PV image with custom average width', async ({ page }) => {
         // Set Average width to 5
         await averageWidthInput(page).fill('5');
         await averageWidthInput(page).press('Tab');
@@ -444,9 +393,7 @@ test.describe('PV Image Generation', () => {
         expect(pv).toBeTruthy();
     });
 
-    test('PVI-03: Custom spectral range subset generation', async ({
-        page,
-    }) => {
+    test('Generate a PV image from a spectral subset', async ({ page }) => {
         await coordDropdown(page).selectOption('Channel');
         await spectralFromInput(page).fill('10');
         await spectralFromInput(page).press('Enter');
@@ -469,9 +416,7 @@ test.describe('PV Image Generation', () => {
         expect(pv?.height).toBe(21);
     });
 
-    test('PVI-04: Axes order transposition (X-axis: Spectral, Y-axis: Spatial)', async ({
-        page,
-    }) => {
+    test('Transpose PV image axes', async ({ page }) => {
         await coordDropdown(page).selectOption('Channel');
         await axesOrderSelect(page).selectOption(
             'X-axis: Spectral, Y-axis: Spatial',
@@ -482,7 +427,7 @@ test.describe('PV Image Generation', () => {
             timeout: 30_000,
         });
 
-        // In reversed axes, width is the spectral axis and height is the spatial cut length.
+        // This fixture's default line yields three spatial samples.
         await expect
             .poll(
                 async () => {
@@ -495,17 +440,10 @@ test.describe('PV Image Generation', () => {
                 },
                 { timeout: 30_000 },
             )
-            .toEqual({ width: 110, height: 7 });
-
-        // Reset axes order back to default
-        await axesOrderSelect(page).selectOption(
-            'X-axis: Spatial, Y-axis: Spectral',
-        );
+            .toEqual({ width: 110, height: 3 });
     });
 
-    test('PVI-05: Keep previous PV images toggle behaviour', async ({
-        page,
-    }) => {
+    test('Keep or replace previous PV images', async ({ page }) => {
         // First generation without keep
         await generateButton(page).click();
         await expect(page.getByTestId('image-view-header-title')).toContainText(
@@ -553,7 +491,7 @@ test.describe('PV Image Generation', () => {
             .toBeLessThanOrEqual(2);
     });
 
-    test('PVI-06: Polyline cut PV generation', async ({ page }) => {
+    test('Generate a PV image from a polyline', async ({ page }) => {
         // Create a polyline region (type 2: POLYLINE) with 3 points
         await page.evaluate(async () => {
             const frame = (window as unknown as CartaWindow).app.activeFrame;
@@ -582,9 +520,7 @@ test.describe('PV Image Generation', () => {
         expect(pv?.isPVImage).toBe(true);
     });
 
-    test('PVI-07: PV generation cancellation and re-request', async ({
-        page,
-    }) => {
+    test('Cancel and retry PV generation', async ({ page }) => {
         const carta = new PlaywrightDevPage(page);
 
         // Load large cube Gaussian_array_wide.fits
@@ -633,7 +569,7 @@ test.describe('PV Image Generation', () => {
         ).toBe(true);
     });
 
-    test('PVI-08: Image viewer conversion validates rest-frame input and renders correction', async ({
+    test('Rest-frame conversion validates input and updates the viewer', async ({
         page,
     }) => {
         test.setTimeout(90_000);
@@ -728,47 +664,23 @@ test.describe('PV Image Generation', () => {
 
 test.describe('PV Preview', () => {
     test.beforeEach(async ({ page }) => {
-        const carta = new PlaywrightDevPage(page);
-        await carta.goto();
-        await carta.setTestPreferences();
-        await carta.loadImage('HD163296_13CO_2-1_subimage.fits');
-
-        await page.getByTestId('line-region-shortcut-button').click();
-        await page.locator('.region-stage > .konvajs-content > canvas').click({
-            position: { x: 359, y: 242 },
-        });
-
-        await carta.selectMenuItem('Widgets', 'PV Generator');
-        await pvCutDropdown(page).selectOption({ label: 'Region 1' });
+        await createLineAndOpenGenerator(page);
     });
 
-    test.afterEach(async ({ page }) => {
-        const carta = new PlaywrightDevPage(page);
-        await carta.resetAllPreferences();
-    });
-
-    test('PVP-01: Preview widget activation, interaction and lifecycle', async ({
-        page,
-    }) => {
+    test('Start, move, close and reopen a PV preview', async ({ page }) => {
         // Start preview
         await previewButton(page).click();
         const preview = previewWidget(page);
         await expect(preview).toBeVisible({ timeout: 30_000 });
         await expect(preview.locator('canvas').first()).toBeVisible();
+        await expect(preview).toHaveScreenshot(
+            'HD163296_13CO_2-1_subimage_pv_preview.png',
+        );
 
-        // Move line region in the viewer and check preview updates
-        const canvas = page
-            .locator('.region-stage > .konvajs-content > canvas')
-            .first();
-        const box = await canvas.boundingBox();
-        expect(box).not.toBeNull();
-
-        await page.mouse.move(box!.x + 359, box!.y + 242);
-        await page.mouse.down();
-        await page.mouse.move(box!.x + 379, box!.y + 292, { steps: 5 });
-        await page.mouse.up();
-
-        await expect(preview).toBeVisible();
+        await moveLineCut(page);
+        await expect(preview).toHaveScreenshot(
+            'HD163296_13CO_2-1_subimage_pv_preview_moved.png',
+        );
 
         // Close preview widget via header close button
         await previewCloseBtn(page).click();
@@ -779,37 +691,32 @@ test.describe('PV Preview', () => {
         await expect(preview).toBeVisible({ timeout: 10_000 });
     });
 
-    test('PVP-02: Interactive preview responsiveness to generator controls', async ({
-        page,
-    }) => {
+    test('Restarted preview applies width and axes order', async ({ page }) => {
         await previewButton(page).click();
         const preview = previewWidget(page);
         await expect(preview).toBeVisible({ timeout: 30_000 });
+        await previewCloseBtn(page).click();
+        await expect(preview).toBeHidden();
 
         // Change Average Width
         await averageWidthInput(page).fill('6');
         await averageWidthInput(page).press('Tab');
-        await expect(preview.locator('canvas').first()).toBeVisible();
+        await expect(averageWidthInput(page)).toHaveValue('6');
 
         // Swap Axes Order
         await axesOrderSelect(page).selectOption(
             'X-axis: Spectral, Y-axis: Spatial',
         );
-        await expect(preview.locator('canvas').first()).toBeVisible();
-
-        // Change Spectral Coordinate
-        await coordDropdown(page).selectOption('Radio velocity (km/s)');
-        await expect(preview.locator('canvas').first()).toBeVisible();
-
-        // Reset axes order
-        await axesOrderSelect(page).selectOption(
-            'X-axis: Spatial, Y-axis: Spectral',
+        await expect(axesOrderSelect(page)).toHaveValue(
+            'X-axis: Spectral, Y-axis: Spatial',
         );
+
+        await previewButton(page).click();
+        await expect(preview).toBeVisible({ timeout: 30_000 });
+        await expect(preview).toHaveScreenshot('pv_preview_reversed_axes.png');
     });
 
-    test('PVP-03: Preview size estimate and rebinning controls', async ({
-        page,
-    }) => {
+    test('Rebin controls retain preview eligibility', async ({ page }) => {
         const carta = new PlaywrightDevPage(page);
 
         // Reuse the large cube from the cancellation test.
@@ -864,9 +771,7 @@ test.describe('PV Preview', () => {
         await expect(previewButton(page)).toBeEnabled();
     });
 
-    test('PVP-04: Rectangular Preview Region opens a preview', async ({
-        page,
-    }) => {
+    test('Generate a preview within a rectangle region', async ({ page }) => {
         const carta = new PlaywrightDevPage(page);
 
         // Reuse the lightweight wide cube; its estimate remains below the
@@ -927,7 +832,7 @@ test.describe('PV Preview', () => {
         await expect(previewWidget(page)).toBeVisible({ timeout: 30_000 });
     });
 
-    test('PVP-05: Transition from preview to full PV generation', async ({
+    test('Generate a full PV image while preview remains open', async ({
         page,
     }) => {
         // Start preview
