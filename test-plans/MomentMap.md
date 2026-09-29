@@ -1,6 +1,6 @@
 # MomentMap test plan
 
-**Source:** [`tests/MomentMap.spec.ts`](../tests/MomentMap.spec.ts) · **Cases:** 53
+**Source:** [`tests/MomentMap.spec.ts`](../tests/MomentMap.spec.ts) · **Scenarios:** 53 across 41 Playwright tests
 
 Moment generator data, controls, lifecycle and failure recovery.
 
@@ -12,7 +12,10 @@ Moment generator data, controls, lifecycle and failure recovery.
 - For rejected input or a failed operation, verify no unwanted image is created and the user can recover. Exercise every button relevant to the scenario.
 - Referenced FITS fixtures: `Gaussian_array_wide.fits`, `cube.fits`, `iquv.fits`, `no-rest.fits`, `single.fits`, `stokes.Q.fits`.
 - MM-03 ellipse cases make a unique temporary copy of `cube.fits` so repeated runs do not reuse the same generated-map source name; the test removes the copy afterward. Crop cases verify that a request with no partial result has settled before retrying once.
-- Current source contains no named PNG baseline check; the table below describes intended outcomes and does not claim any test has passed.
+- Shared viewport, timeout and page-default-timeout setup is defined once at the top of the source. Frame state is represented by the typed `FrameSnapshot` helper, and MM-11 opens the Moments tab once per scenario.
+- The 13 MM-06 single-moment requests run as test steps on one page, retaining individual-generation assertions while avoiding 12 repeated CARTA page setups.
+- `checkMap` validates the numerical oracle and a rendered RGB pixel. MM-20 also writes a PNG artifact (`moment-map-generated.png`) to the Playwright test output for visual inspection.
+- The table below describes intended outcomes and does not claim that a complete backend run has passed.
 
 ## Cases
 
@@ -76,7 +79,7 @@ Moment generator data, controls, lifecycle and failure recovery.
 
 - `MM-19 result load failure warns and retry succeeds [injected]` uses `test.fail` for a known missing warning. Keep it marked as an expected failure until the product behavior is fixed.
 - The 13 `MM-06` cases correspond to tags −1 and 0 through 11. The five `MM-08` and seven `MM-13/MM-14` rows are separate Playwright cases.
-- The earlier comprehensive Moment Map design is retained in [`MomentMap-design.md`](./MomentMap-design.md). This file indexes the current implemented suite.
+- This file indexes the implemented Moment Map suite and its expected outcomes.
 
 ## Run
 

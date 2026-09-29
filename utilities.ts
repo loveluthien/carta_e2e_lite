@@ -3,7 +3,21 @@ import dotenv from 'dotenv';
 import path from 'path';
 dotenv.config({ path: path.resolve(__dirname, '.env') });
 
-export async function getFrames(page: Page) {
+export interface FrameSnapshot {
+    id: number;
+    filename: string;
+    width: number;
+    height: number;
+    channels: number;
+    unit: string;
+    matching: number | null;
+    moments: number[];
+    requesting: boolean;
+    headers: Array<{ name: string; value?: unknown }>;
+    isPVImage: boolean;
+}
+
+export async function getFrames(page: Page): Promise<FrameSnapshot[]> {
     return page.evaluate(() =>
         ((window as any).app?.frames || []).map((f: any) => ({
             id: f.frameInfo?.fileId,
@@ -244,13 +258,13 @@ export async function generate(
     keep = false,
 ) {
     const before = await getFrames(page);
-    const old = before.map((f: any) => f.id);
+    const old = before.map((f) => f.id);
     await selectMoments(page, selected);
     await control(page, 'generate-button').click();
     await expect
         .poll(
             async () =>
-                (await getFrames(page)).filter((f: any) => !old.includes(f.id))
+                (await getFrames(page)).filter((f) => !old.includes(f.id))
                     .length,
             { timeout: 30000 },
         )
@@ -258,27 +272,29 @@ export async function generate(
     await expect
         .poll(
             async () =>
-                (await getFrames(page)).find((f: any) => f.filename === source)
+                (await getFrames(page)).find((f) => f.filename === source)
                     ?.requesting,
         )
         .toBe(false);
     const after = await getFrames(page);
-    const added = after.filter((f: any) => !old.includes(f.id));
-    const sourceFrame = after.find((f: any) => f.filename === source);
+    const added = after.filter((f) => !old.includes(f.id));
+    const sourceFrame = after.find((f) => f.filename === source);
+    if (!sourceFrame) throw new Error(`Missing source frame ${source}`);
     expect(sourceFrame.moments).toEqual(
         keep
             ? [
-                  ...before.find((f: any) => f.filename === source).moments,
-                  ...added.map((f: any) => f.id),
+                  ...before.find((f) => f.filename === source)!.moments,
+                  ...added.map((f) => f.id),
               ]
-            : added.map((f: any) => f.id),
+            : added.map((f) => f.id),
     );
     for (const tag of selected) {
         const suffix = moments.find((m) => m[0] === tag)![2];
-        const result = added.find((f: any) =>
+        const result = added.find((f) =>
             new RegExp(`\\.moment\\.${suffix}\\d*$`).test(f.filename),
         );
         expect(result, `Missing moment ${tag}`).toBeTruthy();
+        if (!result) throw new Error(`Missing moment ${tag}`);
         expect(result.channels).toBe(1);
     }
     await expect(page.getByTestId('viewer-div')).toBeVisible();
@@ -336,6 +352,25 @@ export async function pixel(page: Page, x: number, y: number) {
     );
 }
 
+export async function renderedRgb(page: Page) {
+    const canvas = page.locator('#raster-canvas').first();
+    return canvas.evaluate((source: HTMLCanvasElement) => {
+        const context = source.getContext('2d');
+        if (!context) throw new Error('Viewer canvas has no 2D context');
+        const { data } = context.getImageData(
+            0,
+            0,
+            source.width,
+            source.height,
+        );
+        for (let index = 0; index < data.length; index += 4) {
+            if (data[index + 3] > 0)
+                return Array.from(data.slice(index, index + 4));
+        }
+        return [0, 0, 0, 0];
+    });
+}
+
 export function oracle(
     tag: string,
     samples = [1, 2, 4, 8, 16],
@@ -387,7 +422,7 @@ export function oracle(
 
 export async function checkMap(
     page: Page,
-    map: any,
+    map: FrameSnapshot,
     tag: string,
     samples = [1, 2, 4, 8, 16],
     channels = [0, 1, 2, 3, 4],
@@ -403,9 +438,15 @@ export async function checkMap(
         'CDELT1',
         'CDELT2',
     ]) {
-        expect(map.headers.some((h: any) => h.name === key)).toBe(true);
+        expect(map.headers.some((h) => h.name === key)).toBe(true);
     }
     await activate(page, map.filename);
+    const rgb = await renderedRgb(page);
+    expect(rgb).toHaveLength(4);
+    expect(
+        rgb.slice(0, 3).every((channel) => channel >= 0 && channel <= 255),
+    ).toBe(true);
+    expect(rgb[3]).toBeGreaterThan(0);
     const value = await pixel(page, 8, 8);
     const expected = oracle(
         tag,

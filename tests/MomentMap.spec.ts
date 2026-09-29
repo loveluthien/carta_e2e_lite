@@ -19,17 +19,22 @@ import {
     panel,
     pixel,
     PlaywrightDevPage,
+    type FrameSnapshot,
     range,
+    renderedRgb,
     selectMoments,
     setSwitch,
     tags,
 } from '../utilities';
 
-test.describe('Moment Map', () => {
-    test.use({ viewport: { width: 1600, height: 1000 } });
-    test.setTimeout(90000);
-    test.beforeEach(async ({ page }) => page.setDefaultTimeout(10000));
+const MOMENT_VIEWPORT = { width: 1600, height: 1000 };
+const MOMENT_TIMEOUT_MS = 90_000;
 
+test.use({ viewport: MOMENT_VIEWPORT });
+test.setTimeout(MOMENT_TIMEOUT_MS);
+test.beforeEach(async ({ page }) => page.setDefaultTimeout(10_000));
+
+test.describe('Moment Map', () => {
     test('MM-01 defaults and tab persistence', async ({ page }) => {
         await open(page);
         await expect(tags(page)).toHaveText(['0']);
@@ -51,18 +56,24 @@ test.describe('Moment Map', () => {
         );
     });
 
-    for (const [tag, name] of moments)
-        test(`MM-06 moment ${tag}: ${name}`, async ({ page }) => {
-            await open(page);
-            if (tag === '4') {
-                await control(page, 'mask-dropdown').selectOption({
-                    label: 'Include',
-                });
-                await range(page, 'mask', 0, 100);
-            }
-            const [map] = await generate(page, [tag]);
-            await checkMap(page, map, tag);
-        });
+    test('MM-06 each moment generates independently', async ({ page }) => {
+        await open(page);
+        for (const [tag, name] of moments)
+            await test.step(`moment ${tag}: ${name}`, async () => {
+                if (tag === '4') {
+                    await control(page, 'mask-dropdown').selectOption({
+                        label: 'Include',
+                    });
+                    await range(page, 'mask', 0, 100);
+                }
+                const [map] = await generate(page, [tag]);
+                await checkMap(page, map, tag);
+                if (tag === '4')
+                    await control(page, 'mask-dropdown').selectOption({
+                        label: 'None',
+                    });
+            });
+    });
 
     test('MM-07 multi-moment and all-moment batches', async ({ page }) => {
         await open(page);
@@ -78,11 +89,11 @@ test.describe('Moment Map', () => {
             for (const tag of selected)
                 await checkMap(
                     page,
-                    maps.find((m: any) =>
+                    maps.find((m: FrameSnapshot) =>
                         m.filename.includes(
                             `.moment.${moments.find((d) => d[0] === tag)![2]}`,
                         ),
-                    ),
+                    )!,
                     tag,
                 );
         }
@@ -90,10 +101,6 @@ test.describe('Moment Map', () => {
 });
 
 test.describe('Moment Map controls and lifecycle', () => {
-    test.use({ viewport: { width: 1600, height: 1000 } });
-    test.setTimeout(90000);
-    test.beforeEach(async ({ page }) => page.setDefaultTimeout(10000));
-
     test('MM-01 no image disables generation', async ({ page }) => {
         await new PlaywrightDevPage(page).goto();
         await page
@@ -299,10 +306,11 @@ test.describe('Moment Map controls and lifecycle', () => {
         await setSwitch(page, 'Auto spatial matching', true);
         const [matched] = await generate(page, ['8'], 'cube.fits', true);
         expect(matched.matching).toBe(0);
-        expect(
-            (await getFrames(page)).find((f: any) => f.id === unmatched.id)
-                .matching,
-        ).toBeNull();
+        const unmatchedFrame = (await getFrames(page)).find(
+            (f) => f.id === unmatched.id,
+        );
+        expect(unmatchedFrame).toBeTruthy();
+        expect(unmatchedFrame!.matching).toBeNull();
         await control(page, 'image-dropdown').selectOption({ label: 'Active' });
         await expect(
             panel(page).getByLabel('Auto spatial matching'),
@@ -340,10 +348,17 @@ test.describe('Moment Map controls and lifecycle', () => {
         await expect(control(page, 'generate-button')).toBeEnabled();
     });
 
-    test('MM-20 generated image closes and regenerates', async ({ page }) => {
+    test('MM-20 generated image closes and regenerates', async ({
+        page,
+    }, testInfo) => {
         await open(page);
         const [map] = await generate(page, ['0']);
         await checkMap(page, map, '0');
+        await page.getByTestId('viewer-div').screenshot({
+            path: testInfo.outputPath('moment-map-generated.png'),
+        });
+        const rgb = await renderedRgb(page);
+        expect(rgb[3]).toBeGreaterThan(0);
         await page
             .locator('[data-testid$="-image-name"]')
             .filter({ hasText: map.filename })
@@ -354,10 +369,11 @@ test.describe('Moment Map controls and lifecycle', () => {
         await expect.poll(async () => (await getFrames(page)).length).toBe(1);
         const [again] = await generate(page, ['0']);
         await checkMap(page, again, '0');
-        expect(
-            (await getFrames(page)).find((f: any) => f.filename === 'cube.fits')
-                .channels,
-        ).toBe(5);
+        const sourceFrame = (await getFrames(page)).find(
+            (f) => f.filename === 'cube.fits',
+        );
+        expect(sourceFrame).toBeTruthy();
+        expect(sourceFrame!.channels).toBe(5);
     });
 
     test('MM-21 keyboard selection and generation', async ({ page }) => {
@@ -372,18 +388,14 @@ test.describe('Moment Map controls and lifecycle', () => {
         await control(page, 'generate-button').focus();
         await page.keyboard.press('Enter');
         await expect.poll(async () => (await getFrames(page)).length).toBe(2);
-        const map = (await getFrames(page)).find((f: any) =>
+        const map = (await getFrames(page)).find((f) =>
             f.filename.includes('.moment.maximum'),
         );
-        await checkMap(page, map, '8');
+        await checkMap(page, map!, '8');
     });
 });
 
 test.describe('Moment Map regions and spectral settings', () => {
-    test.use({ viewport: { width: 1600, height: 1000 } });
-    test.setTimeout(90000);
-    test.beforeEach(async ({ page }) => page.setDefaultTimeout(10000));
-
     for (const [name, type, points] of [
         [
             'rectangle',
@@ -448,11 +460,11 @@ test.describe('Moment Map regions and spectral settings', () => {
                     maps = await generate(page, ['0'], source);
                 } catch (error) {
                     const sourceFrame = (await getFrames(page)).find(
-                        (frame: any) => frame.filename === source,
+                        (frame) => frame.filename === source,
                     );
                     expect(sourceFrame).toBeTruthy();
-                    expect(sourceFrame.requesting).toBe(false);
-                    expect(sourceFrame.moments).toEqual([]);
+                    expect(sourceFrame!.requesting).toBe(false);
+                    expect(sourceFrame!.moments).toEqual([]);
                     maps = await generate(page, ['0'], source);
                 }
                 const [map] = maps;
@@ -460,8 +472,9 @@ test.describe('Moment Map regions and spectral settings', () => {
                 expect(map.height).toBeGreaterThan(1);
                 expect(map.width).toBeLessThan(16);
                 expect(map.height).toBeLessThan(16);
-                const crpix = map.headers.find((h: any) => h.name === 'CRPIX1');
-                expect(Number(crpix.value)).toBeLessThan(8);
+                const crpix = map.headers.find((h) => h.name === 'CRPIX1');
+                expect(crpix).toBeTruthy();
+                expect(Number(crpix!.value)).toBeLessThan(8);
                 await activate(page, map.filename);
                 const x = Math.floor(map.width / 2),
                     y = Math.floor(map.height / 2);
@@ -698,9 +711,6 @@ test.describe('Moment Map regions and spectral settings', () => {
 });
 
 test.describe('Moment Map injected failures', () => {
-    test.use({ viewport: { width: 1600, height: 1000 } });
-    test.setTimeout(90000);
-    test.beforeEach(async ({ page }) => page.setDefaultTimeout(10000));
     test('MM-19 backend rejection clears loading and retry succeeds', async ({
         page,
     }) => {
@@ -746,7 +756,6 @@ test.describe('Moment Map injected failures', () => {
 });
 
 test.describe('Moment Map real backend cancellation and loading failure', () => {
-    test.use({ viewport: { width: 1600, height: 1000 } });
     test.setTimeout(120000);
     test('MM-18 cancel real cube calculation, then retry a small range', async ({
         page,
