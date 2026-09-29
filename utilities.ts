@@ -86,17 +86,6 @@ export const generatorCloseBtn = (page: Page) =>
 export const cubeSizeLabel = (page: Page) =>
     pvPanel(page).locator('.cube-size');
 
-export async function resetPreferences(page: Page, carta: PlaywrightDevPage) {
-    await carta.setPreferenceDefaults();
-    await page.evaluate(() => {
-        const app = (window as any).app;
-        if (app?.preferenceStore) {
-            app.preferenceStore.setPreference('pvAxesOrderReverse', false);
-            app.preferenceStore.setPreference('pvPreviewCubeSizeLimit', 1);
-        }
-    });
-}
-
 export const fixtureFolder = path.resolve(__dirname, 'test_data');
 export const moments = [
     ['-1', 'Mean value of the spectrum', 'average'],
@@ -468,7 +457,9 @@ export async function fault(
     let pending: Buffer | undefined;
     let intercepted = 0,
         cancelled = 0;
-    await page.routeWebSocket(/localhost:3002/, (ws) => {
+    const cartaPort =
+        new URL(page.url()).port || process.env.CARTA_PORT || '3102';
+    await page.routeWebSocket(new RegExp(`localhost:${cartaPort}/`), (ws) => {
         const server = ws.connectToServer();
         ws.onMessage((message) => {
             const bytes = Buffer.isBuffer(message)
@@ -547,9 +538,28 @@ export class PlaywrightDevPage {
             console.log('PAGE ERROR:', err.message),
         );
         await this.page.goto('/');
+        await this.page.waitForFunction(
+            () => (window as any).app?.preferenceStore?.isPreferenceReady,
+        );
+        await this.setTestTelemetryPreferences();
         await expect(this.page.locator('.root-menu')).toBeVisible({
             timeout: 15000,
         });
+    }
+
+    private async setTestTelemetryPreferences() {
+        const preferencesSet = await this.page.evaluate(async () => {
+            const store = (window as any).app.preferenceStore;
+            const modeSet = await store.setPreference('telemetryMode', 'none');
+            const consentSet = await store.setPreference(
+                'telemetryConsentShown',
+                true,
+            );
+            return modeSet && consentSet;
+        });
+        if (!preferencesSet) {
+            throw new Error('Failed to disable telemetry for the test');
+        }
     }
 
     async openMenu(
@@ -870,15 +880,62 @@ export class PlaywrightDevPage {
         await this.fillSnippetInput(`app.frames[${frame}].setZoom(${zoom});`);
     }
 
-    async setPreferenceDefaults() {
-        await this.fillSnippetInput(`
-app.widgetsStore.setImageMultiPanelEnabled(true);
-app.preferenceStore.setPreference("imagePanelMode", "dynamic");
-app.preferenceStore.setPreference("imagePanelColumns", 2);
-app.preferenceStore.setPreference("imagePanelRows", 2);
-app.preferenceStore.setPreference("pixelGridVisible", false);
-app.preferenceStore.setPreference("imageMultiPanelEnabled", true);
-app.overlaySettings.global.setLabelType("Exterior");
-        `);
+    async resetAllPreferences() {
+        await this.page.waitForFunction(
+            () => (window as any).app?.preferenceStore?.isPreferenceReady,
+        );
+        const keys = await this.page.evaluate(() =>
+            Array.from(
+                (window as any).app.preferenceStore.preferences.keys(),
+            ).filter(
+                (key) =>
+                    key !== '$schema' &&
+                    key !== 'version' &&
+                    key !== 'telemetryUuid',
+            ),
+        );
+        if (keys.length) {
+            const clearResponse = this.page.waitForResponse(
+                (response) =>
+                    response.request().method() === 'DELETE' &&
+                    response.url().includes('/database/preferences'),
+            );
+            await this.page.evaluate(async (preferenceKeys) => {
+                await (window as any).app.preferenceStore.clearPreferences(
+                    preferenceKeys,
+                );
+            }, keys);
+            const response = await clearResponse;
+            const result = await response.json();
+            if (!response.ok() || result.success !== true) {
+                throw new Error(
+                    `Failed to clear CARTA preferences (${response.status()}): ${JSON.stringify(result)}`,
+                );
+            }
+        }
+
+        await this.setTestTelemetryPreferences();
+    }
+
+    async setTestPreferences() {
+        await this.resetAllPreferences();
+        await this.page.evaluate(async () => {
+            const app = (window as any).app;
+            const preferences = [
+                ['codeSnippetsEnabled', true],
+                ['imagePanelMode', 'dynamic'],
+                ['imagePanelColumns', 2],
+                ['imagePanelRows', 2],
+                ['pixelGridVisible', false],
+                ['imageMultiPanelEnabled', true],
+            ];
+            for (const [key, value] of preferences) {
+                if (!(await app.preferenceStore.setPreference(key, value))) {
+                    throw new Error(`Failed to set test preference: ${key}`);
+                }
+            }
+            app.widgetsStore.setImageMultiPanelEnabled(true);
+            app.overlaySettings.global.setLabelType('Exterior');
+        });
     }
 }

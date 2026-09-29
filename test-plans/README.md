@@ -4,10 +4,10 @@ This directory maps every currently collected Playwright test to its action and 
 
 ## Shared execution plan
 
-1. Start from a fresh Playwright page and load the fixture used by the test. The configured server serves the frontend/backend at `http://localhost:3002` and reads `test_data`.
+1. Start from a fresh Playwright page with a 1920×1080 viewport and load the fixture used by the test. The shared backend serves tests at `http://localhost:<CARTA_PORT>` (`3102` by default); Moment Map uses its own backend at `http://localhost:<CARTA_MOMENT_MAP_PORT>` (`3103` by default). Both read `test_data`.
 2. Drive each dialog or widget through its visible controls. Assert enabled/disabled state, labels, numeric values, generated frames and error/recovery behavior.
 3. For changes affecting an image or profile, check both the state and rendered output. Review PNG baselines for viewer, profile or overlay changes; use deterministic values for numerical assertions.
-4. Use the small FITS fixtures in `test_data` or extend `test_data/create.mjs` with bounded, deterministic data. Keep failures explicit, including invalid input and retry paths.
+4. At app startup, `goto()` sets `telemetryMode: "none"` and marks telemetry consent as handled before test interactions. Before changing other persisted preferences, call `resetAllPreferences()` and then set only the values needed by the test. Tests that need the shared multi-panel baseline can use `setTestPreferences()`, which resets preferences before applying that baseline. Use the small FITS fixtures in `test_data` or extend `test_data/create.mjs` with bounded, deterministic data. Keep failures explicit, including invalid input and retry paths.
 5. Run the focused spec in Chromium while developing, then all configured browser projects. Review screenshot baselines per platform and inspect the HTML report for failures.
 
 ```sh
@@ -15,6 +15,8 @@ npx playwright test --list --project=chromium
 npx playwright test --project=chromium
 npx playwright test
 ```
+
+Each `npx playwright test` invocation starts one shared CARTA backend and one dedicated Moment Map backend. The default is two workers; adjust `workers` in `playwright.config.ts` to change browser parallelism without starting more backends.
 
 ## Plans
 

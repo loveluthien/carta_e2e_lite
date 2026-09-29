@@ -6,10 +6,9 @@ test('Image fitting validates inputs and displays the fitted images', async ({
 }) => {
     test.setTimeout(90_000);
     page.setDefaultTimeout(10_000);
-    await page.setViewportSize({ width: 1920, height: 1080 });
     const carta = new PlaywrightDevPage(page);
     await carta.goto();
-    await carta.setPreferenceDefaults();
+    await carta.setTestPreferences();
     await carta.loadImage('dice_four.fits');
     await carta.selectMenuItem('View', 'Image Fitting');
 

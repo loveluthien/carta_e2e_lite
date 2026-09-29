@@ -2,8 +2,6 @@ import { expect, test } from '@playwright/test';
 import { PlaywrightDevPage } from '../utilities';
 
 test.describe('Regions', () => {
-    test.use({ viewport: { width: 1600, height: 1000 } });
-
     test('rectangle edits update the viewer and profiler; invalid edits and locked deletion are rejected', async ({
         page,
     }) => {

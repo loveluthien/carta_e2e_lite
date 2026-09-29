@@ -72,8 +72,6 @@ egion.setColor("#ffffff");
     });
 
     test('Moment images', async ({ page }) => {
-        await page.setViewportSize({ width: 1920, height: 1080 });
-
         const carta = new PlaywrightDevPage(page);
         const panelCanvas = page.locator('#image-panel-1-0 #overlay-canvas');
 
@@ -135,14 +133,12 @@ pvGeneratorWidget.requestPV();
     });
 
     test('Image fitting', async ({ page }) => {
-        await page.setViewportSize({ width: 1920, height: 1080 });
-
         const carta = new PlaywrightDevPage(page);
 
         // Boot up CARTA application
         await carta.goto();
 
-        await carta.setPreferenceDefaults();
+        await carta.setTestPreferences();
 
         await carta.fillSnippetInput(`
 // Open an image
@@ -220,14 +216,12 @@ app.imageFittingStore.fitImage();
         const viewerCanvas = page.getByTestId('viewer-div');
         const panelCanvas11 = page.locator('#image-panel-1-0 #overlay-canvas');
 
-        await page.setViewportSize({ width: 1920, height: 1080 });
-
         const carta = new PlaywrightDevPage(page);
 
         // Boot up CARTA application
         await carta.goto();
 
-        await carta.setPreferenceDefaults();
+        await carta.setTestPreferences();
 
         await carta.fillSnippetInput(`
 // Open three images

@@ -2,7 +2,6 @@ import { test, expect } from '@playwright/test';
 import { PlaywrightDevPage } from '../utilities';
 
 test.describe('Channel Map widget', () => {
-    test.use({ viewport: { width: 1600, height: 1000 } });
     test.setTimeout(90000);
 
     test.beforeEach(async ({ page }) => page.setDefaultTimeout(10000));

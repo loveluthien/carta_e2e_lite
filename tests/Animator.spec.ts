@@ -146,7 +146,7 @@ test.describe('Animator E2E Tests', () => {
     }) => {
         const carta = new PlaywrightDevPage(page);
         await carta.goto();
-        await carta.setPreferenceDefaults();
+        await carta.setTestPreferences();
         await carta.loadImage(cube);
         await carta.loadImage(polarCube, true);
         await page.getByTestId('animator-0-header-title').click();

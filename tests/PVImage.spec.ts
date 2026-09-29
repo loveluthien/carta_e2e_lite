@@ -18,7 +18,6 @@ import {
     PlaywrightDevPage,
     rebinXyInput,
     rebinZInput,
-    resetPreferences,
     spectralFromInput,
     spectralToInput,
 } from '../utilities';
@@ -56,13 +55,13 @@ test.describe('PV Generator Controls & Validation', () => {
     test.beforeEach(async ({ page }) => {
         const carta = new PlaywrightDevPage(page);
         await carta.goto();
-        await resetPreferences(page, carta);
+        await carta.setTestPreferences();
         await carta.loadImage('HD163296_13CO_2-1_subimage.fits');
     });
 
     test.afterEach(async ({ page }) => {
         const carta = new PlaywrightDevPage(page);
-        await resetPreferences(page, carta);
+        await carta.resetAllPreferences();
     });
 
     test('PVG-01: Initial state, region filtering and tooltips', async ({
@@ -340,7 +339,7 @@ test.describe('PV Image Generation', () => {
     test.beforeEach(async ({ page }) => {
         const carta = new PlaywrightDevPage(page);
         await carta.goto();
-        await resetPreferences(page, carta);
+        await carta.setTestPreferences();
         await carta.loadImage('HD163296_13CO_2-1_subimage.fits');
 
         await page.getByTestId('line-region-shortcut-button').click();
@@ -354,7 +353,7 @@ test.describe('PV Image Generation', () => {
 
     test.afterEach(async ({ page }) => {
         const carta = new PlaywrightDevPage(page);
-        await resetPreferences(page, carta);
+        await carta.resetAllPreferences();
     });
 
     test('PVI-01: Full-resolution PV generation and multi-coordinate generation', async ({
@@ -731,7 +730,7 @@ test.describe('PV Preview', () => {
     test.beforeEach(async ({ page }) => {
         const carta = new PlaywrightDevPage(page);
         await carta.goto();
-        await resetPreferences(page, carta);
+        await carta.setTestPreferences();
         await carta.loadImage('HD163296_13CO_2-1_subimage.fits');
 
         await page.getByTestId('line-region-shortcut-button').click();
@@ -745,7 +744,7 @@ test.describe('PV Preview', () => {
 
     test.afterEach(async ({ page }) => {
         const carta = new PlaywrightDevPage(page);
-        await resetPreferences(page, carta);
+        await carta.resetAllPreferences();
     });
 
     test('PVP-01: Preview widget activation, interaction and lifecycle', async ({
@@ -833,8 +832,11 @@ test.describe('PV Preview', () => {
             position: { x: 359, y: 242 },
         });
         await page.evaluate(() => {
-            const line = (window as unknown as CartaWindow).app.activeFrame
-                .regionSet.regions.find((region) => region.regionId === 1)!;
+            const line = (
+                window as unknown as CartaWindow
+            ).app.activeFrame.regionSet.regions.find(
+                (region) => region.regionId === 1,
+            )!;
             line.setControlPoints([
                 { x: 5, y: 40 },
                 { x: 75, y: 40 },
@@ -887,8 +889,11 @@ test.describe('PV Preview', () => {
             position: { x: 359, y: 242 },
         });
         await page.evaluate(() => {
-            const line = (window as unknown as CartaWindow).app.activeFrame
-                .regionSet.regions.find((region) => region.regionId === 1)!;
+            const line = (
+                window as unknown as CartaWindow
+            ).app.activeFrame.regionSet.regions.find(
+                (region) => region.regionId === 1,
+            )!;
             line.setControlPoints([
                 { x: 5, y: 40 },
                 { x: 75, y: 40 },

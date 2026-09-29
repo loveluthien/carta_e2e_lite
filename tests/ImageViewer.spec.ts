@@ -17,7 +17,6 @@ const test = base.extend<{
 });
 
 test.describe('Image viewer control coverage', () => {
-    test.use({ viewport: { width: 1600, height: 1000 } });
     test.setTimeout(90_000);
     test.beforeEach(async ({ page }) => page.setDefaultTimeout(10_000));
 
@@ -82,7 +81,7 @@ test.describe('Image viewer control coverage', () => {
         carta,
         viewerCanvas,
     }) => {
-        await carta.setPreferenceDefaults();
+        await carta.setTestPreferences();
         await carta.loadImage('cube.fits');
         await carta.loadImage('matching-cube.fits', true);
 
@@ -137,7 +136,7 @@ test.describe('Image viewer control coverage', () => {
         carta,
         viewerCanvas,
     }) => {
-        await carta.setPreferenceDefaults();
+        await carta.setTestPreferences();
         await carta.loadImage('cube.fits');
         await carta.loadImage('matching-cube.fits', true);
 
@@ -251,6 +250,7 @@ test.describe('Image viewer control coverage', () => {
         carta,
         viewerCanvas,
     }) => {
+        await carta.setTestPreferences();
         await carta.loadImage('cube.fits');
         const rgb = () =>
             page
@@ -328,20 +328,21 @@ test.describe('Image viewer control coverage', () => {
 
 test.describe('Image viewer E2E set', () => {
     test('Image Viewer', async ({ page, carta, viewerCanvas }) => {
-        await page.evaluate(() => {
+        await carta.setTestPreferences();
+        await page.evaluate(async () => {
             const app = (window as any).app;
-            app.preferenceStore.setPreference('imagePanelMode', 'fixed');
-            app.preferenceStore.setPreference('imagePanelColumns', 1);
-            app.preferenceStore.setPreference('imagePanelRows', 1);
+            await app.preferenceStore.setPreference('imagePanelMode', 'fixed');
+            await app.preferenceStore.setPreference('imagePanelColumns', 1);
+            await app.preferenceStore.setPreference('imagePanelRows', 1);
             app.widgetsStore.setImageMultiPanelEnabled(true);
         });
         // Load test data cube
         await carta.loadImage('M17_SWex.fits');
-        await page.evaluate(() => {
+        await page.evaluate(async () => {
             const app = (window as any).app;
-            app.preferenceStore.setPreference('imagePanelMode', 'fixed');
-            app.preferenceStore.setPreference('imagePanelColumns', 1);
-            app.preferenceStore.setPreference('imagePanelRows', 1);
+            await app.preferenceStore.setPreference('imagePanelMode', 'fixed');
+            await app.preferenceStore.setPreference('imagePanelColumns', 1);
+            await app.preferenceStore.setPreference('imagePanelRows', 1);
             app.widgetsStore.setImageMultiPanelEnabled(true);
         });
         await expect(viewerCanvas).toBeVisible();
@@ -472,8 +473,8 @@ test.describe('Image viewer E2E set', () => {
         await expect(page.getByTestId('image-view-header-title')).toContainText(
             'HD163296_13CO_2-1_subimage.fits',
         );
-        await page.evaluate(() => {
-            (window as any).app.preferenceStore.setPreference(
+        await page.evaluate(async () => {
+            await (window as any).app.preferenceStore.setPreference(
                 'imagePanelColumns',
                 2,
             );
@@ -507,6 +508,7 @@ test.describe('Image viewer E2E set', () => {
     });
 
     test('Image Viewer Toolbar', async ({ page, carta, viewerCanvas }) => {
+        await carta.setTestPreferences();
         await carta.setMultiPanelLayout(1, 2);
         // Load test data cube
         await carta.loadImage('M17_SWex.fits');
@@ -665,12 +667,16 @@ test.describe('Image viewer E2E set', () => {
         carta,
         viewerCanvas,
     }) => {
+        await carta.setTestPreferences();
         const useSingleImagePanel = () =>
-            page.evaluate(() => {
+            page.evaluate(async () => {
                 const app = (window as any).app;
-                app.preferenceStore.setPreference('imagePanelMode', 'fixed');
-                app.preferenceStore.setPreference('imagePanelColumns', 1);
-                app.preferenceStore.setPreference('imagePanelRows', 1);
+                await app.preferenceStore.setPreference(
+                    'imagePanelMode',
+                    'fixed',
+                );
+                await app.preferenceStore.setPreference('imagePanelColumns', 1);
+                await app.preferenceStore.setPreference('imagePanelRows', 1);
                 app.widgetsStore.setImageMultiPanelEnabled(true);
             });
         await useSingleImagePanel();
@@ -819,7 +825,7 @@ test.describe('Image viewer E2E set', () => {
         viewerCanvas,
     }) => {
         // set to default multi-panel layout
-        await carta.setPreferenceDefaults();
+        await carta.setTestPreferences();
 
         // Load test data cubes
         await carta.loadImage('M17_SWex.fits');
@@ -1000,7 +1006,7 @@ test.describe('Image viewer E2E set', () => {
         viewerCanvas,
     }) => {
         // set to default multi-panel layout
-        await carta.setPreferenceDefaults();
+        await carta.setTestPreferences();
 
         // Load test data cubes
         await carta.loadImage('M17_SWex.fits');
@@ -1176,7 +1182,7 @@ test.describe('Image viewer E2E set', () => {
         viewerCanvas,
     }) => {
         // set to default preferences
-        await carta.setPreferenceDefaults();
+        await carta.setTestPreferences();
 
         // Load test data cubes
         await carta.loadImage('M17_SWex.fits');
@@ -1289,7 +1295,7 @@ test.describe('Image viewer E2E set', () => {
         viewerCanvas,
     }) => {
         // set to default preferences
-        await carta.setPreferenceDefaults();
+        await carta.setTestPreferences();
 
         // Load test data cubes
         await carta.loadImage('M17_SWex.fits');
@@ -1398,7 +1404,7 @@ test.describe('Image viewer E2E set', () => {
         viewerCanvas,
     }) => {
         // set to default preferences
-        await carta.setPreferenceDefaults();
+        await carta.setTestPreferences();
 
         // Load test data cubes
         await carta.loadImage('M17_SWex.fits');
@@ -1537,7 +1543,7 @@ test.describe('Image viewer E2E set', () => {
         const colorbarCanvas = page.locator('canvas').nth(5);
 
         // set to default preferences
-        await carta.setPreferenceDefaults();
+        await carta.setTestPreferences();
 
         // Load test data cubes
         await carta.loadImage('M17_SWex.fits');
@@ -1799,6 +1805,7 @@ test.describe('Image viewer E2E set', () => {
         carta,
         viewerCanvas,
     }) => {
+        await carta.setTestPreferences();
         // set to default preferences
         await carta.setMultiPanelLayout();
         await carta.enablePixelGrid(false);

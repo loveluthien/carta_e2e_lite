@@ -296,6 +296,7 @@ test.describe('Layout', () => {
         test.setTimeout(90000);
         const carta = new PlaywrightDevPage(page);
         await carta.goto();
+        await carta.resetAllPreferences();
         await carta.loadImage('m16_f0444w.fits');
         await expect
             .poll(() =>

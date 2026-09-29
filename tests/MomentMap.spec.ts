@@ -27,10 +27,11 @@ import {
     tags,
 } from '../utilities';
 
-const MOMENT_VIEWPORT = { width: 1600, height: 1000 };
 const MOMENT_TIMEOUT_MS = 90_000;
 
-test.use({ viewport: MOMENT_VIEWPORT });
+test.use({
+    baseURL: `http://localhost:${process.env.CARTA_MOMENT_MAP_PORT ?? '3103'}`,
+});
 test.setTimeout(MOMENT_TIMEOUT_MS);
 test.beforeEach(async ({ page }) => page.setDefaultTimeout(10_000));
 

@@ -32,6 +32,7 @@ test.describe('Spatial Profilers E2E set', () => {
 
         // Boot up CARTA application
         await carta.goto();
+        await carta.setTestPreferences();
 
         // Load test data and create regions on the first image
         await carta.loadImage('HD163296_13CO_2-1_subimage.fits');
@@ -453,7 +454,7 @@ test.describe('Spectral Profilers E2E set', () => {
           - button
           - button
           - separator "horizontal divider 1"
-          - text: "/Data: \\\\(\\\\d+\\\\.\\\\d+ GHz, 2\\\\.16e-1\\\\)/"
+          - text: "/Data: \\\\(\\\\d+\\\\.\\\\d+ GHz, 1\\\\.80e-1\\\\)/"
         `);
 
         await page

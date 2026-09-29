@@ -1,5 +1,35 @@
 import { defineConfig, devices } from '@playwright/test';
 
+const cartaPort = Number.parseInt(process.env.CARTA_PORT ?? '3102', 10);
+if (!Number.isInteger(cartaPort) || cartaPort < 1 || cartaPort > 65535) {
+    throw new Error(`Invalid CARTA_PORT: ${process.env.CARTA_PORT}`);
+}
+const momentMapPort = Number.parseInt(
+    process.env.CARTA_MOMENT_MAP_PORT ?? '3103',
+    10,
+);
+if (
+    !Number.isInteger(momentMapPort) ||
+    momentMapPort < 1 ||
+    momentMapPort > 65535 ||
+    momentMapPort === cartaPort
+) {
+    throw new Error(
+        `Invalid or conflicting CARTA_MOMENT_MAP_PORT: ${process.env.CARTA_MOMENT_MAP_PORT}`,
+    );
+}
+const cartaUrl = `http://localhost:${cartaPort}`;
+const momentMapUrl = `http://localhost:${momentMapPort}`;
+const backendCommand = (port: number) =>
+    `/Users/kchou/bz/carta_build/carta-backend-dev1/build/carta_backend /Users/kchou/bz/carta_build/e2e-lite/test_data --top_level_folder /Users/kchou/bz --frontend_folder /Users/kchou/bz/carta_build/carta-frontend-dev2/build --no_browser --port ${port} --debug_no_auth --omp_threads 8`;
+const backendServer = (url: string, port: number) => ({
+    command: backendCommand(port),
+    url: `${url}/`,
+    reuseExistingServer: !process.env.CI,
+    stdout: 'pipe' as const,
+    stderr: 'pipe' as const,
+});
+
 /**
  * Read environment variables from file.
  * https://github.com/motdotla/dotenv
@@ -26,20 +56,21 @@ export default defineConfig({
     /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
     use: {
         /* Base URL to use in actions like `await page.goto('')`. */
-        baseURL: 'http://localhost:3002',
+        baseURL: cartaUrl,
+        viewport: { width: 1920, height: 1080 },
 
         /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
         trace: 'on-first-retry',
-
-        // // Sets the global viewport size for all tests
-        // viewport: { width: 1920, height: 1080 },
     },
 
     /* Configure projects for major browsers */
     projects: [
         {
             name: 'chromium',
-            use: { ...devices['Desktop Chrome'] },
+            use: {
+                ...devices['Desktop Chrome'],
+                viewport: { width: 1920, height: 1080 },
+            },
         },
 
         // {
@@ -74,12 +105,8 @@ export default defineConfig({
     ],
 
     /* Run your local dev server before starting the tests */
-    webServer: {
-        command:
-            '/Users/kchou/bz/carta_build/carta-backend-dev1/build/carta_backend /Users/kchou/bz/carta_build/e2e-lite/test_data --top_level_folder /Users/kchou/bz --frontend_folder /Users/kchou/bz/carta_build/carta-frontend-dev2/build --no_browser --port 3002 --debug_no_auth --omp_threads 8',
-        url: 'http://localhost:3002/',
-        reuseExistingServer: !process.env.CI,
-        stdout: 'pipe',
-        stderr: 'pipe',
-    },
+    webServer: [
+        backendServer(cartaUrl, cartaPort),
+        backendServer(momentMapUrl, momentMapPort),
+    ],
 });
