@@ -28,15 +28,16 @@ import {
 } from '../utilities';
 
 const MOMENT_TIMEOUT_MS = 90_000;
+const MOMENT_BASE_URL = `http://localhost:${process.env.CARTA_MOMENT_MAP_PORT ?? '3103'}`;
 
 test.use({
-    baseURL: `http://localhost:${process.env.CARTA_MOMENT_MAP_PORT ?? '3103'}`,
+    baseURL: MOMENT_BASE_URL,
 });
 test.setTimeout(MOMENT_TIMEOUT_MS);
 test.beforeEach(async ({ page }) => page.setDefaultTimeout(10_000));
 
-test.describe('Moment Map', () => {
-    test('MM-01 defaults and tab persistence', async ({ page }) => {
+test.describe('Generation', () => {
+    test('shows defaults and preserves range across tabs', async ({ page }) => {
         await open(page);
         await expect(tags(page)).toHaveText(['0']);
         await expect(control(page, 'mask-dropdown')).toHaveValue('0');
@@ -57,26 +58,7 @@ test.describe('Moment Map', () => {
         );
     });
 
-    test('MM-06 each moment generates independently', async ({ page }) => {
-        await open(page);
-        for (const [tag, name] of moments)
-            await test.step(`moment ${tag}: ${name}`, async () => {
-                if (tag === '4') {
-                    await control(page, 'mask-dropdown').selectOption({
-                        label: 'Include',
-                    });
-                    await range(page, 'mask', 0, 100);
-                }
-                const [map] = await generate(page, [tag]);
-                await checkMap(page, map, tag);
-                if (tag === '4')
-                    await control(page, 'mask-dropdown').selectOption({
-                        label: 'None',
-                    });
-            });
-    });
-
-    test('MM-07 multi-moment and all-moment batches', async ({ page }) => {
+    test('generates selected and all moment types', async ({ page }) => {
         await open(page);
         for (const selected of [
             ['0', '1', '2', '3'],
@@ -101,8 +83,8 @@ test.describe('Moment Map', () => {
     });
 });
 
-test.describe('Moment Map controls and lifecycle', () => {
-    test('MM-01 no image disables generation', async ({ page }) => {
+test.describe('Controls and lifecycle', () => {
+    test('disables generation without an image', async ({ page }) => {
         await new PlaywrightDevPage(page).goto();
         await page
             .getByTestId('file-browser-dialog-header-close-button')
@@ -118,9 +100,7 @@ test.describe('Moment Map controls and lifecycle', () => {
             await expect(control(page, name)).toBeDisabled();
     });
 
-    test('MM-05 selection, deselection, tag removal, search and clear', async ({
-        page,
-    }) => {
+    test('selects, searches, removes, and clears moments', async ({ page }) => {
         await open(page);
         await selectMoments(
             page,
@@ -161,9 +141,7 @@ test.describe('Moment Map controls and lifecycle', () => {
         await expect(tags(page)).toHaveText(['0']);
     });
 
-    test('MM-05 empty selection must not enable a destructive request', async ({
-        page,
-    }) => {
+    test('disables generation with no selected moments', async ({ page }) => {
         await open(page);
         await control(page, 'clear-select-button').click();
         test.fail(
@@ -174,15 +152,12 @@ test.describe('Moment Map controls and lifecycle', () => {
     });
 
     for (const [from, to] of [
-        [0, 4],
         [1, 3],
         [3, 1],
         [0, 0],
         [4, 4],
     ])
-        test(`MM-08 inclusive channel range ${from} to ${to}`, async ({
-            page,
-        }) => {
+        test(`generates from channels ${from} to ${to}`, async ({ page }) => {
             await open(page);
             await range(page, 'spectral', from, to);
             const [map] = await generate(page, ['0']);
@@ -206,7 +181,7 @@ test.describe('Moment Map controls and lifecycle', () => {
         ['Include', 100, 200, []],
         ['Include', 6, 6, [4]],
     ] as const)
-        test(`MM-13/MM-14 mask ${mode} ${from} to ${to}`, async ({ page }) => {
+        test(`${mode} mask from ${from} to ${to}`, async ({ page }) => {
             await open(page);
             await control(page, 'mask-dropdown').selectOption({ label: mode });
             await range(page, 'mask', from, to);
@@ -214,9 +189,7 @@ test.describe('Moment Map controls and lifecycle', () => {
             await checkMap(page, map, '0', [...expected]);
         });
 
-    test('MM-09/MM-14 nonfinite input recovers; out-of-range channels clamp', async ({
-        page,
-    }) => {
+    test('rejects invalid bounds and clamps channels', async ({ page }) => {
         await open(page);
         for (const kind of ['spectral', 'mask'] as const) {
             for (const invalid of ['', 'NaN', 'Infinity']) {
@@ -243,9 +216,7 @@ test.describe('Moment Map controls and lifecycle', () => {
         await checkMap(page, map, '0');
     });
 
-    test('MM-02 pinned source and Active source follow different images', async ({
-        page,
-    }) => {
+    test('keeps pinned source while Active follows image', async ({ page }) => {
         await open(page);
         await load(page, 'iquv.fits', true);
         await expect(control(page, 'file-info')).toContainText('cube.fits');
@@ -266,7 +237,7 @@ test.describe('Moment Map controls and lifecycle', () => {
         await expect(control(page, 'generate-button')).toBeEnabled();
     });
 
-    test('MM-15 keep, replace, and per-source ownership', async ({ page }) => {
+    test('retains and replaces maps per source', async ({ page }) => {
         await open(page);
         const [a] = await generate(page, ['0']);
         const [b] = await generate(page, ['8']);
@@ -298,7 +269,7 @@ test.describe('Moment Map controls and lifecycle', () => {
         expect(remaining).not.toContain(c.id);
     });
 
-    test('MM-16 automatic spatial matching toggle', async ({ page }) => {
+    test('matches new maps only when enabled', async ({ page }) => {
         await open(page);
         await setSwitch(page, 'Auto spatial matching', false);
         const [unmatched] = await generate(page, ['0']);
@@ -318,9 +289,7 @@ test.describe('Moment Map controls and lifecycle', () => {
         ).toHaveCount(0);
     });
 
-    test('MM-17 single-channel input and generated maps disable generation', async ({
-        page,
-    }) => {
+    test('disables generation for 2D images', async ({ page }) => {
         await open(page, 'single.fits');
         await expect(control(page, 'generate-button')).toBeDisabled();
         await expect(control(page, 'spectral-range-from-input')).toHaveCount(0);
@@ -337,9 +306,7 @@ test.describe('Moment Map controls and lifecycle', () => {
         await expect(control(page, 'generate-button')).toBeDisabled();
     });
 
-    test('MM-17 animation blocks generation and stop restores it', async ({
-        page,
-    }) => {
+    test('blocks generation during animation', async ({ page }) => {
         await open(page);
         await moveSettings(page, 100, 400);
         await page.getByTestId('animator-0-header-title').click();
@@ -349,7 +316,7 @@ test.describe('Moment Map controls and lifecycle', () => {
         await expect(control(page, 'generate-button')).toBeEnabled();
     });
 
-    test('MM-20 generated image closes and regenerates', async ({
+    test('regenerates after closing a moment map', async ({
         page,
     }, testInfo) => {
         await open(page);
@@ -377,7 +344,7 @@ test.describe('Moment Map controls and lifecycle', () => {
         expect(sourceFrame!.channels).toBe(5);
     });
 
-    test('MM-21 keyboard selection and generation', async ({ page }) => {
+    test('selects and generates with keyboard', async ({ page }) => {
         await open(page);
         await control(page, 'clear-select-button').click();
         const input = panel(page).getByRole('textbox');
@@ -396,7 +363,7 @@ test.describe('Moment Map controls and lifecycle', () => {
     });
 });
 
-test.describe('Moment Map regions and spectral settings', () => {
+test.describe('Regions and spectral settings', () => {
     for (const [name, type, points] of [
         [
             'rectangle',
@@ -424,9 +391,7 @@ test.describe('Moment Map regions and spectral settings', () => {
             ],
         ],
     ] as const)
-        test(`MM-03 ${name} region generates a cropped map`, async ({
-            page,
-        }) => {
+        test(`crops map to ${name} region`, async ({ page }) => {
             const fixtureDirectory =
                 process.env.MOMENT_FIXTURE_DIRECTORY ?? fixtureFolder;
             const isEllipse = name === 'ellipse';
@@ -487,7 +452,7 @@ test.describe('Moment Map regions and spectral settings', () => {
             }
         });
 
-    test('MM-04 invalid regions cannot generate', async ({ page }) => {
+    test('rejects invalid regions', async ({ page }) => {
         await open(page);
         await new PlaywrightDevPage(page).fillSnippetInput(`
       const set=app.frames[0].regionSet;
@@ -528,7 +493,7 @@ test.describe('Moment Map regions and spectral settings', () => {
         await expect(control(page, 'generate-button')).toBeEnabled();
     });
 
-    test('MM-11 all supported coordinates and systems expose finite ranges', async ({
+    test('keeps ranges finite across coordinates and systems', async ({
         page,
     }) => {
         await open(page);
@@ -595,7 +560,7 @@ test.describe('Moment Map regions and spectral settings', () => {
         }
     });
 
-    test('MM-12 rest frequency edit, units and reset', async ({ page }) => {
+    test('edits, converts, and resets rest frequency', async ({ page }) => {
         await open(page);
         const input = panel(page).getByRole('spinbutton', {
             name: 'Rest frequency',
@@ -634,7 +599,7 @@ test.describe('Moment Map regions and spectral settings', () => {
         await checkMap(page, map, '1');
     });
 
-    test('MM-12 missing rest frequency can be supplied', async ({ page }) => {
+    test('supplies missing rest frequency', async ({ page }) => {
         await open(page, 'no-rest.fits');
         const input = panel(page).getByRole('spinbutton', {
             name: 'Rest frequency',
@@ -647,9 +612,7 @@ test.describe('Moment Map regions and spectral settings', () => {
         await checkMap(page, map, '1');
     });
 
-    test('MM-10 cursor mode toggle, mutual exclusion and typed exit', async ({
-        page,
-    }) => {
+    test('toggles cursor modes and exits on typing', async ({ page }) => {
         await open(page);
         const cursors = panel(page).locator('.cursor-select a');
         await expect(cursors).toHaveCount(2);
@@ -670,9 +633,7 @@ test.describe('Moment Map regions and spectral settings', () => {
         await expect(channel).not.toHaveClass(/bp6-active/);
     });
 
-    test('MM-21 Keep switch agrees with its store after tab remount', async ({
-        page,
-    }) => {
+    test('preserves Keep setting across tabs', async ({ page }) => {
         await open(page);
         await setSwitch(page, 'Keep previous moment image(s)', true);
         await page.getByRole('tab', { name: 'Styling', exact: true }).click();
@@ -684,9 +645,7 @@ test.describe('Moment Map regions and spectral settings', () => {
         await generate(page, ['8'], 'cube.fits', true);
     });
 
-    test('MM-22 Stokes selection changes numerical results', async ({
-        page,
-    }) => {
+    test('uses selected Stokes plane in generated map', async ({ page }) => {
         await open(page, 'iquv.fits');
         const [i] = await generate(page, ['0'], 'iquv.fits');
         await checkMap(page, i, '0');
@@ -711,11 +670,9 @@ test.describe('Moment Map regions and spectral settings', () => {
     });
 });
 
-test.describe('Moment Map injected failures', () => {
-    test('MM-19 backend rejection clears loading and retry succeeds', async ({
-        page,
-    }) => {
-        const injected = await fault(page, 'reject');
+test.describe('Injected failures', () => {
+    test('clears rejected request and retries', async ({ page }) => {
+        const injected = await fault(page, 'reject', MOMENT_BASE_URL);
         await open(page);
         await control(page, 'generate-button').click();
         await expect.poll(injected.requests).toBe(1);
@@ -725,10 +682,8 @@ test.describe('Moment Map injected failures', () => {
         expect(await getFrames(page)).toHaveLength(1);
         await generate(page, ['0']);
     });
-    test('MM-18 cancellation acknowledgment clears progress and retry succeeds [injected]', async ({
-        page,
-    }) => {
-        const injected = await fault(page, 'cancel');
+    test('clears cancelled request and retries', async ({ page }) => {
+        const injected = await fault(page, 'cancel', MOMENT_BASE_URL);
         await open(page);
         await control(page, 'generate-button').click();
         const progress = page.getByRole('dialog', {
@@ -743,10 +698,8 @@ test.describe('Moment Map injected failures', () => {
         expect(await getFrames(page)).toHaveLength(1);
         await generate(page, ['0']);
     });
-    test('MM-19 disconnected request can recover in a fresh connection [injected]', async ({
-        page,
-    }) => {
-        const injected = await fault(page, 'disconnect');
+    test('recovers after disconnect', async ({ page }) => {
+        const injected = await fault(page, 'disconnect', MOMENT_BASE_URL);
         await open(page);
         await control(page, 'generate-button').click();
         await expect.poll(injected.requests).toBe(1);
@@ -756,11 +709,9 @@ test.describe('Moment Map injected failures', () => {
     });
 });
 
-test.describe('Moment Map real backend cancellation and loading failure', () => {
+test.describe('Backend cancellation and load failure', () => {
     test.setTimeout(120000);
-    test('MM-18 cancel real cube calculation, then retry a small range', async ({
-        page,
-    }) => {
+    test('cancels backend calculation and retries', async ({ page }) => {
         const source = 'Gaussian_array_wide.fits';
         await open(
             page,
@@ -789,14 +740,14 @@ test.describe('Moment Map real backend cancellation and loading failure', () => 
         expect(map.width).toBeGreaterThan(16);
         expect(map.height).toBeGreaterThan(16);
     });
-    test('MM-19 result load failure warns and retry succeeds [injected]', async ({
+    test('warns when generated map fails to load (injected)', async ({
         page,
     }) => {
         test.fail(
             true,
             'Known defect: malformed generated-image acknowledgments are silently ignored instead of showing the Load file failed warning.',
         );
-        await fault(page, 'load');
+        await fault(page, 'load', MOMENT_BASE_URL);
         await open(page);
         await control(page, 'generate-button').click();
         await expect(

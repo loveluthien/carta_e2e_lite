@@ -453,12 +453,12 @@ export async function checkMap(
 export async function fault(
     page: Page,
     mode: 'reject' | 'cancel' | 'disconnect' | 'load',
+    baseURL: string,
 ) {
     let pending: Buffer | undefined;
     let intercepted = 0,
         cancelled = 0;
-    const cartaPort =
-        new URL(page.url()).port || process.env.CARTA_PORT || '3102';
+    const cartaPort = new URL(baseURL).port;
     await page.routeWebSocket(new RegExp(`localhost:${cartaPort}/`), (ws) => {
         const server = ws.connectToServer();
         ws.onMessage((message) => {
