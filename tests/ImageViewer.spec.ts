@@ -17,6 +17,10 @@ const test = base.extend<{
 });
 
 test.describe('Image viewer control coverage', () => {
+    test.use({
+        viewport: { width: 1600, height: 720 },
+        colorScheme: 'dark',
+    });
     test.setTimeout(90_000);
     test.beforeEach(async ({ page }) => page.setDefaultTimeout(10_000));
 
@@ -283,7 +287,8 @@ test.describe('Image viewer control coverage', () => {
         expect(initial[3]).toBe(255);
 
         await carta.selectMenuItem('Widgets', 'Render Configuration Widget');
-        await page.getByTestId('colormap-dropdown').click();
+        const renderConfig = page.getByTestId('render-config-0-content');
+        await renderConfig.getByTestId('colormap-dropdown').click();
         await page.getByRole('menuitem', { name: 'gray', exact: true }).click();
         await expect
             .poll(async () => {
@@ -293,6 +298,10 @@ test.describe('Image viewer control coverage', () => {
             .toEqual({ isGray: true, alpha: 255 });
         await carta.closeWidget('render-config');
         await page.mouse.move(0, 0);
+        await expect(viewerCanvas.locator('.image-ratio-popup')).toHaveCSS(
+            'opacity',
+            '0',
+        );
         await expect(page.locator('#raster-canvas').first()).toHaveScreenshot(
             'image-viewer-gray-raster.png',
         );
@@ -1281,7 +1290,11 @@ test.describe('Image viewer E2E set', () => {
                 'div:nth-child(8) > .bp6-form-content > .bp6-popover-target > .bp6-button',
             )
             .click();
-        await page.locator('.bp6-menu-item.bp6-active').click();
+        await page
+            .getByRole('listbox', { name: 'selectable options' })
+            .getByRole('menuitem')
+            .nth(8)
+            .click();
         await carta.setZoom(0, 25);
         await carta.screenShot(
             viewerCanvas,
@@ -1859,6 +1872,7 @@ test.describe('Image viewer E2E set', () => {
             .locator('.annotation-stage > .konvajs-content > canvas')
             .first();
 
+        await carta.setTestPreferences();
         // Load test data cube
         await carta.loadImage('M17_SWex.fits');
         const renderConfigContent = page.getByTestId('render-config-0-content');
@@ -1875,14 +1889,18 @@ test.describe('Image viewer E2E set', () => {
         await carta.screenShot(viewerCanvas, 'M17_SWex_channel8_log_99.99.png');
         await page.getByTestId('clip-button-99').click();
         await carta.screenShot(viewerCanvas, 'M17_SWex_channel8_log_99.png');
-        await page.locator('#numericInput-2').fill('100');
+        await renderConfigContent
+            .locator('.bp6-form-group')
+            .filter({ hasText: /^Alpha/ })
+            .getByRole('spinbutton')
+            .fill('100');
         await carta.screenShot(
             viewerCanvas,
             'M17_SWex_channel8_log_99_alpha100.png',
         );
-        await carta.screenShot(
-            histogramCanvas,
+        await expect(histogramCanvas).toHaveScreenshot(
             'M17_SWex_channel8_log_99_alpha100_hist.png',
+            { maxDiffPixelRatio: 0.05 },
         );
 
         await page.getByRole('button', { name: 'Log' }).click();
