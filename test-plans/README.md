@@ -23,7 +23,7 @@ Each `npx playwright test` invocation starts one shared CARTA backend and one de
 | Plan                                    | Cases | Focus                                                                                         |
 | --------------------------------------- | ----: | --------------------------------------------------------------------------------------------- |
 | [Animator](./Animator.md)               |     3 | Channel and polarization navigation, playback modes and synchronization with viewer/profiles. |
-| [Catalog](./Catalog.md)                 |     6 | Local catalog table, overlay, plot, coordinate and styling behavior.                          |
+| [Catalog](./Catalog.md)                 |     7 | Local catalog table, overlay, plot, coordinate and styling behavior.                          |
 | [ChannelMap](./ChannelMap.md)           |     2 | Channel-map empty state, controls, image panels and selection synchronization.                |
 | [Contours](./Contours.md)               |     4 | Generators, scaling, Apply/Clear recovery, and rendered overlay styling.                      |
 | [CursorInfo](./CursorInfo.md)           |     1 | Cursor values and coordinates across viewer, widget and profilers.                            |

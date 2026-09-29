@@ -222,6 +222,28 @@ async function selectedSourceIndices(page: Page) {
     });
 }
 
+async function overlayGeometry(page: Page) {
+    return page.evaluate(() => {
+        const catalogStore = (window as any).app.catalogStore;
+        const ids = catalogStore.activeCatalogFiles;
+        const display = catalogStore.getCatalogDisplayStore(
+            ids[ids.length - 1],
+        );
+        const values = (array: Float32Array) =>
+            Array.from(array, (value) =>
+                Number.isFinite(value) ? value : null,
+            );
+        return {
+            majorInput: values(display.sizeMapData),
+            minorInput: values(display.sizeMinorMapData),
+            angleInput: values(display.orientationMapData),
+            major: values(display.sizeArray()),
+            minor: values(display.sizeMinorArray()),
+            angles: values(display.orientationArray()),
+        };
+    });
+}
+
 async function expectSelectedSources(
     page: Page,
     catalog: Locator,
@@ -394,6 +416,18 @@ test.describe('Catalog widget', () => {
         );
         await choose(page, sizeColumn, 'Size');
         await expect(sizeColumn).toContainText('Size');
+        const sizes = await overlayGeometry(page);
+        expect(sizes.majorInput).toEqual([4, 6, 8, 10, 12]);
+        expect(sizes.major).toHaveLength(5);
+        expect(
+            sizes.major.every(
+                (value, index, all) =>
+                    index === 0 ||
+                    (value !== null &&
+                        all[index - 1] !== null &&
+                        value > all[index - 1]!),
+            ),
+        ).toBe(true);
         await expectCanvasInk(page, '#catalog-canvas');
         await expectCanvasRgb(page, '#catalog-canvas', [0, 163, 150]);
         await page.getByTestId('catalog-settings-color-tab-title').click();
@@ -551,23 +585,78 @@ test.describe('Catalog widget', () => {
         await choose(page, orientationColumn, 'PositionAngle');
 
         await expect(orientationColumn).toContainText('PositionAngle');
+        const diameter = await overlayGeometry(page);
+        expect(diameter.majorInput).toEqual([
+            4,
+            8,
+            12,
+            16,
+            10,
+            null,
+            6,
+            null,
+            9,
+            7,
+        ]);
+        expect(diameter.minorInput).toEqual([
+            2,
+            3,
+            5,
+            8,
+            null,
+            4,
+            3,
+            2,
+            null,
+            3,
+        ]);
+        expect(diameter.angleInput).toEqual([
+            0,
+            30,
+            75,
+            120,
+            45,
+            90,
+            null,
+            -30,
+            150,
+            null,
+        ]);
+        expect(diameter.major).toEqual(diameter.majorInput);
+        expect(diameter.minor).toEqual(diameter.minorInput);
+        expect(diameter.angles).toEqual([
+            25, 50, 87.5, 125, 62.5, 100, 0, 0, 150, 0,
+        ]);
         await expectCanvasInk(page, '#catalog-canvas');
         await expectCanvasRgb(page, '#catalog-canvas', [0, 163, 150]);
         await expect(page.locator('#catalog-canvas')).toHaveScreenshot(
             'catalog-angular-axes.png',
+            { maxDiffPixels: 5 },
         );
 
         await settings.getByRole('tab', { name: 'Size', exact: true }).click();
         await settings
             .getByTestId('catalog-settings-axis-type-radius-button')
             .click();
+        const radius = await overlayGeometry(page);
+        expect(radius.major).toEqual(
+            diameter.major.map((value) => (value === null ? null : value * 2)),
+        );
+        expect(radius.minor).toEqual(
+            diameter.minor.map((value) => (value === null ? null : value * 2)),
+        );
+        expect(radius.angles).toEqual(diameter.angles);
         await expectCanvasInk(page, '#catalog-canvas');
         await expect(page.locator('#catalog-canvas')).toHaveScreenshot(
             'catalog-angular-axes-radius.png',
+            { maxDiffPixels: 5 },
         );
         await settings
             .getByTestId('catalog-settings-axis-type-diameter-button')
             .click();
+        const restored = await overlayGeometry(page);
+        expect(restored.major).toEqual(diameter.major);
+        expect(restored.minor).toEqual(diameter.minor);
 
         await carta.closeWidget('catalog-overlay-floating-settings');
         await expectCanvasInk(page, '#catalog-canvas');
