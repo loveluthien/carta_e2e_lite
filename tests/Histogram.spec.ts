@@ -1,10 +1,11 @@
 import { expect, test } from '@playwright/test';
-import { PlaywrightDevPage } from '../utilities';
+import { LayoutName, PlaywrightDevPage } from '../utilities';
 
 test('histogram widget follows the image channel', async ({ page }) => {
     const carta = new PlaywrightDevPage(page);
     await carta.goto();
     await carta.loadImage('cube.fits');
+    await carta.applyLayout(LayoutName.Default);
     await carta.selectMenuItem('Widgets', 'Histogram Widget');
 
     const widget = page.locator('.histogram-widget');

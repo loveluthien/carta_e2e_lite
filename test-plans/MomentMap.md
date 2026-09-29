@@ -10,7 +10,8 @@ Moment generator data, controls, lifecycle and failure recovery.
 - Check the requested widget/dialog state, data or store values, and the effect in the image viewer and applicable profiler. Treat a visible canvas alone as insufficient for a numerical result.
 - For viewer or profile changes, compare a stable PNG with a reviewed baseline; inspect overlay text and numeric readouts as well.
 - For rejected input or a failed operation, verify no unwanted image is created and the user can recover. Exercise every button relevant to the scenario.
-- Referenced FITS fixtures: `Gaussian_array_wide.fits`, `cube.fits`, `iquv.fits`, `no-rest.fits`, `single.fits`.
+- Referenced FITS fixtures: `Gaussian_array_wide.fits`, `cube.fits`, `iquv.fits`, `no-rest.fits`, `single.fits`, `stokes.Q.fits`.
+- MM-03 ellipse cases make a unique temporary copy of `cube.fits` so repeated runs do not reuse the same generated-map source name; the test removes the copy afterward. Crop cases verify that a request with no partial result has settled before retrying once.
 - Current source contains no named PNG baseline check; the table below describes intended outcomes and does not claim any test has passed.
 
 ## Cases

@@ -83,7 +83,7 @@ export async function resetPreferences(page: Page, carta: PlaywrightDevPage) {
     });
 }
 
-const fixtureFolder = path.resolve(__dirname, 'test_data');
+export const fixtureFolder = path.resolve(__dirname, 'test_data');
 export const moments = [
     ['-1', 'Mean value of the spectrum', 'average'],
     ['0', 'Integrated value of the spectrum', 'integrated'],
@@ -166,6 +166,7 @@ export async function open(
     await new PlaywrightDevPage(page).fillSnippetInput(
         'app.widgetsStore.setImageMultiPanelEnabled(false);',
     );
+    await new PlaywrightDevPage(page).applyLayout(LayoutName.Default);
     await page.locator('#SpectralProfilerButton').click();
     await new PlaywrightDevPage(page).dragAndDock(
         page.getByTestId('spectral-profiler-0-header-title'),
@@ -302,13 +303,14 @@ export async function activate(page: Page, name: string) {
 
 export async function pixel(page: Page, x: number, y: number) {
     const canvas = page
+        .getByTestId('viewer-div')
         .locator('.region-stage > .konvajs-content > canvas')
         .first();
     const box = await canvas.boundingBox();
     expect(box).not.toBeNull();
     const view = await page.evaluate(() => {
         const f = (window as any).app.activeFrame;
-        return (f.spatialReference || f).requiredFrameView;
+        return f.requiredFrameView;
     });
     await page.mouse.move(
         box!.x + ((x - view.xMin) / (view.xMax - view.xMin)) * box!.width,
@@ -403,7 +405,7 @@ export async function checkMap(
     ]) {
         expect(map.headers.some((h: any) => h.name === key)).toBe(true);
     }
-    await activate(page, map.name);
+    await activate(page, map.filename);
     const value = await pixel(page, 8, 8);
     const expected = oracle(
         tag,

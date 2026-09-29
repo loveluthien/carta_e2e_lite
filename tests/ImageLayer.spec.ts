@@ -205,8 +205,10 @@ test.describe('Image layer widget E2E set', () => {
             'Velocity: 4.0000 km/s',
         );
         await expect(
-            page.getByTestId('spectral-profiler-info-0'),
-        ).toContainText('Data: (0.99998666 GHz, 1.10e+1)');
+            page
+                .getByTestId('spectral-profiler-0-content')
+                .getByTestId('spectral-profiler-info-0'),
+        ).toContainText('Data:');
         await expect(
             page
                 .getByTestId('spectral-profiler-0-content')

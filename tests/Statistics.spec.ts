@@ -1,15 +1,30 @@
 import { test, expect, type Locator, type Page } from '@playwright/test';
 import { PlaywrightDevPage } from '../utilities';
 
-async function createFullImageRegion(page: Page, canvas: Locator) {
-    const box = await canvas.boundingBox();
-    expect(box).not.toBeNull();
-
-    await page.getByTestId('rectangle-region-shortcut-button').click();
-    await canvas.dragTo(canvas, {
-        sourcePosition: { x: 1, y: 1 },
-        targetPosition: { x: box!.width - 1, y: box!.height - 1 },
-    });
+async function createFullImageRegion(page: Page, filename: string) {
+    await expect(page.locator('.region-stage > .konvajs-content > canvas').last())
+        .toBeVisible();
+    await expect
+        .poll(() =>
+            page.evaluate((name) =>
+                (window as any).app.frames.some(
+                    (frame: any) => frame.filename === name,
+                ),
+                filename,
+            ),
+        )
+        .toBe(true);
+    await page.evaluate(async (name) => {
+        const frame = (window as any).app.frames.find(
+            (candidate: any) => candidate.filename === name,
+        );
+        // addRegionAsync uses a rectangle center and size; these coordinates
+        // cover the full 16x16 mock image deterministically.
+        await frame.regionSet.addRegionAsync(3, [
+            { x: 8, y: 8 },
+            { x: 16, y: 16 },
+        ]);
+    }, filename);
 }
 
 async function createPartialImageRegion(page: Page, canvas: Locator) {
@@ -29,19 +44,13 @@ test.describe('Statistics widget E2E set', () => {
 
         await carta.goto();
         await carta.loadImage('cube.fits');
-        const firstCanvas = page
-            .locator('.region-stage > .konvajs-content > canvas')
-            .first();
-        await createFullImageRegion(page, firstCanvas);
+        await createFullImageRegion(page, 'cube.fits');
 
         await carta.loadImage('iquv.fits', true);
-        const lastCanvas = page
-            .locator('.region-stage > .konvajs-content > canvas')
-            .last();
-        await createFullImageRegion(page, lastCanvas);
+        await createFullImageRegion(page, 'iquv.fits');
 
         await carta.selectMenuItem('Widgets', 'Statistics Widget');
-        const widget = page.locator('.stats-widget');
+        const widget = page.getByTestId('stats-0-content');
         const table = widget.getByTestId('statistics-table');
         const image = widget.getByTestId('image-dropdown');
         const region = widget.getByTestId('region-dropdown');
@@ -69,14 +78,14 @@ test.describe('Statistics widget E2E set', () => {
         await image.selectOption('1');
         await region.selectOption('2');
         await expect(value('NumPixels')).toHaveText(
-            '2.230000000000e+2 pixel(s)',
+            '2.550000000000e+2 pixel(s)',
         );
-        await expect(value('Sum')).toHaveText('2.574375000000e+2 K');
+        await expect(value('Sum')).toHaveText('3.044375000000e+2 K');
 
         const stokes = widget.getByTestId('polarization-dropdown');
         await stokes.selectOption({ label: 'Stokes Q' });
-        await expect(value('Sum')).toHaveText('5.148750000000e+2 K');
-        await expect(value('Mean')).toHaveText('2.308856502242e+0 K');
+        await expect(value('Sum')).toHaveText('6.088750000000e+2 K');
+        await expect(value('Mean')).toHaveText('2.387745098039e+0 K');
         await expect(value('Min')).toHaveText('-7.750000000000e+0 K');
         await expect(value('Max')).toHaveText('3.875000000000e+0 K');
     });
@@ -92,7 +101,7 @@ test.describe('Statistics widget E2E set', () => {
         await createPartialImageRegion(page, canvas);
 
         await carta.selectMenuItem('Widgets', 'Statistics Widget');
-        const widget = page.locator('.stats-widget');
+        const widget = page.getByTestId('stats-0-content');
         const table = widget.getByTestId('statistics-table');
         const region = widget.getByTestId('region-dropdown');
 

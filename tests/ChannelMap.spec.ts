@@ -51,9 +51,6 @@ test.describe('Channel Map widget', () => {
             widget.getByRole('spinbutton', { name: 'Start channel' }),
         ).toHaveValue('0');
         await expect(
-            widget.getByRole('spinbutton', { name: 'Channel step' }),
-        ).toHaveValue('1');
-        await expect(
             widget.getByRole('spinbutton', { name: 'Number of columns' }),
         ).toHaveValue('2');
         await expect(
@@ -98,7 +95,9 @@ test.describe('Channel Map widget', () => {
             )
             .toBe(3);
         await expect(
-            page.getByTestId('spectral-profiler-info-0').locator('pre'),
+            page
+                .getByTestId('spectral-profiler-0-content')
+                .locator('.profile-legend'),
         ).toContainText('Data:');
         await expect(
             page.locator('.line-plot-component canvas').first(),

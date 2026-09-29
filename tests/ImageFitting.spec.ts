@@ -9,6 +9,7 @@ test('Image fitting validates inputs and displays the fitted images', async ({
     await page.setViewportSize({ width: 1920, height: 1080 });
     const carta = new PlaywrightDevPage(page);
     await carta.goto();
+    await carta.setPreferenceDefaults();
     await carta.loadImage('dice_four.fits');
     await carta.selectMenuItem('View', 'Image Fitting');
 
@@ -77,8 +78,8 @@ test('Image fitting validates inputs and displays the fitted images', async ({
             page.getByTestId('image-view-header-title').first(),
         ).toContainText(name);
         await expect(
-            page.locator('#image-panel-1-0 #overlay-canvas'),
-        ).toHaveScreenshot(screenshot);
+            page.locator('.image-panel-div #overlay-canvas').first(),
+        ).toHaveScreenshot(screenshot, { scale: 'css' });
     }
 
     const spatial = page.getByTestId('spatial-profiler-0-content');

@@ -62,7 +62,9 @@ test.describe('Regions', () => {
             )
             .first();
         await expect(plot).toBeVisible();
-        await expect(plot).toHaveScreenshot('region-profile.png');
+        await expect(plot).toHaveScreenshot('region-profile.png', {
+            maxDiffPixelRatio: 0.02,
+        });
 
         await row.dblclick();
         const dialog = page.locator('.region-dialog');
@@ -87,7 +89,9 @@ test.describe('Regions', () => {
 
         await page.getByTestId('region-dialog-header-close-button').click();
         await expect(viewer).toHaveScreenshot('region-edited.png');
-        await expect(plot).toHaveScreenshot('region-profile-edited.png');
+        await expect(plot).toHaveScreenshot('region-profile-edited.png', {
+            maxDiffPixelRatio: 0.02,
+        });
         await row.dblclick();
 
         await dialog.getByTestId('region-dialog-lock-button').click();

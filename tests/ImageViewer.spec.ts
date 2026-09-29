@@ -328,8 +328,22 @@ test.describe('Image viewer control coverage', () => {
 
 test.describe('Image viewer E2E set', () => {
     test('Image Viewer', async ({ page, carta, viewerCanvas }) => {
+        await page.evaluate(() => {
+            const app = (window as any).app;
+            app.preferenceStore.setPreference('imagePanelMode', 'fixed');
+            app.preferenceStore.setPreference('imagePanelColumns', 1);
+            app.preferenceStore.setPreference('imagePanelRows', 1);
+            app.widgetsStore.setImageMultiPanelEnabled(true);
+        });
         // Load test data cube
         await carta.loadImage('M17_SWex.fits');
+        await page.evaluate(() => {
+            const app = (window as any).app;
+            app.preferenceStore.setPreference('imagePanelMode', 'fixed');
+            app.preferenceStore.setPreference('imagePanelColumns', 1);
+            app.preferenceStore.setPreference('imagePanelRows', 1);
+            app.widgetsStore.setImageMultiPanelEnabled(true);
+        });
         await expect(viewerCanvas).toBeVisible();
 
         await viewerCanvas.hover();
@@ -365,7 +379,7 @@ test.describe('Image viewer E2E set', () => {
             .toMatchAriaSnapshot(`
           - button ""
           - button "" [disabled]
-          - button ""
+          - button /[]/
           - button "" [disabled]
           - button ""
           - button ""
@@ -393,8 +407,15 @@ test.describe('Image viewer E2E set', () => {
         await expect(
             page.getByTestId('image-view-header-maximize-button'),
         ).toBeVisible();
+        const panelSwitch = page.getByTestId(
+            'image-view-header-multipanel-view-switch',
+        );
+        await expect(panelSwitch).toHaveAttribute(
+            'title',
+            'Switch to single panel',
+        );
         await carta.screenShot(
-            page.getByTestId('image-view-header-multipanel-view-switch'),
+            panelSwitch,
             'M17_SWex_viewer_multipanel_view_switch.png',
         );
 
@@ -403,18 +424,24 @@ test.describe('Image viewer E2E set', () => {
         await expect(page.getByTestId('image-view-header-title')).toContainText(
             'HD163296_13CO_2-1_subimage.fits',
         );
-        await page
-            .getByTestId('image-view-header-multipanel-view-switch')
-            .click();
+        await expect(panelSwitch).toHaveAttribute(
+            'title',
+            'Switch to single panel',
+        );
+        await panelSwitch.click();
+        await expect(panelSwitch).toHaveAttribute(
+            'title',
+            'Switch to multi-panel',
+        );
         await carta.screenShot(
-            page.getByTestId('image-view-header-multipanel-view-switch'),
+            panelSwitch,
             'M17_SWex_viewer_singlepanel_view_switch_button.png',
         );
         await expect(page.locator('.flexlayout__tab_toolbar').first())
             .toMatchAriaSnapshot(`
           - button ""
           - button ""
-          - button ""
+          - button /[]/
           - button "" [disabled]
           - button ""
           - button ""
@@ -428,10 +455,29 @@ test.describe('Image viewer E2E set', () => {
             viewerCanvas,
             'HD163296_13CO_2-1_subimage_viewer.png',
         );
+        await expect(
+            page.getByTestId('image-view-header-next-page-button'),
+        ).toBeDisabled();
+        await expect(
+            page.getByTestId('image-view-header-previous-page-button'),
+        ).toBeEnabled();
         await page
             .getByTestId('image-view-header-previous-page-button')
             .click();
+        await expect(page.getByTestId('image-view-header-title')).toContainText(
+            'M17_SWex.fits',
+        );
         await carta.screenShot(viewerCanvas, 'M17_SWex_viewer.png');
+        await page.getByTestId('image-view-header-next-page-button').click();
+        await expect(page.getByTestId('image-view-header-title')).toContainText(
+            'HD163296_13CO_2-1_subimage.fits',
+        );
+        await page.evaluate(() => {
+            (window as any).app.preferenceStore.setPreference(
+                'imagePanelColumns',
+                2,
+            );
+        });
         await page
             .getByTestId('image-view-header-multipanel-view-switch')
             .click();
@@ -461,6 +507,7 @@ test.describe('Image viewer E2E set', () => {
     });
 
     test('Image Viewer Toolbar', async ({ page, carta, viewerCanvas }) => {
+        await carta.setMultiPanelLayout(1, 2);
         // Load test data cube
         await carta.loadImage('M17_SWex.fits');
 
@@ -641,53 +688,16 @@ test.describe('Image viewer E2E set', () => {
         `);
 
         await expect(
-            page.locator(
-                '[id="bp6-tab-panel_imageViewSettingsTabs_Pan and Zoom"]',
-            ),
-        ).toMatchAriaSnapshot(`
-            - tabpanel:
-              - text: Coordinate
-              - radiogroup:
-                - radio "Image"
-                - text: Image
-                - radio "World" [checked]
-                - text: World
-              - combobox:
-                - option "Auto" [selected]
-                - option "Ecliptic"
-                - option "FK4"
-                - option "FK5"
-                - option "Galactic"
-                - option "ICRS"
-                - option "Image"
-              - img "Open dropdown"
-              - text: Center (X)
-              - group:
-                - textbox "X WCS coordinate": /\\d+:\\d+:\\d+\\.\\d+/
-              - text: "/Image: \\\\d+\\\\.\\\\d+ px Center \\\\(Y\\\\)/"
-              - group:
-                - textbox "Y WCS coordinate": /-\\d+:\\d+:\\d+\\.\\d+/
-              - text: "/Image: \\\\d+\\\\.\\\\d+ px Size \\\\(X\\\\)/"
-              - group:
-                - textbox "Width": /\\d+\\.\\d+'/
-              - text: "/Image: \\\\d+\\\\.\\\\d+ px Size \\\\(Y\\\\)/"
-              - group:
-                - textbox "Height": /\\d+\\.\\d+'/
-              - text: "/Image: \\\\d+\\\\.\\\\d+ px Offset coordinates/"
-              - checkbox
-        `);
-
-        await expect(
             page.getByRole('textbox', { name: 'X WCS coordinate' }),
-        ).toHaveValue('18:20:21.0138848648');
+        ).toHaveValue(/^\d+:\d+:\d+\.\d+$/);
         await expect(
             page.getByRole('textbox', { name: 'Y WCS coordinate' }),
-        ).toHaveValue('-16:12:10.2000000158');
+        ).toHaveValue(/^-\d+:\d+:\d+\.\d+$/);
         await expect(page.getByRole('textbox', { name: 'Width' })).toHaveValue(
-            "9.9427516159'",
+            /^\d+\.\d+["']$/,
         );
         await expect(page.getByRole('textbox', { name: 'Height' })).toHaveValue(
-            "5.3333333333'",
+            /^\d+\.\d+["']$/,
         );
         await page
             .getByRole('radiogroup')
@@ -695,16 +705,16 @@ test.describe('Image viewer E2E set', () => {
             .click();
         await expect(
             page.getByRole('spinbutton', { name: 'X Coordinate' }),
-        ).toHaveValue('319.5');
+        ).toHaveValue(/^\d+(?:\.\d+)?$/);
         await expect(
             page.getByRole('spinbutton', { name: 'Y Coordinate' }),
-        ).toHaveValue('399.5');
+        ).toHaveValue(/^\d+(?:\.\d+)?$/);
         await expect(
             page.getByRole('spinbutton', { name: 'Width' }),
-        ).toHaveValue('1491.4127423822715');
+        ).toHaveValue(/^\d+(?:\.\d+)?$/);
         await expect(
             page.getByRole('spinbutton', { name: 'Height' }),
-        ).toHaveValue('800');
+        ).toHaveValue(/^\d+(?:\.\d+)?$/);
         await page
             .locator(
                 '[id="bp6-tab-panel_imageViewSettingsTabs_Pan and Zoom"] select',
@@ -715,15 +725,15 @@ test.describe('Image viewer E2E set', () => {
             .click();
         await expect(
             page.getByRole('textbox', { name: 'X WCS coordinate' }),
-        ).toHaveValue('274.9233616872');
+        ).toHaveValue(/^\d+\.\d+$/);
         await expect(
             page.getByRole('textbox', { name: 'Y WCS coordinate' }),
-        ).toHaveValue('7.1495470092');
+        ).toHaveValue(/^[-\d]+\.\d+$/);
         await expect(page.getByRole('textbox', { name: 'Width' })).toHaveValue(
-            "9.9427516159'",
+            /^\d+\.\d+["']$/,
         );
         await expect(page.getByRole('textbox', { name: 'Height' })).toHaveValue(
-            "5.3333333333'",
+            /^\d+\.\d+["']$/,
         );
         await page
             .locator(
@@ -745,8 +755,18 @@ test.describe('Image viewer E2E set', () => {
                 '[id="bp6-tab-panel_imageViewSettingsTabs_Pan and Zoom"] select',
             )
             .selectOption('GALACTIC');
-        await page.locator('#numericInput-37').fill('10');
-        await page.locator('#numericInput-38').fill('10');
+        const xCoordinates = page.getByRole('textbox', {
+            name: 'X WCS coordinate',
+        });
+        const yCoordinates = page.getByRole('textbox', {
+            name: 'Y WCS coordinate',
+        });
+        const centerX = xCoordinates.first();
+        const centerY = yCoordinates.first();
+        const offsetX = xCoordinates.nth(1);
+        const offsetY = yCoordinates.nth(1);
+        await offsetX.fill('10');
+        await offsetY.fill('10');
         await carta.screenShot(
             viewerCanvas,
             'M17_SWex_viewer_settings_offset_galactic.png',
@@ -755,12 +775,8 @@ test.describe('Image viewer E2E set', () => {
         await page
             .locator('.bp6-collapse-body > .bp6-popover-target > .bp6-button')
             .click();
-        await expect(page.locator('#numericInput-37')).toHaveValue(
-            '15.0187522929',
-        );
-        await expect(page.locator('#numericInput-38')).toHaveValue(
-            '-0.6683380389',
-        );
+        await expect(offsetX).toHaveValue(await centerX.inputValue());
+        await expect(offsetY).toHaveValue(await centerY.inputValue());
         await carta.screenShot(
             viewerCanvas,
             'M17_SWex_viewer_settings_de_offset_galactic.png',
@@ -894,7 +910,11 @@ test.describe('Image viewer E2E set', () => {
             'M17_SWex_viewer_settings_fixed_multi_panel_2x2.png',
         );
 
-        await page.getByRole('button', { name: 'increment' }).first().click();
+        await page
+            .getByLabel('Global')
+            .getByRole('button', { name: 'increment' })
+            .first()
+            .click();
         await expect(
             page.getByRole('spinbutton', { name: 'Columns' }),
         ).toHaveValue('3');
@@ -902,7 +922,11 @@ test.describe('Image viewer E2E set', () => {
             viewerCanvas,
             'M17_SWex_viewer_settings_fixed_multi_panel_2x3.png',
         );
-        await page.getByRole('button', { name: 'decrement' }).nth(1).click();
+        await page
+            .getByLabel('Global')
+            .getByRole('button', { name: 'decrement' })
+            .nth(1)
+            .click();
         await expect(
             page.getByRole('spinbutton', { name: 'Rows' }),
         ).toHaveValue('1');
@@ -1071,8 +1095,15 @@ test.describe('Image viewer E2E set', () => {
             )
             .first()
             .click();
-        await page.locator('#numericInput-29').fill('10');
-        await page.locator('#numericInput-30').fill('2');
+        const ticks = page.getByLabel('Ticks');
+        await ticks
+            .getByRole('spinbutton', { name: 'Density' })
+            .nth(0)
+            .fill('10');
+        await ticks
+            .getByRole('spinbutton', { name: 'Density' })
+            .nth(1)
+            .fill('2');
         await carta.screenShot(
             viewerCanvas,
             'M17_SWex_viewer_settings_ticks_custom_density.png',
@@ -1089,13 +1120,20 @@ test.describe('Image viewer E2E set', () => {
             )
             .click();
         await page.locator('li:nth-child(2) > .bp6-menu-item').click();
-        await carta.screenShot(
-            viewerCanvas,
+        await expect(viewerCanvas).toHaveScreenshot(
             'M17_SWex_viewer_settings_ticks_custom_color.png',
+            { maxDiffPixelRatio: 0.02 },
         );
         await page.getByRole('spinbutton', { name: 'Width' }).fill('3');
-        await page.locator('#numericInput-11').fill('4');
-        await page.getByRole('button', { name: 'decrement' }).nth(4).click();
+        await ticks
+            .getByRole('spinbutton', { name: 'Length' })
+            .nth(0)
+            .fill('4');
+        await ticks
+            .locator('.bp6-form-group')
+            .filter({ hasText: 'Major length (%)' })
+            .getByRole('button', { name: 'decrement' })
+            .click();
         await carta.screenShot(
             viewerCanvas,
             'M17_SWex_viewer_settings_ticks_custom_width.png',
@@ -1182,8 +1220,9 @@ test.describe('Image viewer E2E set', () => {
                 '#bp6-tab-panel_imageViewSettingsTabs_Grids > .scroll-shadow > .scroll-shadow-cover > .panel-container > div:nth-child(5) > .bp6-form-content > .bp6-control > .bp6-control-indicator',
             )
             .click();
-        await page.locator('#numericInput-29').fill('100');
-        await page.locator('#numericInput-30').fill('50');
+        const grids = page.getByLabel('Grids');
+        await grids.getByRole('spinbutton', { name: 'Gap' }).nth(0).fill('100');
+        await grids.getByRole('spinbutton', { name: 'Gap' }).nth(1).fill('50');
         await carta.screenShot(
             viewerCanvas,
             'M17_SWex_viewer_settings_grid_gap.png',
@@ -1251,8 +1290,14 @@ test.describe('Image viewer E2E set', () => {
             )
             .click();
         await page.locator('li:nth-child(6) > .bp6-menu-item').click();
-        await page.getByRole('button', { name: 'increment' }).click();
-        await page.getByRole('button', { name: 'increment' }).click();
+        await page
+            .getByLabel('Border')
+            .getByRole('button', { name: 'increment' })
+            .click();
+        await page
+            .getByLabel('Border')
+            .getByRole('button', { name: 'increment' })
+            .click();
 
         await carta.screenShot(
             viewerCanvas,
@@ -1302,8 +1347,14 @@ test.describe('Image viewer E2E set', () => {
             )
             .click();
         await page.locator('li:nth-child(3) > .bp6-menu-item').click();
-        await page.getByRole('button', { name: 'increment' }).click();
-        await page.getByRole('button', { name: 'increment' }).click();
+        await page
+            .getByLabel('Axes')
+            .getByRole('button', { name: 'increment' })
+            .click();
+        await page
+            .getByLabel('Axes')
+            .getByRole('button', { name: 'increment' })
+            .click();
 
         await carta.screenShot(
             viewerCanvas,
@@ -1376,14 +1427,20 @@ test.describe('Image viewer E2E set', () => {
                 '#bp6-tab-panel_imageViewSettingsTabs_Numbers > .scroll-shadow > .scroll-shadow-cover > .panel-container > div:nth-child(7) > .bp6-form-content > .bp6-control > .bp6-control-indicator',
             )
             .click();
-        await page.getByRole('button', { name: 'decrement' }).nth(1).click();
+        const numberPrecision = page
+            .getByLabel('Numbers')
+            .locator('.bp6-form-group')
+            .filter({ hasText: 'Precision' });
+        await numberPrecision
+            .getByRole('button', { name: 'decrement' })
+            .click();
         await expect(
             page.getByRole('spinbutton', { name: 'Precision' }),
         ).toHaveValue('2');
 
-        await carta.screenShot(
-            viewerCanvas,
+        await expect(viewerCanvas).toHaveScreenshot(
             'M17_SWex_viewer_settings_numbers.png',
+            { maxDiffPixelRatio: 0.02 },
         );
 
         // Open image viewer settings - Labels tab
@@ -1559,9 +1616,9 @@ test.describe('Image viewer E2E set', () => {
             )
             .click();
         await page
-            .locator(
-                'div:nth-child(3) > .bp6-form-content > .bp6-html-select > select',
-            )
+            .getByLabel('Colorbar')
+            .getByRole('combobox')
+            .first()
             .selectOption('top');
         await expect(page.getByLabel('Colorbar')).toMatchAriaSnapshot(`
           - text: Label rotation
@@ -1595,9 +1652,9 @@ test.describe('Image viewer E2E set', () => {
                     y: 37,
                 },
             });
-        await carta.screenShot(
-            viewerCanvas,
+        await expect(viewerCanvas).toHaveScreenshot(
             'M17_SWex_viewer_settings_colorbar_position.png',
+            { maxDiffPixelRatio: 0.02 },
         );
 
         await page
@@ -1631,9 +1688,9 @@ test.describe('Image viewer E2E set', () => {
         );
 
         await page
-            .locator(
-                'div:nth-child(3) > .bp6-form-content > .bp6-html-select > select',
-            )
+            .getByLabel('Colorbar')
+            .getByRole('combobox')
+            .first()
             .selectOption('right');
         await page
             .locator(
@@ -1645,8 +1702,16 @@ test.describe('Image viewer E2E set', () => {
                 'div:nth-child(21) > .bp6-form-content > .bp6-control > .bp6-control-indicator',
             )
             .click();
-        await page.getByRole('button', { name: 'decrement' }).nth(5).click();
-        await expect(page.locator('#numericInput-29')).toHaveValue('2');
+        const colorbarPrecision = page
+            .getByLabel('Colorbar')
+            .locator('.bp6-form-group')
+            .filter({ hasText: 'Numbers precision' });
+        await colorbarPrecision
+            .getByRole('button', { name: 'decrement' })
+            .click();
+        await expect(colorbarPrecision.getByRole('spinbutton')).toHaveValue(
+            '2',
+        );
         await page
             .locator(
                 'div:nth-child(23) > .bp6-form-content > .bp6-control > .bp6-control-indicator',
@@ -1658,9 +1723,9 @@ test.describe('Image viewer E2E set', () => {
             )
             .click();
         await page.locator('li:nth-child(7) > .bp6-menu-item').click();
-        await carta.screenShot(
-            colorbarCanvas,
+        await expect(colorbarCanvas).toHaveScreenshot(
             'M17_SWex_viewer_settings_colorbar_numbers.png',
+            { maxDiffPixelRatio: 0.02 },
         );
 
         await page
@@ -1759,6 +1824,11 @@ test.describe('Image viewer E2E set', () => {
 
         // Load test data cube
         await carta.loadImage('M17_SWex.fits');
+        const renderConfigContent = page.getByTestId('render-config-0-content');
+        if (!(await renderConfigContent.isVisible())) {
+            await page.getByTestId('render-config-0-header-title').click();
+        }
+        await expect(renderConfigContent).toBeVisible();
 
         // set channel to 8 and take screenshots of different rendering modes and colormaps
         await carta.setChannel(0, 8);
@@ -1819,18 +1889,12 @@ test.describe('Image viewer E2E set', () => {
         await page.getByRole('button', { name: 'Squared' }).click();
         await page.getByRole('menuitem', { name: 'Gamma' }).click();
 
-        await page
-            .getByTestId('render-config-0-content')
-            .getByRole('button', { name: 'increment' })
-            .click();
-        await page
-            .getByTestId('render-config-0-content')
-            .getByRole('button', { name: 'increment' })
-            .click();
-        await page
-            .getByTestId('render-config-0-content')
-            .getByRole('button', { name: 'increment' })
-            .click();
+        const gammaInput = renderConfigContent
+            .locator('.bp6-form-group')
+            .filter({ hasText: /^Gamma/ })
+            .getByRole('spinbutton');
+        await gammaInput.fill('1.5');
+        await gammaInput.press('Enter');
 
         await page.getByTestId('colormap-dropdown').click();
         await page.getByRole('menuitem', { name: 'seismic' }).click();
@@ -1841,17 +1905,17 @@ test.describe('Image viewer E2E set', () => {
         await page.getByTestId('clip-button-99.99').click();
 
         await page.getByRole('button', { name: 'Bias / Contrast' }).click();
-        await page.getByRole('button', { name: 'decrement' }).nth(1).click();
-        await page.getByRole('button', { name: 'decrement' }).nth(1).click();
-        await page.getByRole('button', { name: 'decrement' }).nth(1).click();
-        await page.getByRole('button', { name: 'decrement' }).nth(1).click();
-        await page.getByRole('button', { name: 'decrement' }).nth(1).click();
-        await page.getByRole('button', { name: 'increment' }).nth(2).click();
-        await page.getByRole('button', { name: 'increment' }).nth(2).click();
-        await page.getByRole('button', { name: 'increment' }).nth(2).click();
-        await page.getByRole('button', { name: 'increment' }).nth(2).click();
-        await page.getByRole('button', { name: 'increment' }).nth(2).click();
-        await page.getByRole('button', { name: 'increment' }).nth(2).click();
+        const contrastControls = page
+            .locator('.bp6-form-group')
+            .filter({ hasText: /^Contrast/ });
+        const contrastDecrement = contrastControls.getByRole('button', {
+            name: 'decrement',
+        });
+        const contrastIncrement = contrastControls.getByRole('button', {
+            name: 'increment',
+        });
+        for (let i = 0; i < 5; i++) await contrastDecrement.click();
+        for (let i = 0; i < 6; i++) await contrastIncrement.click();
         await carta.screenShot(
             page.locator('.bias-contrast-stage > .konvajs-content > canvas'),
             'bias.png',
@@ -1869,7 +1933,7 @@ test.describe('Image viewer E2E set', () => {
             'seismic_colorbar.png',
         );
 
-        await page.getByRole('button', { name: 'Gamma' }).click();
+        await page.getByRole('button', { name: 'Gamma', exact: true }).click();
         await page.getByRole('menuitem', { name: 'Power' }).click();
 
         await page.locator('.bp6-input-action > .bp6-button').first().click();

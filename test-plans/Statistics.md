@@ -17,7 +17,7 @@ Statistics for regions across images and Stokes planes.
 
 | Test (source line)                                                               | Action                                                                                  | Expected result                                                                                            |
 | -------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| [shows values for regions from multiple images](../tests/Statistics.spec.ts#L27) | Create full-image regions in cube.fits and iquv.fits; switch image/region and Stokes Q. | Ten-row statistics table shows independently expected pixel count, sum, mean, min and max for each choice. |
+| [shows values for regions from multiple images](../tests/Statistics.spec.ts#L27) | Add full-frame rectangles at fixed pixel coordinates in cube.fits and iquv.fits; switch image/region and Stokes Q. | Ten-row statistics table shows independently expected pixel count, sum, mean, min and max for each choice. |
 | [shows values for a non-full image region](../tests/Statistics.spec.ts#L84)      | Create a partial rectangle on cube.fits.                                                | Region selector and statistics values match the known subimage pixel count and intensity totals.           |
 
 ## Run

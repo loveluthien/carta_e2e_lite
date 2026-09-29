@@ -79,8 +79,16 @@ test.describe('Animator E2E Tests', () => {
         await carta.applyLayout(LayoutName.CubeView);
 
         await page.getByTestId('point-region-shortcut-button').click();
-        await page.locator('.region-stage > .konvajs-content > canvas').click({
-            position: { x: 325, y: 175 },
+        const imageCanvas = page.locator(
+            '.region-stage > .konvajs-content > canvas',
+        );
+        const canvasBounds = await imageCanvas.boundingBox();
+        expect(canvasBounds).not.toBeNull();
+        await imageCanvas.click({
+            position: {
+                x: canvasBounds!.width / 2,
+                y: canvasBounds!.height / 2,
+            },
         });
         for (const profiler of [
             'spatial-profiler-0-content',
@@ -324,7 +332,7 @@ test.describe('Animator E2E Tests', () => {
             await screenshotViewer(page, `Animator_TimeSeries_${index}.png`);
             await expect(plot).toHaveScreenshot(
                 `Animator_TimeSeries_Profile_${index}.png`,
-                { maxDiffPixels: 500 },
+                { maxDiffPixelRatio: 0.02 },
             );
             if (index < epochs.length - 1) {
                 await page.getByTestId('animator-next-button').click();

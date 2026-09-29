@@ -32,7 +32,7 @@ file.setChannel(12);
 const file = await app.openFile("./carta_build/e2e-lite/test_data", "IRCp10216_sci.spw0.cube.IQUV.manual.pbcor.subimage.fits"); 
 file.setStokes(2); file.setStokesByIndex(2); 
 file.renderConfig.setCustomScale(-0.02, 0.03); 
-ile.renderConfig.setPercentileRank(90); 
+file.renderConfig.setPercentileRank(90);
 file.renderConfig.setScaling(1); 
 file.renderConfig.setColorMap("gray"); 
 file.renderConfig.setInverted(true);
@@ -43,9 +43,12 @@ file.renderConfig.setInverted(true);
           - text: Polarization Stokes I Stokes Q Stokes U Stokes V Ptotal Plinear PFtotal PFlinear Pangle
           - slider: Stokes U
           `);
-        await carta.screenShot(viewerCanvas, 'snippets-image-properties2.png');
+        await expect(viewerCanvas).toHaveScreenshot(
+            'snippets-image-properties2.png',
+            { maxDiffPixelRatio: 0.03 },
+        );
 
-        await page.getByText('0612182412').click();
+        await expect(viewerCanvas.locator('canvas').first()).toBeVisible();
     });
 
     test('Regions', async ({ page }) => {

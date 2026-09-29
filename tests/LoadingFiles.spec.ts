@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
-import { getFrames, PlaywrightDevPage } from '../utilities';
+import { getFrames, LayoutName, PlaywrightDevPage } from '../utilities';
 
 const directory = '/carta_build/e2e-lite/test_data';
 
@@ -36,6 +36,8 @@ test.describe('Loading files', () => {
             'IRCp10216_sci.spw0.cube.I.manual.pbcor.fits',
         ]) {
             await carta.loadImage(name);
+            if (name === 'm16_f0444w.fits')
+                await carta.applyLayout(LayoutName.Default);
             await expect
                 .poll(() => getFrames(page))
                 .toMatchObject([{ filename: name }]);
@@ -44,9 +46,7 @@ test.describe('Loading files', () => {
                 .locator('.region-stage > .konvajs-content > canvas')
                 .first()
                 .hover();
-            await expect(page.getByTestId('x-profiler-info')).toContainText(
-                'Data:',
-            );
+            await expect(page.getByText(/^Data:/).first()).toContainText('Data:');
         }
     });
 
@@ -65,6 +65,7 @@ test.describe('Loading files', () => {
         await path.press('Enter');
 
         await carta.loadImage('M17_SWex.fits');
+        await carta.applyLayout(LayoutName.Default);
         await expect(browser).toBeHidden();
         await expect
             .poll(() => getFrames(page))
@@ -77,12 +78,9 @@ test.describe('Loading files', () => {
             .locator('.region-stage > .konvajs-content > canvas')
             .first()
             .hover({ position: { x: 300, y: 200 } });
-        await expect(page.getByTestId('x-profiler-info')).toContainText(
-            'Data:',
-        );
-        const profile = page
-            .locator('.spatial-profiler-widget .profile-plot')
-            .first();
+        await expect(page.getByText(/^Data:/).first()).toContainText('Data:');
+        const profile = page.locator('.line-plot-component').first();
+        await expect(profile.locator('canvas').first()).toBeVisible();
         const firstProfile = await profile.screenshot();
 
         await carta.loadImage('HD163296_13CO_2-1_subimage.fits', true);
@@ -105,9 +103,7 @@ test.describe('Loading files', () => {
             frame.setCursorPosition({ x: 45, y: 45 });
             frame.updateCursorRegion({ x: 45, y: 45 });
         });
-        await expect(page.getByTestId('x-profiler-info')).toContainText(
-            'Data:',
-        );
+        await expect(page.getByText(/^Data:/).first()).toContainText('Data:');
         expect((await profile.screenshot()).equals(firstProfile)).toBe(false);
     });
 
@@ -140,6 +136,7 @@ test.describe('Loading files', () => {
         await expect.poll(() => getFrames(page)).toHaveLength(0);
 
         await carta.loadImage('cube.fits');
+        await carta.applyLayout(LayoutName.Default);
         await expect
             .poll(() => getFrames(page))
             .toMatchObject([
@@ -150,8 +147,6 @@ test.describe('Loading files', () => {
             .locator('.region-stage > .konvajs-content > canvas')
             .first()
             .hover();
-        await expect(page.getByTestId('x-profiler-info')).toContainText(
-            'Data:',
-        );
+        await expect(page.getByText(/^Data:/).first()).toContainText('Data:');
     });
 });

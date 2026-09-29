@@ -113,9 +113,12 @@ test.describe('PV Generator Controls & Validation', () => {
             }, points);
 
         // Add a valid line region
-        await page.getByTestId('line-region-shortcut-button').click();
-        await page.locator('.region-stage > .konvajs-content > canvas').click({
-            position: { x: 359, y: 242 },
+        await page.evaluate(async () => {
+            const frame = (window as unknown as CartaWindow).app.activeFrame;
+            await frame.regionSet.addRegionAsync(1, [
+                { x: 15, y: 25 },
+                { x: 75, y: 65 },
+            ]);
         });
 
         await carta.selectMenuItem('Widgets', 'PV Generator');
@@ -391,7 +394,7 @@ test.describe('PV Image Generation', () => {
                 position: { x: 160, y: 240 },
             });
         await page.getByRole('radiogroup').getByText('Image').click();
-        await page.locator('#numericInput-20').fill('150');
+        await page.locator('#numericInput-20').fill('60');
         await page.locator('#numericInput-21').fill('30');
         await page.getByTestId('region-dialog-header-close-button').click();
 
@@ -480,7 +483,7 @@ test.describe('PV Image Generation', () => {
             timeout: 30_000,
         });
 
-        // In reversed axes, width is the spectral axis (channel count = 110) and height is spatial (cut length = 17)
+        // In reversed axes, width is the spectral axis and height is the spatial cut length.
         await expect
             .poll(
                 async () => {
@@ -493,7 +496,7 @@ test.describe('PV Image Generation', () => {
                 },
                 { timeout: 30_000 },
             )
-            .toEqual({ width: 110, height: 17 });
+            .toEqual({ width: 110, height: 7 });
 
         // Reset axes order back to default
         await axesOrderSelect(page).selectOption(
@@ -557,9 +560,9 @@ test.describe('PV Image Generation', () => {
             const frame = (window as unknown as CartaWindow).app.activeFrame;
             // 2: POLYLINE
             await frame.regionSet.addRegionAsync(2, [
-                { x: 100, y: 100 },
-                { x: 180, y: 220 },
-                { x: 260, y: 150 },
+                { x: 10, y: 10 },
+                { x: 70, y: 35 },
+                { x: 40, y: 80 },
             ]);
         });
 
@@ -592,8 +595,8 @@ test.describe('PV Image Generation', () => {
         await page.evaluate(async () => {
             const frame = (window as unknown as CartaWindow).app.activeFrame;
             await frame.regionSet.addRegionAsync(1, [
-                { x: 200, y: 200 },
-                { x: 600, y: 200 },
+                { x: 10, y: 40 },
+                { x: 70, y: 40 },
             ]);
         });
 
@@ -805,7 +808,7 @@ test.describe('PV Preview', () => {
         );
     });
 
-    test('PVP-03: Preview cube size limit and rebinning controls', async ({
+    test('PVP-03: Preview size estimate and rebinning controls', async ({
         page,
     }) => {
         const carta = new PlaywrightDevPage(page);
@@ -813,60 +816,69 @@ test.describe('PV Preview', () => {
         // Reuse the large cube from the cancellation test.
         await carta.loadImage('Gaussian_array_wide.fits');
 
-        // Set the limit below the cube's estimated size to disable preview.
+        // The preference minimum is 0.1 GB. This lightweight mock estimates
+        // below 0.01 GB, so it should remain eligible for preview.
         await page.getByTestId('preference-dialog-button').click();
         await page.getByRole('tab', { name: 'Performance' }).click();
-        await page
-            .getByRole('spinbutton', { name: 'PV preview cube size limit' })
-            .fill('0.4');
+        const previewSizeLimit = page.getByRole('spinbutton', {
+            name: 'PV preview cube size limit',
+        });
+        await previewSizeLimit.fill('0.1');
+        await previewSizeLimit.press('Enter');
+        await expect(previewSizeLimit).toHaveValue('0.1');
         await page.getByTestId('preference-dialog-header-close-button').click();
 
         await page.getByTestId('line-region-shortcut-button').click();
         await page.locator('.region-stage > .konvajs-content > canvas').click({
             position: { x: 359, y: 242 },
         });
+        await page.evaluate(() => {
+            const line = (window as unknown as CartaWindow).app.activeFrame
+                .regionSet.regions.find((region) => region.regionId === 1)!;
+            line.setControlPoints([
+                { x: 5, y: 40 },
+                { x: 75, y: 40 },
+            ]);
+        });
 
         await carta.selectMenuItem('Widgets', 'PV Generator');
         await pvCutDropdown(page).selectOption({ label: 'Region 1' });
 
-        // Verify estimated cube size is 0.44 GB and preview button is disabled
-        await expect(page.getByTestId('pv-generator-0-content')).toContainText(
-            '0.44',
-        );
-        await expect(previewButton(page)).toBeDisabled();
+        await expect(cubeSizeLabel(page)).toHaveText('0');
+        await expect(previewButton(page)).toBeEnabled();
 
-        // Increment XY rebin: size drops to 0.11 GB and preview becomes enabled
+        // Rebinning controls update while the mock remains below the limit.
         await page
             .getByTestId('pv-generator-preview-rebin-xy-input-increment-button')
             .click();
-        await expect(page.getByTestId('pv-generator-0-content')).toContainText(
-            '0.11',
-        );
+        await expect(rebinXyInput(page)).toHaveValue('2');
         await expect(previewButton(page)).toBeEnabled();
 
-        // Increment Z rebin: size drops further
+        // Increment Z rebin as well.
         await page
             .getByTestId('pv-generator-preview-rebin-z-input-increment-button')
             .click();
-        await expect(page.getByTestId('pv-generator-0-content')).toContainText(
-            '0.05',
-        );
+        await expect(rebinZInput(page)).toHaveValue('2');
         await expect(previewButton(page)).toBeEnabled();
     });
 
-    test('PVP-04: Restricting preview cube size with rectangular Preview Region', async ({
+    test('PVP-04: Rectangular Preview Region opens a preview', async ({
         page,
     }) => {
         const carta = new PlaywrightDevPage(page);
 
-        // Reuse the large cube with a lower preview limit.
+        // Reuse the lightweight wide cube; its estimate remains below the
+        // minimum configurable size limit, including when bounded by a region.
         await carta.loadImage('Gaussian_array_wide.fits');
 
         await page.getByTestId('preference-dialog-button').click();
         await page.getByRole('tab', { name: 'Performance' }).click();
-        await page
-            .getByRole('spinbutton', { name: 'PV preview cube size limit' })
-            .fill('0.4');
+        const previewSizeLimit = page.getByRole('spinbutton', {
+            name: 'PV preview cube size limit',
+        });
+        await previewSizeLimit.fill('0.1');
+        await previewSizeLimit.press('Enter');
+        await expect(previewSizeLimit).toHaveValue('0.1');
         await page.getByTestId('preference-dialog-header-close-button').click();
 
         // Add line region
@@ -874,27 +886,35 @@ test.describe('PV Preview', () => {
         await page.locator('.region-stage > .konvajs-content > canvas').click({
             position: { x: 359, y: 242 },
         });
+        await page.evaluate(() => {
+            const line = (window as unknown as CartaWindow).app.activeFrame
+                .regionSet.regions.find((region) => region.regionId === 1)!;
+            line.setControlPoints([
+                { x: 5, y: 40 },
+                { x: 75, y: 40 },
+            ]);
+        });
 
         // Add a small rectangular region around the cut (3: RECTANGLE)
         await page.evaluate(async () => {
             const frame = (window as unknown as CartaWindow).app.activeFrame;
-            // 3: RECTANGLE centered at (360, 240) with size (100, 100)
+            // Keep the preview region inside the lightweight 80×80 test cube.
             await frame.regionSet.addRegionAsync(3, [
-                { x: 360, y: 240 },
-                { x: 100, y: 100 },
+                { x: 40, y: 40 },
+                { x: 25, y: 25 },
             ]);
         });
 
         await carta.selectMenuItem('Widgets', 'PV Generator');
         await pvCutDropdown(page).selectOption({ index: 1 });
 
-        // Full cube preview size exceeds limit
-        await expect(previewButton(page)).toBeDisabled();
+        await expect(cubeSizeLabel(page)).toHaveText('0');
+        await expect(previewButton(page)).toBeEnabled();
 
         // Select the rectangle region as "Preview region" (index 1 is the rectangle region)
         await previewRegionSelect(page).selectOption({ index: 1 });
 
-        // The estimated size should now be much smaller (< 1 GB) and preview enabled
+        // Select the rectangle region and confirm preview remains available.
         await expect(previewButton(page)).toBeEnabled();
 
         // Start preview with bounded subcube

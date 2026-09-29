@@ -15,14 +15,14 @@ Code Snippets workflows that create or modify image products.
 
 ## Cases
 
-| Test (source line)                               | Action                                                                             | Expected result                                                             |
-| ------------------------------------------------ | ---------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| [Image properties](../tests/Snippets.spec.ts#L5) | Run image-property snippets for center, zoom, channel, Stokes and raster settings. | Animator reflects channel/Stokes choice and viewer PNGs show image changes. |
-| [Regions](../tests/Snippets.spec.ts#L51)         | Run region-creation and edit snippet.                                              | Viewer PNG shows scripted regions and styling.                              |
-| [Moment images](../tests/Snippets.spec.ts#L71)   | Run moment-generation snippet.                                                     | Generated moment image appears in the image-panel PNG.                      |
-| [PV images](../tests/Snippets.spec.ts#L106)      | Run PV-generation snippet after creating a line region.                            | PV image appears in the image-panel PNG.                                    |
-| [Image fitting](../tests/Snippets.spec.ts#L134)  | Run automatic and manual four-component fitting snippets.                          | Result text contains four components and model/residual viewer PNGs render. |
-| [Color blending](../tests/Snippets.spec.ts#L216) | Create, remove and modify a multi-image color blend through snippets.              | Viewer PNGs show layer addition/removal and alpha changes.                  |
+| Test (source line)                               | Action                                                                                                | Expected result                                                                                                                   |
+| ------------------------------------------------ | ----------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| [Image properties](../tests/Snippets.spec.ts#L5) | Run image-property snippets for center, zoom, channel, Stokes, percentile scaling and gray inversion. | Animator reflects channel/Stokes choice and the viewer PNG shows the rendered Stokes U grayscale image within 3% pixel tolerance. |
+| [Regions](../tests/Snippets.spec.ts#L51)         | Run region-creation and edit snippet.                                                                 | Viewer PNG shows scripted regions and styling.                                                                                    |
+| [Moment images](../tests/Snippets.spec.ts#L71)   | Run moment-generation snippet.                                                                        | Generated moment image appears in the image-panel PNG.                                                                            |
+| [PV images](../tests/Snippets.spec.ts#L106)      | Run PV-generation snippet after creating a line region.                                               | PV image appears in the image-panel PNG.                                                                                          |
+| [Image fitting](../tests/Snippets.spec.ts#L134)  | Run automatic and manual four-component fitting snippets.                                             | Result text contains four components and model/residual viewer PNGs render.                                                       |
+| [Color blending](../tests/Snippets.spec.ts#L216) | Create, remove and modify a multi-image color blend through snippets.                                 | Viewer PNGs show layer addition/removal and alpha changes.                                                                        |
 
 ## Run
 

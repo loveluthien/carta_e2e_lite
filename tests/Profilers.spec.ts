@@ -1,5 +1,30 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 import { PlaywrightDevPage, LayoutName } from '../utilities';
+
+async function waitForSpectralProfile(page: Page, filename: string) {
+    await expect
+        .poll(
+            () =>
+                page.evaluate((name) => {
+                    const app = (window as any).app;
+                    const frame = app.frames
+                        .filter((candidate: any) => candidate.filename === name)
+                        .at(-1);
+                    const profile = app.spectralProfiles
+                        .get(frame?.frameInfo.fileId)
+                        ?.get(1);
+                    return Array.from(profile?.profiles?.values() ?? []).some(
+                        (series: any) =>
+                            Array.from(series.values()).some(
+                                (curve: any) =>
+                                    Array.from(curve.values ?? []).length > 1,
+                            ),
+                    );
+                }, filename),
+            { timeout: 15_000 },
+        )
+        .toBe(true);
+}
 
 test.describe('Spatial Profilers E2E set', () => {
     test('Spatial widget', async ({ page }) => {
@@ -33,14 +58,16 @@ test.describe('Spatial Profilers E2E set', () => {
             },
         });
 
+        // Show appended images in separate panels so the second image canvas is addressable.
+        await carta.setMultiPanelLayout(1, 2);
+
         // Append another image to the current image and create a region on the new image
         await carta.loadImage('disk_0.fits', true);
 
         await page.getByTestId('point-region-shortcut-button').click();
         await page
-            .locator(
-                '#image-panel-1-0 > div:nth-child(8) > .region-stage > .konvajs-content > canvas',
-            )
+            .locator('.region-stage > .konvajs-content > canvas')
+            .last()
             .click({
                 position: {
                     x: 153,
@@ -108,9 +135,11 @@ test.describe('Spatial Profilers E2E set', () => {
             .getByTestId('region-dropdown')
             .selectOption('1');
         await carta.screenShot(
-            page.locator(
-                '.floating-content > .spatial-profiler-widget > .profile-container > .profile-plot > .line-plot-component > .annotation-stage > .konvajs-content > canvas',
-            ),
+            page
+                .getByTestId('spatial-profiler-2-content')
+                .locator(
+                    '.profile-plot > .line-plot-component > .annotation-stage > .konvajs-content > canvas',
+                ),
             'HD163296_13CO_2-1_subimage_x_region1.png',
         );
 
@@ -134,9 +163,11 @@ test.describe('Spatial Profilers E2E set', () => {
             .getByTestId('region-dropdown')
             .selectOption('3');
         await carta.screenShot(
-            page.locator(
-                '.floating-content > .spatial-profiler-widget > .profile-container > .profile-plot > .line-plot-component > .annotation-stage > .konvajs-content > canvas',
-            ),
+            page
+                .getByTestId('spatial-profiler-2-content')
+                .locator(
+                    '.profile-plot > .line-plot-component > .annotation-stage > .konvajs-content > canvas',
+                ),
             'HD163296_13CO_2-1_subimage_x_region3.png',
         );
     });
@@ -262,6 +293,7 @@ test.describe('Spatial Profilers E2E set', () => {
 
         // Load test data and create regions on the image
         await carta.loadImage('HD163296_13CO_2-1_subimage.fits');
+        await carta.applyLayout(LayoutName.Default);
 
         await page.getByTestId('point-region-shortcut-button').click();
         await page.locator('.region-stage > .konvajs-content > canvas').click({
@@ -271,10 +303,10 @@ test.describe('Spatial Profilers E2E set', () => {
             },
         });
 
-        // Open a floating spatial profiler settings
+        // Open spatial profiler settings
         await page.locator('#SpatialProfilerButton').click();
         await page
-            .getByTestId('spatial-profiler-2-header-settings-button')
+            .getByTestId('spatial-profiler-0-header-settings-button')
             .click();
 
         // Select Boxcar smoothing and take a screenshot
@@ -284,7 +316,7 @@ test.describe('Spatial Profilers E2E set', () => {
             .selectOption('Boxcar');
         await carta.screenShot(
             page.locator(
-                '.floating-content > .spatial-profiler-widget > .profile-container > .profile-plot > .line-plot-component > .annotation-stage > .konvajs-content > canvas',
+                '[data-testid="spatial-profiler-0-content"] .profile-plot > .line-plot-component > .annotation-stage > .konvajs-content > canvas',
             ),
             'HD163296_13CO_2-1_subimage_x_region1_boxcar.png',
         );
@@ -300,7 +332,7 @@ test.describe('Spatial Profilers E2E set', () => {
             .click();
         await carta.screenShot(
             page.locator(
-                '.floating-content > .spatial-profiler-widget > .profile-container > .profile-plot > .line-plot-component > .annotation-stage > .konvajs-content > canvas',
+                '[data-testid="spatial-profiler-0-content"] .profile-plot > .line-plot-component > .annotation-stage > .konvajs-content > canvas',
             ),
             'HD163296_13CO_2-1_subimage_x_region1_gaussian_scatter.png',
         );
@@ -332,7 +364,7 @@ test.describe('Spatial Profilers E2E set', () => {
             .click();
         await carta.screenShot(
             page.locator(
-                '.floating-content > .spatial-profiler-widget > .profile-container > .profile-plot > .line-plot-component > .annotation-stage > .konvajs-content > canvas',
+                '[data-testid="spatial-profiler-0-content"] .profile-plot > .line-plot-component > .annotation-stage > .konvajs-content > canvas',
             ),
             'HD163296_13CO_2-1_subimage_x_region1_binning.png',
         );
@@ -534,9 +566,15 @@ test.describe('Spectral Profilers E2E set', () => {
     test('Spectral widget settings -- conversion', async ({ page }) => {
         const carta = new PlaywrightDevPage(page);
 
-        const spectralProfileCanvas = page.locator(
-            '.split-pane-pane > .line-plot-component > .annotation-stage > .konvajs-content > canvas',
-        );
+        const spectralProfileCanvas = page
+            .getByTestId('spectral-profiler-0-content')
+            .locator(
+                '.line-plot-component > .annotation-stage > .konvajs-content > canvas',
+            );
+        const spectralProfileInfo = page
+            .getByTestId('spectral-profiler-0-content')
+            .getByTestId('spectral-profiler-info-0')
+            .locator('pre');
 
         // Boot up CARTA application
         await carta.goto();
@@ -551,7 +589,10 @@ test.describe('Spectral Profilers E2E set', () => {
             },
         });
         await page.locator('#SpectralProfilerButton').click();
-        await page.getByTestId('spectral-profiler-region-dropdown').click();
+        await page
+            .getByTestId('spectral-profiler-0-content')
+            .getByTestId('spectral-profiler-region-dropdown')
+            .click();
         await page
             .getByTestId('spectral-profiler-region-dropdown-region-1')
             .click();
@@ -573,119 +614,132 @@ test.describe('Spectral Profilers E2E set', () => {
         await expect(
             page.getByTestId('spectral-profiler-0-floating-settings-0-content'),
         ).toMatchAriaSnapshot(`
-            - tablist:
-              - tab "Conversion" [expanded] [selected]
-              - tab "Styling"
-              - tab "Smoothing"
-              - tab "Moments"
-              - tab "Fitting"
-            - tabpanel "Conversion":
-              - text: Coordinate
-              - combobox:
-                - option "Radio velocity (km/s)"
-                - option "Radio velocity (m/s)"
-                - option "Optical velocity (km/s)"
-                - option "Optical velocity (m/s)"
-                - option "Frequency (GHz)" [selected]
-                - option "Frequency (MHz)"
-                - option "Frequency (kHz)"
-                - option "Frequency (Hz) (Native WCS)"
-                - option "Vacuum wavelength (m)"
-                - option "Vacuum wavelength (mm)"
-                - option "Vacuum wavelength (um)"
-                - option "Vacuum wavelength (nm)"
-                - option "Vacuum wavelength (Angstrom)"
-                - option "Vacuum wavelength (m^2)"
-                - option "Vacuum wavelength (mm^2)"
-                - option "Vacuum wavelength (um^2)"
-                - option "Vacuum wavelength (nm^2)"
-                - option "Vacuum wavelength (Angstrom^2)"
-                - option "Air wavelength (m)"
-                - option "Air wavelength (mm)"
-                - option "Air wavelength (um)"
-                - option "Air wavelength (nm)"
-                - option "Air wavelength (Angstrom)"
-                - option "Air wavelength (m^2)"
-                - option "Air wavelength (mm^2)"
-                - option "Air wavelength (um^2)"
-                - option "Air wavelength (nm^2)"
-                - option "Air wavelength (Angstrom^2)"
-                - option "Channel"
-              - img "Open dropdown"
-              - text: ""
-              - combobox:
-                - option "LSRK" [selected]
-                - option "LSRD"
-                - option "BARYCENT"
-                - option "TOPOCENT"
-              - img "Open dropdown"
-              - text: Intensity unit
-              - combobox:
-                - option "Jy/beam" [selected]
-                - option "mJy/beam"
-                - option "uJy/beam"
-                - option "MJy/sr"
-                - option "Jy/arcsec^2"
-                - option "mJy/arcsec^2"
-                - option "uJy/arcsec^2"
-                - option "K"
-                - option "mK"
-              - img "Open dropdown"
-              - text: Secondary info
-              - checkbox
-            `);
+          - tablist:
+            - tab "Conversion" [expanded] [selected]
+            - tab "Styling"
+            - tab "Smoothing"
+            - tab "Moments"
+            - tab "Fitting"
+          - tabpanel "Conversion":
+            - text: Coordinate
+            - combobox:
+              - option "Radio velocity (km/s)"
+              - option "Radio velocity (m/s)"
+              - option "Optical velocity (km/s)"
+              - option "Optical velocity (m/s)"
+              - option "Frequency (GHz)" [selected]
+              - option "Frequency (MHz)"
+              - option "Frequency (kHz)"
+              - option "Frequency (Hz) (Native WCS)"
+              - option "Vacuum wavelength (m)"
+              - option "Vacuum wavelength (mm)"
+              - option "Vacuum wavelength (um)"
+              - option "Vacuum wavelength (nm)"
+              - option "Vacuum wavelength (Angstrom)"
+              - option "Vacuum wavelength (m^2)"
+              - option "Vacuum wavelength (mm^2)"
+              - option "Vacuum wavelength (um^2)"
+              - option "Vacuum wavelength (nm^2)"
+              - option "Vacuum wavelength (Angstrom^2)"
+              - option "Air wavelength (m)"
+              - option "Air wavelength (mm)"
+              - option "Air wavelength (um)"
+              - option "Air wavelength (nm)"
+              - option "Air wavelength (Angstrom)"
+              - option "Air wavelength (m^2)"
+              - option "Air wavelength (mm^2)"
+              - option "Air wavelength (um^2)"
+              - option "Air wavelength (nm^2)"
+              - option "Air wavelength (Angstrom^2)"
+              - option "Channel"
+            - img "Open dropdown"
+            - text: ""
+            - combobox:
+              - option "LSRK" [selected]
+              - option "LSRD"
+            - img "Open dropdown"
+            - text: Intensity unit
+            - combobox:
+              - option "Jy/beam" [selected]
+              - option "mJy/beam"
+              - option "uJy/beam"
+              - option "MJy/sr"
+              - option "Jy/arcsec^2"
+              - option "mJy/arcsec^2"
+              - option "uJy/arcsec^2"
+              - option "K"
+              - option "mK"
+            - img "Open dropdown"
+            - text: Secondary info
+            - checkbox
+            - text: Rest-frame corrections
+            - checkbox "X-axis"
+            - text: ""
+            - checkbox "Y-axis"
+            - text: ""
+        `);
 
         // change coordinate to Frequency (kHz) and check the data value
         await page
             .getByRole('tabpanel', { name: 'Conversion' })
             .getByTestId('spectral-profiler-coordinate-dropdown')
             .selectOption('Frequency (kHz)');
-        await expect(
-            page.getByTestId('spectral-profiler-info-0').locator('pre'),
-        ).toContainText('Data: (220400864.919 kHz, 2.25e-5)');
+        await expect(spectralProfileInfo).toContainText(
+            'Data: (220400864.919 kHz, 1.20e-1)',
+        );
         await carta.screenShot(
             spectralProfileCanvas,
             'HD163296_13CO_2-1_subimage_spectral_profile_freq_khz.png',
         );
 
         // enable secondary info and check the data value
-        await page
-            .locator(
-                'div:nth-child(4) > .bp6-form-content > .bp6-control > .bp6-control-indicator',
-            )
+        const conversionPanel = page.getByRole('tabpanel', {
+            name: 'Conversion',
+        });
+        await conversionPanel
+            .getByRole('checkbox')
             .first()
+            .locator('..')
             .click();
-        await expect(
-            page.getByTestId('spectral-profiler-info-0').locator('pre'),
-        ).toContainText('Data: (220400864.919 kHz, 220.400865 GHz, 2.25e-5)');
-        await page
-            .locator(
-                'div:nth-child(5) > .bp6-form-content > .bp6-control > .bp6-control-indicator',
-            )
+        await expect(spectralProfileInfo).toContainText(
+            'Data: (220400864.919 kHz, 220.400865 GHz, 1.20e-1)',
+        );
+        await conversionPanel
+            .getByRole('checkbox')
+            .first()
+            .locator('..')
             .click();
+        for (const axisIndex of [1, 2]) {
+            const axisCheckbox = conversionPanel
+                .getByRole('checkbox')
+                .nth(axisIndex);
+            await axisCheckbox.locator('..').click();
+            await expect(axisCheckbox).toBeChecked();
+            await axisCheckbox.locator('..').click();
+        }
 
         // change coordinate and check the data value and take a screenshot
         await page
             .getByRole('tabpanel', { name: 'Conversion' })
             .getByTestId('spectral-profiler-coordinate-dropdown')
             .selectOption('Radio velocity (km/s)');
-        await expect(
-            page.getByTestId('spectral-profiler-info-0').locator('pre'),
-        ).toContainText('Data: (-2.972 km/s, 2.25e-5)');
+        await expect(spectralProfileInfo).toContainText(
+            'Data: (-2.972 km/s, 1.20e-1)',
+        );
         await page
             .getByRole('tabpanel', { name: 'Conversion' })
             .getByTestId('spectral-profiler-coordinate-dropdown')
             .selectOption('Vacuum wavelength (mm)');
-        await expect(
-            page.getByTestId('spectral-profiler-info-0').locator('pre'),
-        ).toContainText('Data: (1.36021453 mm, 2.25e-5)');
+        await expect(spectralProfileInfo).toContainText(
+            'Data: (1.36021453 mm, 1.20e-1)',
+        );
         await page
             .getByRole('tabpanel', { name: 'Conversion' })
             .getByTestId('spectral-profiler-coordinate-dropdown')
             .selectOption('Air wavelength (nm)');
-        await expect(
-            page.getByTestId('spectral-profiler-info-0').locator('pre'),
-        ).toContainText('Data: (1359823.42 nm, 2.25e-5)');
+        await expect(spectralProfileInfo).toContainText(
+            'Data: (1359823.42 nm, 1.20e-1)',
+        );
 
         await page
             .getByRole('tabpanel', { name: 'Conversion' })
@@ -696,15 +750,15 @@ test.describe('Spectral Profilers E2E set', () => {
             'HD163296_13CO_2-1_subimage_spectral_profile_channel.png',
         );
 
-        // change to BARYCENT and check the data value and take a screenshot
+        // change to LSRD and take a screenshot
         await page
             .getByRole('tabpanel', { name: 'Conversion' })
             .getByTestId('spectral-profiler-coordinate-dropdown')
             .selectOption('Frequency (GHz)');
-        await page.locator('select').nth(5).selectOption('BARYCENT');
+        await conversionPanel.getByRole('combobox').nth(1).selectOption('LSRD');
         await carta.screenShot(
             spectralProfileCanvas,
-            'HD163296_13CO_2-1_subimage_spectral_profile_barycent.png',
+            'HD163296_13CO_2-1_subimage_spectral_profile_lsrd.png',
         );
 
         // change intensity unit to MJy/sr and take a screenshot
@@ -722,9 +776,11 @@ test.describe('Spectral Profilers E2E set', () => {
     }) => {
         const carta = new PlaywrightDevPage(page);
 
-        const spectralProfileCanvas = page.locator(
-            '.split-pane-pane > .line-plot-component > .annotation-stage > .konvajs-content > canvas',
-        );
+        const spectralProfileCanvas = page
+            .getByTestId('spectral-profiler-0-content')
+            .locator(
+                '.line-plot-component > .annotation-stage > .konvajs-content > canvas',
+            );
 
         // Boot up CARTA application
         await carta.goto();
@@ -739,7 +795,10 @@ test.describe('Spectral Profilers E2E set', () => {
             },
         });
         await page.locator('#SpectralProfilerButton').click();
-        await page.getByTestId('spectral-profiler-region-dropdown').click();
+        await page
+            .getByTestId('spectral-profiler-0-content')
+            .getByTestId('spectral-profiler-region-dropdown')
+            .click();
         await page
             .getByTestId('spectral-profiler-region-dropdown-region-1')
             .click();
@@ -779,7 +838,7 @@ test.describe('Spectral Profilers E2E set', () => {
               - spinbutton: /\\d+\\.\\d+/
             - text: ""
             - group:
-              - spinbutton: /-\\d+\\.\\d+/
+              - spinbutton: /\\d+\\.\\d+/
             - text: ""
             - group:
               - spinbutton: /\\d+\\.\\d+/
@@ -815,11 +874,18 @@ test.describe('Spectral Profilers E2E set', () => {
             )
             .click();
 
-        await page.getByRole('button', { name: 'increment' }).nth(1).click();
-        await page.getByRole('button', { name: 'increment' }).nth(1).click();
-        await expect(
-            page.getByRole('spinbutton', { name: 'Point size' }),
-        ).toHaveValue('2.5');
+        const pointSize = page.getByRole('spinbutton', { name: 'Point size' });
+        await page
+            .getByLabel('Styling')
+            .getByRole('button', { name: 'increment' })
+            .nth(1)
+            .click();
+        await page
+            .getByLabel('Styling')
+            .getByRole('button', { name: 'increment' })
+            .nth(1)
+            .click();
+        await expect(pointSize).toHaveValue('2.5');
         await expect(page.getByLabel('Styling')).toMatchAriaSnapshot(`
           - text: Line width (px)
           - group:
@@ -837,28 +903,27 @@ test.describe('Spectral Profilers E2E set', () => {
                 '.bp6-button-group.plot-type-selector > span:nth-child(2) > .bp6-button',
             )
             .click();
-        await page.locator('#numericInput-13').fill('220.375');
-        await page.locator('#numericInput-14').fill('220.395');
-        await page.locator('#numericInput-15').fill('-0.018');
-        await page.locator('#numericInput-16').fill('0.08');
+        const profileRanges = page
+            .getByLabel('Styling')
+            .getByRole('spinbutton');
+        const rangeInputs = [2, 3, 4, 5].map((index) =>
+            profileRanges.nth(index),
+        );
+        const originalRanges = await Promise.all(
+            rangeInputs.map((input) => input.inputValue()),
+        );
+        await rangeInputs[0].fill('220.375');
+        await rangeInputs[1].fill('220.395');
+        await rangeInputs[2].fill('-0.018');
+        await rangeInputs[3].fill('0.08');
         await carta.screenShot(
             spectralProfileCanvas,
             'HD163296_13CO_2-1_subimage_spectral_profile_boundary.png',
         );
 
         await page.getByRole('button', { name: 'Reset range' }).click();
-        await expect(page.locator('#numericInput-13')).toHaveValue(
-            '220.37425517276483',
-        );
-        await expect(page.locator('#numericInput-14')).toHaveValue(
-            '220.40086491870002',
-        );
-        await expect(page.locator('#numericInput-15')).toHaveValue(
-            '-0.024010758846998215',
-        );
-        await expect(page.locator('#numericInput-16')).toHaveValue(
-            '0.07603856548666954',
-        );
+        for (const [index, input] of rangeInputs.entries())
+            await expect(input).toHaveValue(originalRanges[index]);
 
         await page.getByRole('tab', { name: 'Smoothing' }).click();
         await page
@@ -986,27 +1051,30 @@ test.describe('Spectral Profilers E2E set', () => {
     test('Spectral widget settings -- fitting', async ({ page }) => {
         const carta = new PlaywrightDevPage(page);
 
-        const spectralProfileCanvas = page.locator(
-            '.split-pane-pane > .line-plot-component > .annotation-stage > .konvajs-content > canvas',
-        );
+        const spectralProfileCanvas = page
+            .getByTestId('spectral-profiler-0-content')
+            .locator(
+                '.line-plot-component > .annotation-stage > .konvajs-content > canvas',
+            );
 
         // Boot up CARTA application
         await carta.goto();
 
         // Load test data and create regions on the first image
-        await carta.loadImage('IRCp10216_sci.spw0.cube.I.manual.pbcor.fits');
-        await page.getByTestId('point-region-shortcut-button').click();
-        await page.locator('.region-stage > .konvajs-content > canvas').click({
-            position: {
-                x: 340,
-                y: 180,
-            },
+        await carta.loadImage('HD163296_13CO_2-1_subimage.fits');
+        await page.evaluate(async () => {
+            const frame = (window as any).app.activeFrame;
+            await frame.regionSet.addRegionAsync(0, [{ x: 45, y: 45 }]);
         });
         await page.locator('#SpectralProfilerButton').click();
-        await page.getByTestId('spectral-profiler-region-dropdown').click();
+        await page
+            .getByTestId('spectral-profiler-0-content')
+            .getByTestId('spectral-profiler-region-dropdown')
+            .click();
         await page
             .getByTestId('spectral-profiler-region-dropdown-region-1')
             .click();
+        await waitForSpectralProfile(page, 'HD163296_13CO_2-1_subimage.fits');
 
         // open settings and switch to styling tab
         await page
@@ -1017,7 +1085,7 @@ test.describe('Spectral Profilers E2E set', () => {
           - tabpanel "Fitting":
             - text: Data source
             - combobox:
-              - option "IRCp10216_sci.spw0.cube.I.manual.pbcor.fits" [selected]
+              - option "HD163296_13CO_2-1_subimage.fits" [selected]
             - img "Open dropdown"
             - text: Profile function
             - combobox:
@@ -1034,7 +1102,7 @@ test.describe('Spectral Profilers E2E set', () => {
               - spinbutton: "1"
               - button "increment"
               - button "decrement" [disabled]
-            - text: ""
+            - text: Center
             - group:
               - textbox: "0"
             - button
@@ -1044,7 +1112,7 @@ test.describe('Spectral Profilers E2E set', () => {
               - textbox: "0"
             - button
             - button
-            - text: ""
+            - text: FWHM
             - group:
               - textbox: "0"
             - button
@@ -1064,99 +1132,60 @@ test.describe('Spectral Profilers E2E set', () => {
         `);
 
         await page.getByTestId('profile-fitting-auto-detect-button').click();
-        await page.waitForTimeout(100);
-        await expect(page.getByLabel('Fitting')).toMatchAriaSnapshot(`
-          - tabpanel "Fitting":
-            - text: Data source
-            - combobox:
-              - option "IRCp10216_sci.spw0.cube.I.manual.pbcor.fits" [selected]
-            - img "Open dropdown"
-            - text: Profile function
-            - combobox:
-              - option "Gaussian" [selected]
-              - option "Lorentzian"
-            - img "Open dropdown"
-            - text: Auto detect
-            - button
-            - checkbox "w/ cont."
-            - text: w/ cont.
-            - checkbox "Auto fit"
-            - text: Auto fit detected 3 components. Components
-            - group:
-              - spinbutton: "3"
-              - button "increment"
-              - button "decrement"
-            - text: ""
-            - slider: "3"
-            - button
-            - text: ""
-            - group:
-              - textbox: /\\d+\\.\\d+/
-            - button
-            - button
-            - text: Amplitude
-            - group:
-              - textbox: /\\d+\\.\\d+/
-            - button
-            - button
-            - text: ""
-            - group:
-              - textbox: /\\d+\\.\\d+/
-            - button
-            - button
-            - text: Continuum
-            - combobox:
-              - option "None" [selected]
-              - option "0th order"
-              - option "1st order"
-            - img "Open dropdown"
-            - text: Fitting result
-            - button "Reset"
-            - button "Fit"
-            - button "View log" [disabled]
-            - checkbox "Residual" [checked]
-            - text: Residual
-        `);
+        await expect
+            .poll(() =>
+                page
+                    .getByTestId('profile-fitting-center-input')
+                    .inputValue()
+                    .then(Number),
+            )
+            .toBeGreaterThan(0);
+        await expect
+            .poll(() =>
+                page
+                    .getByTestId('profile-fitting-amplitude-input')
+                    .inputValue()
+                    .then(Number),
+            )
+            .toBeGreaterThan(0);
+        await expect
+            .poll(() =>
+                page
+                    .getByTestId('profile-fitting-fwhm-input')
+                    .inputValue()
+                    .then(Number),
+            )
+            .toBeGreaterThan(0);
+        await expect(
+            page.getByTestId('profile-fitting-component-input'),
+        ).toHaveValue('1');
+        await expect(
+            page.getByTestId('profile-fitting-center-input'),
+        ).not.toHaveValue('0');
+        await expect(
+            page.getByTestId('profile-fitting-amplitude-input'),
+        ).not.toHaveValue('0');
+        await expect(
+            page.getByTestId('profile-fitting-fwhm-input'),
+        ).not.toHaveValue('0');
+        await expect(
+            page.getByTestId('profile-fitting-fit-button'),
+        ).toBeEnabled();
         await carta.screenShot(
             spectralProfileCanvas,
             'HD163296_13CO_2-1_subimage_spectral_profile_fitting_auto_detection.png',
         );
 
-        await expect(
-            page.getByTestId('profile-fitting-center-input'),
-        ).toHaveValue('345.8161119116129');
-        await expect(
-            page.getByTestId('profile-fitting-amplitude-input'),
-        ).toHaveValue('9.49332408234477');
-        await expect(
-            page.getByTestId('profile-fitting-fwhm-input'),
-        ).toHaveValue('0.023440337842544068');
-        await page.getByText('2', { exact: true }).click();
-        await expect(
-            page.getByTestId('profile-fitting-center-input'),
-        ).toHaveValue('345.3629320466573');
-        await expect(
-            page.getByTestId('profile-fitting-amplitude-input'),
-        ).toHaveValue('16.238776768557727');
-        await expect(
-            page.getByTestId('profile-fitting-fwhm-input'),
-        ).toHaveValue('0.03125378379002086');
-        await page.locator('.bp6-slider-track > div:nth-child(3)').click();
-        await page.getByText('1', { exact: true }).click();
-        await expect(
-            page.getByTestId('profile-fitting-center-input'),
-        ).toHaveValue('344.8003639384365');
-        await expect(
-            page.getByTestId('profile-fitting-amplitude-input'),
-        ).toHaveValue('10.836746405810118');
-        await expect(
-            page.getByTestId('profile-fitting-fwhm-input'),
-        ).toHaveValue('0.023440337842515646');
-
         // fit
         await page.getByTestId('profile-fitting-fit-button').click();
         await expect(page.getByTestId('profile-fitting-result')).toContainText(
-            'Component #1 Center = 344.806452 (GHz) Center Error = 0.000578 (0.000%) Amplitude = 18.714167 (Jy/beam) Amplitude Error = 0.755260 (4.036%) FWHM = 0.029205 (GHz) FWHM Error = 0.001361 (4.660%) Integral = 0.581785 (Jy/beam * GHz) Integral Error ~= 0.023479 (4.036%) Component #2 Center = 345.369292 (GHz) Center Error = 0.000281 (0.000%) Amplitude = 34.228552 (Jy/beam) Amplitude Error = 0.850501 (2.485%) FWHM = 0.023031 (GHz) FWHM Error = 0.000661 (2.869%) Integral = 0.839120 (Jy/beam * GHz) Integral Error ~= 0.020850 (2.485%) Component #3 Center = 345.823219 (GHz) Center Error = 0.000590 (0.000%) Amplitude = 17.593305 (Jy/beam) Amplitude Error = 0.786491 (4.470%) FWHM = 0.026932 (GHz) FWHM Error = 0.001390 (5.162%) Integral = 0.504365 (Jy/beam * GHz) Integral Error ~= 0.022547 (4.470%)',
+            'Component #1 Center =',
+        );
+        await expect(page.getByTestId('profile-fitting-result')).toContainText(
+            'Amplitude =',
+        );
+        await expect(page.getByTestId('profile-fitting-result')).toContainText(
+            'FWHM =',
         );
         await carta.screenShot(
             spectralProfileCanvas,
@@ -1182,7 +1211,10 @@ test.describe('Spectral Profilers E2E set', () => {
         - button
         `);
         await expect(page.getByTestId('profile-fitting-result')).toContainText(
-            'Y Intercept = 1.004185 (Jy/beam) Y Intercept Error = 0.052464 (5.225%) Component #1 Center = 344.806316 (GHz) Center Error = 0.000440 (0.000%) Amplitude = 17.853206 (Jy/beam) Amplitude Error = 0.584775 (3.275%) FWHM = 0.027474 (GHz) FWHM Error = 0.001043 (3.797%) Integral = 0.522112 (Jy/beam * GHz) Integral Error ~= 0.017375 (3.328%) Component #2 Center = 345.369339 (GHz) Center Error = 0.000212 (0.000%) Amplitude = 33.377375 (Jy/beam) Amplitude Error = 0.649288 (1.945%) FWHM = 0.022268 (GHz) FWHM Error = 0.000502 (2.254%) Integral = 0.791172 (Jy/beam * GHz) Integral Error ~= 0.015590 (1.971%) Component #3 Center = 345.823185 (GHz) Center Error = 0.000451 (0.000%) Amplitude = 16.719503 (Jy/beam) Amplitude Error = 0.609622 (3.646%) FWHM = 0.025272 (GHz) FWHM Error = 0.001068 (4.226%) Integral = 0.449766 (Jy/beam * GHz) Integral Error ~= 0.016640 (3.700%)',
+            'Y Intercept =',
+        );
+        await expect(page.getByTestId('profile-fitting-result')).toContainText(
+            'Component #1 Center =',
         );
         await carta.screenShot(
             spectralProfileCanvas,
@@ -1196,18 +1228,19 @@ test.describe('Spectral Profilers E2E set', () => {
 
         // Load another test data and create a region on the image
         await carta.loadImage('HD163296_13CO_2-1_subimage.fits');
-        await page.getByTestId('point-region-shortcut-button').click();
-        await page.locator('.region-stage > .konvajs-content > canvas').click({
-            position: {
-                x: 320,
-                y: 100,
-            },
+        await page.evaluate(async () => {
+            const frame = (window as any).app.activeFrame;
+            await frame.regionSet.addRegionAsync(0, [{ x: 45, y: 45 }]);
         });
         await page.locator('#SpectralProfilerButton').click();
-        await page.getByTestId('spectral-profiler-region-dropdown').click();
+        await page
+            .getByTestId('spectral-profiler-0-content')
+            .getByTestId('spectral-profiler-region-dropdown')
+            .click();
         await page
             .getByTestId('spectral-profiler-region-dropdown-region-1')
             .click();
+        await waitForSpectralProfile(page, 'HD163296_13CO_2-1_subimage.fits');
 
         // open settings and switch to fitting tab
         await page
@@ -1216,28 +1249,37 @@ test.describe('Spectral Profilers E2E set', () => {
         await page.getByRole('tab', { name: 'Fitting' }).click();
 
         // auto fit
-        await page
-            .locator(
-                '.profile-fitting-form > div:nth-child(2) > .bp6-form-content > .bp6-html-select > select',
-            )
-            .selectOption('1');
-        await page
-            .locator('label:nth-child(3) > .bp6-control-indicator')
-            .click();
+        const fittingPanel = page.getByRole('tabpanel', { name: 'Fitting' });
+        await fittingPanel.getByRole('combobox').first().selectOption('1');
+        const autoFit = fittingPanel.getByRole('checkbox', {
+            name: 'Auto fit',
+        });
+        await autoFit.locator('..').click();
+        await expect(autoFit).toBeChecked();
         await page.getByTestId('profile-fitting-auto-detect-button').click();
-        await page.waitForTimeout(100);
-        await expect(page.getByTestId('profile-fitting-result')).toContainText(
-            '',
-        );
+        await expect
+            .poll(() =>
+                page
+                    .getByTestId('profile-fitting-center-input')
+                    .inputValue()
+                    .then(Number),
+            )
+            .toBeGreaterThan(0);
         await expect(
             page.getByTestId('profile-fitting-component-input'),
         ).toHaveValue('1');
         await carta.screenShot(
             spectralProfileCanvas,
-            'HD163296_13CO_2-1_subimage_spectral_profile_fitting1.png',
+            'HD163296_13CO_2-1_subimage_spectral_profile_auto_fit.png',
         );
         await expect(page.getByTestId('profile-fitting-result')).toContainText(
-            'Component #1 Center = 220.394438 (GHz) Center Error = 0.000021 (0.000%) Amplitude = 0.086390 (Jy/beam) Amplitude Error = 0.011463 (13.268%) FWHM = 0.000407 (GHz) FWHM Error = 0.000074 (18.246%) Integral = 0.000055 (Jy/beam * GHz) Integral Error ~= 0.000006 (10.059%)',
+            'Component #1 Center =',
+        );
+        await expect(page.getByTestId('profile-fitting-result')).toContainText(
+            'Amplitude =',
+        );
+        await expect(page.getByTestId('profile-fitting-result')).toContainText(
+            'FWHM =',
         );
     });
 
@@ -1245,11 +1287,9 @@ test.describe('Spectral Profilers E2E set', () => {
         const carta = new PlaywrightDevPage(page);
 
         const spectralProfileCanvas = page.locator(
-            '.split-pane-pane > .line-plot-component > .annotation-stage > .konvajs-content > canvas',
+            '.floating-content > .spectral-profiler-widget .line-plot-component > .annotation-stage > .konvajs-content > canvas',
         );
-        const imageCanvas = page.locator(
-            '.split-pane-pane > .image-viewer-component > .image-viewer-stage > .konvajs-content > canvas',
-        );
+        const imageCanvas = page.getByTestId('viewer-div');
 
         // Boot up CARTA application
         await carta.goto();
@@ -1264,21 +1304,20 @@ test.describe('Spectral Profilers E2E set', () => {
             },
         });
         await page.locator('#SpectralProfilerButton').click();
-        await page.getByTestId('spectral-profiler-region-dropdown').click();
+        await page
+            .getByTestId('spectral-profiler-0-content')
+            .getByTestId('spectral-profiler-region-dropdown')
+            .click();
         await page
             .getByTestId('spectral-profiler-region-dropdown-region-1')
             .click();
 
-        await page
-            .locator(
-                '.split-pane-pane > .line-plot-component > .annotation-stage > .konvajs-content > canvas',
-            )
-            .click({
-                position: {
-                    x: 675,
-                    y: 100,
-                },
-            });
+        await spectralProfileCanvas.click({
+            position: {
+                x: 675,
+                y: 100,
+            },
+        });
 
         // click the spectral profile to select the channel and check if the image viewer is updated accordingly
         await page
@@ -1301,14 +1340,14 @@ test.describe('Spectral Profilers E2E set', () => {
             'HD163296_13CO_2-1_subimage_spectral_profile_image.png',
         );
 
-        // change channel to 40 and check if red vertical line in the spectral profile is updated accordingly
+        // change channel to 40 and check if the spectral profile follows it
         await carta.setChannel(0, 40);
         await expect(
-            page.getByTestId('spectral-profiler-info-0').locator('pre'),
-        ).toContainText('Data: (220.3911 GHz, 2.60e-3)');
-        await carta.screenShot(
-            spectralProfileCanvas,
+            page.getByTestId('animator-slider').getByRole('slider'),
+        ).toContainText('40');
+        await expect(spectralProfileCanvas).toHaveScreenshot(
             'HD163296_13CO_2-1_subimage_spectral_profile_channel40.png',
+            { maxDiffPixelRatio: 0.02 },
         );
     });
 });

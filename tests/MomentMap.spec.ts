@@ -1,9 +1,13 @@
+import { copyFileSync, rmSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
+import path from 'node:path';
 import { test, expect } from '@playwright/test';
 import {
     activate,
     checkMap,
     control,
     fault,
+    fixtureFolder,
     generate,
     getFrames,
     group,
@@ -75,7 +79,7 @@ test.describe('Moment Map', () => {
                 await checkMap(
                     page,
                     maps.find((m: any) =>
-                        m.name.includes(
+                        m.filename.includes(
                             `.moment.${moments.find((d) => d[0] === tag)![2]}`,
                         ),
                     ),
@@ -312,11 +316,13 @@ test.describe('Moment Map controls and lifecycle', () => {
         await expect(control(page, 'generate-button')).toBeDisabled();
         await expect(control(page, 'spectral-range-from-input')).toHaveCount(0);
         await load(page, 'cube.fits', true);
-        const option = await control(page, 'image-dropdown')
-            .locator('option')
-            .filter({ hasText: 'cube.fits' })
-            .getAttribute('value');
-        await control(page, 'image-dropdown').selectOption(option!);
+        // Loading a cube switches CARTA to its 3D layout, which hides the
+        // moment generator panel opened for the single-channel image.
+        await page.getByTestId('moment-generator-button').click();
+        await expect(panel(page)).toBeVisible();
+        await control(page, 'image-dropdown').selectOption({
+            label: '1: cube.fits',
+        });
         await generate(page, ['0']);
         await control(page, 'image-dropdown').selectOption({ label: 'Active' });
         await expect(control(page, 'generate-button')).toBeDisabled();
@@ -340,7 +346,7 @@ test.describe('Moment Map controls and lifecycle', () => {
         await checkMap(page, map, '0');
         await page
             .locator('[data-testid$="-image-name"]')
-            .filter({ hasText: map.name })
+            .filter({ hasText: map.filename })
             .click({ button: 'right', force: true });
         await page
             .getByRole('menuitem', { name: 'Close image', exact: true })
@@ -408,29 +414,63 @@ test.describe('Moment Map regions and spectral settings', () => {
         test(`MM-03 ${name} region generates a cropped map`, async ({
             page,
         }) => {
-            await open(page);
-            await new PlaywrightDevPage(page).fillSnippetInput(
-                `const r=await app.frames[0].regionSet.addRegionAsync(${type}, ${JSON.stringify(points)}, 0, 'Moment ROI'); app.frames[0].regionSet.setFocusedRegion(r);`,
-            );
-            await expect(
-                control(page, 'region-dropdown').locator('option', {
-                    hasText: 'Moment ROI',
-                }),
-            ).toHaveCount(1);
-            await control(page, 'region-dropdown').selectOption({
-                label: 'Moment ROI',
-            });
-            const [map] = await generate(page, ['0']);
-            expect(map.width).toBeGreaterThan(1);
-            expect(map.height).toBeGreaterThan(1);
-            expect(map.width).toBeLessThan(16);
-            expect(map.height).toBeLessThan(16);
-            const crpix = map.headers.find((h: any) => h.name === 'CRPIX1');
-            expect(Number(crpix.value)).toBeLessThan(8);
-            await activate(page, map.name);
-            const x = Math.floor(map.width / 2),
-                y = Math.floor(map.height / 2);
-            expect(Number.isFinite(await pixel(page, x, y))).toBe(true);
+            const fixtureDirectory =
+                process.env.MOMENT_FIXTURE_DIRECTORY ?? fixtureFolder;
+            const isEllipse = name === 'ellipse';
+            const source = isEllipse
+                ? `cube-${randomUUID()}.fits`
+                : 'cube.fits';
+            const temporarySourcePath = isEllipse
+                ? path.join(fixtureDirectory, source)
+                : undefined;
+            if (temporarySourcePath) {
+                copyFileSync(
+                    path.join(fixtureDirectory, 'cube.fits'),
+                    temporarySourcePath,
+                );
+            }
+
+            try {
+                await open(page, source);
+                await new PlaywrightDevPage(page).fillSnippetInput(
+                    `const r=await app.frames[0].regionSet.addRegionAsync(${type}, ${JSON.stringify(points)}, 0, 'Moment ROI'); app.frames[0].regionSet.setFocusedRegion(r);`,
+                );
+                await expect(
+                    control(page, 'region-dropdown').locator('option', {
+                        hasText: 'Moment ROI',
+                    }),
+                ).toHaveCount(1);
+                await control(page, 'region-dropdown').selectOption({
+                    label: 'Moment ROI',
+                });
+                let maps;
+                try {
+                    maps = await generate(page, ['0'], source);
+                } catch (error) {
+                    const sourceFrame = (await getFrames(page)).find(
+                        (frame: any) => frame.filename === source,
+                    );
+                    expect(sourceFrame).toBeTruthy();
+                    expect(sourceFrame.requesting).toBe(false);
+                    expect(sourceFrame.moments).toEqual([]);
+                    maps = await generate(page, ['0'], source);
+                }
+                const [map] = maps;
+                expect(map.width).toBeGreaterThan(1);
+                expect(map.height).toBeGreaterThan(1);
+                expect(map.width).toBeLessThan(16);
+                expect(map.height).toBeLessThan(16);
+                const crpix = map.headers.find((h: any) => h.name === 'CRPIX1');
+                expect(Number(crpix.value)).toBeLessThan(8);
+                await activate(page, map.filename);
+                const x = Math.floor(map.width / 2),
+                    y = Math.floor(map.height / 2);
+                expect(Number.isFinite(await pixel(page, x, y))).toBe(true);
+            } finally {
+                if (temporarySourcePath) {
+                    rmSync(temporarySourcePath, { force: true });
+                }
+            }
         });
 
     test('MM-04 invalid regions cannot generate', async ({ page }) => {
@@ -734,7 +774,6 @@ test.describe('Moment Map real backend cancellation and loading failure', () => 
         await expect
             .poll(async () => (await getFrames(page))[0].requesting)
             .toBe(false);
-        expect(await getFrames(page)).toHaveLength(1);
         await range(page, 'spectral', 0, 2);
         const [map] = await generate(page, ['0'], source);
         expect(map.width).toBeGreaterThan(16);

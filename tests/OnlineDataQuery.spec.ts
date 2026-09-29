@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { PlaywrightDevPage } from '../utilities';
+import { LayoutName, PlaywrightDevPage } from '../utilities';
 
 test('online catalog query recovers from a failed mirror and plots sources', async ({
     page,
@@ -18,6 +18,7 @@ test('online catalog query recovers from a failed mirror and plots sources', asy
     );
     await directory.press('Enter');
     await carta.loadImage('catalog-image.fits');
+    await carta.applyLayout(LayoutName.Default);
     await expect(page.getByTestId('spatial-profiler-0-content')).toBeVisible();
 
     let requests = 0;
