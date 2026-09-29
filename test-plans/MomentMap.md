@@ -14,7 +14,7 @@ Moment generator data, controls, lifecycle and failure recovery.
 - MM-03 ellipse cases make a unique temporary copy of `cube.fits` so repeated runs do not reuse the same generated-map source name; the test removes the copy afterward. Crop cases verify that a request with no partial result has settled before retrying once.
 - Shared viewport, timeout and page-default-timeout setup is defined once at the top of the source. Frame state is represented by the typed `FrameSnapshot` helper, and MM-11 opens the Moments tab once per scenario.
 - The 13 MM-06 single-moment requests run as test steps on one page, retaining individual-generation assertions while avoiding 12 repeated CARTA page setups.
-- `checkMap` validates the numerical oracle and a rendered RGB pixel. MM-20 also writes a PNG artifact (`moment-map-generated.png`) to the Playwright test output for visual inspection.
+- `checkMap` waits for the selected map to render a non-transparent RGB pixel, then validates its numerical oracle and rendered pixel. MM-20 also writes a PNG artifact (`moment-map-generated.png`) to the Playwright test output for visual inspection.
 - The table below describes intended outcomes and does not claim that a complete backend run has passed.
 
 ## Cases

@@ -665,8 +665,19 @@ test.describe('Image viewer E2E set', () => {
         carta,
         viewerCanvas,
     }) => {
+        const useSingleImagePanel = () =>
+            page.evaluate(() => {
+                const app = (window as any).app;
+                app.preferenceStore.setPreference('imagePanelMode', 'fixed');
+                app.preferenceStore.setPreference('imagePanelColumns', 1);
+                app.preferenceStore.setPreference('imagePanelRows', 1);
+                app.widgetsStore.setImageMultiPanelEnabled(true);
+            });
+        await useSingleImagePanel();
+
         // Load test data cube
         await carta.loadImage('M17_SWex.fits');
+        await useSingleImagePanel();
 
         // Open image viewer settings
         await page.getByTestId('image-view-header-settings-button').click();
@@ -765,21 +776,40 @@ test.describe('Image viewer E2E set', () => {
         const centerY = yCoordinates.first();
         const offsetX = xCoordinates.nth(1);
         const offsetY = yCoordinates.nth(1);
+        await expect(centerX).toHaveValue(/^\d+\.\d+$/);
+        await expect(centerY).toHaveValue(/^[-\d]+\.\d+$/);
         await offsetX.fill('10');
+        await offsetX.press('Tab');
+        await expect
+            .poll(async () => Number(await offsetX.inputValue()))
+            .toBeCloseTo(10, 6);
         await offsetY.fill('10');
-        await carta.screenShot(
-            viewerCanvas,
+        await offsetY.press('Tab');
+        await expect
+            .poll(async () => Number(await offsetX.inputValue()))
+            .toBeCloseTo(10, 6);
+        await expect
+            .poll(async () => Number(await offsetY.inputValue()))
+            .toBeCloseTo(10, 6);
+        await carta.closeWidget('image-view-floating-settings');
+        await expect(page.locator('.image-view-settings')).toBeHidden();
+        await expect(viewerCanvas).toHaveScreenshot(
             'M17_SWex_viewer_settings_offset_galactic.png',
+            { maxDiffPixelRatio: 0.02 },
         );
 
+        await page.getByTestId('image-view-header-settings-button').click();
+        await expect(page.locator('.image-view-settings')).toBeVisible();
         await page
             .locator('.bp6-collapse-body > .bp6-popover-target > .bp6-button')
             .click();
         await expect(offsetX).toHaveValue(await centerX.inputValue());
         await expect(offsetY).toHaveValue(await centerY.inputValue());
-        await carta.screenShot(
-            viewerCanvas,
+        await carta.closeWidget('image-view-floating-settings');
+        await expect(page.locator('.image-view-settings')).toBeHidden();
+        await expect(viewerCanvas).toHaveScreenshot(
             'M17_SWex_viewer_settings_de_offset_galactic.png',
+            { maxDiffPixelRatio: 0.02 },
         );
     });
 

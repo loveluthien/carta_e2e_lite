@@ -19,8 +19,8 @@ export default defineConfig({
     forbidOnly: !!process.env.CI,
     /* Retry on CI only */
     retries: process.env.CI ? 2 : 0,
-    /* Keep the shared CARTA WebGL server stable across this visual suite. */
-    workers: 1,
+    /* Limit concurrent WebGL contexts while allowing independent tests to overlap. */
+    workers: 2,
     /* Reporter to use. See https://playwright.dev/docs/test-reporters */
     reporter: 'html',
     /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */

@@ -441,6 +441,9 @@ export async function checkMap(
         expect(map.headers.some((h) => h.name === key)).toBe(true);
     }
     await activate(page, map.filename);
+    await expect
+        .poll(async () => (await renderedRgb(page))[3], { timeout: 10_000 })
+        .toBeGreaterThan(0);
     const rgb = await renderedRgb(page);
     expect(rgb).toHaveLength(4);
     expect(
