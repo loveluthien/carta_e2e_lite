@@ -1,6 +1,6 @@
 # CARTA E2E test plans
 
-This directory maps every currently collected Playwright test to its action and expected result. The collector reports **136 cases in 21 spec files**. The current Playwright configuration enables Chromium. These are plans derived from the current source, not execution results.
+This directory maps every currently collected Playwright test to its action and expected result. The collector reports **139 cases in 21 spec files**. The current Playwright configuration enables Chromium. These are plans derived from the current source, not execution results.
 
 ## Shared execution plan
 
@@ -20,29 +20,29 @@ Each `npx playwright test` invocation starts one shared CARTA backend and one de
 
 ## Plans
 
-| Plan                                    | Cases | Focus                                                                                         |
-| --------------------------------------- | ----: | --------------------------------------------------------------------------------------------- |
-| [Animator](./Animator.md)               |     4 | Channel and polarization navigation, playback modes and synchronization with viewer/profiles. |
-| [Catalog](./Catalog.md)                 |     7 | Local catalog table, overlay, plot, coordinate and styling behavior.                          |
-| [ChannelMap](./ChannelMap.md)           |     4 | Channel-map empty state, controls, image panels and selection synchronization.                |
-| [Contours](./Contours.md)               |     4 | Generators, scaling, Apply/Clear recovery, and rendered overlay styling.                      |
-| [CursorInfo](./CursorInfo.md)           |     1 | Cursor values and coordinates across viewer, widget and profilers.                            |
-| [Histogram](./Histogram.md)             |     1 | Channel-dependent histogram and pixel-bound validation.                                       |
-| [ImageFitting](./ImageFitting.md)       |     1 | Fit validation and derived model/residual images.                                             |
-| [ImageLayer](./ImageLayer.md)           |     4 | Layer matching, WCS alignment and reordering.                                                 |
-| [ImageViewer](./ImageViewer.md)         |    16 | Viewer controls, settings, layouts and raster appearance.                                     |
-| [Layout](./Layout.md)                   |     5 | Preset layouts, docking, dynamic layout mappings and context-aware menus.                     |
-| [LoadingFiles](./LoadingFiles.md)       |     8 | Fixture size, open/append, invalid-file recovery, and FITS/HDF5/CASA metadata and rendering.  |
-| [MomentMap](./MomentMap.md)             |    39 | Moment generator data, controls, lifecycle and failure recovery.                              |
-| [OnlineDataQuery](./OnlineDataQuery.md) |     1 | Query failure/retry and catalog overlay rendering.                                            |
-| [Profilers](./Profilers.md)             |     8 | Spatial and spectral profiles, formatting, smoothing, fitting and viewer connection.          |
-| [PVImage](./PVImage.md)                 |    20 | PV generator validation, output, preview and cancellation.                                    |
-| [Regions](./Regions.md)                 |     1 | Region creation/editing, visibility, locking, deletion and profiler connection.               |
-| [Snippets](./Snippets.md)               |     6 | Code Snippets workflows that create or modify image products.                                 |
-| [Statistics](./Statistics.md)           |     2 | Statistics for regions across images and Stokes planes.                                       |
-| [Stokes](./Stokes.md)                   |     2 | Stokes cube assembly and analysis widget controls.                                            |
-| [TimeSeries](./TimeSeries.md)           |     1 | Dated series loading, ordering and navigation.                                                |
-| [VectorOverlay](./VectorOverlay.md)     |     1 | Vector configuration, rendering, invalid sources and clearing.                                |
+| Plan                                    | Cases | Focus                                                                                                      |
+| --------------------------------------- | ----: | ---------------------------------------------------------------------------------------------------------- |
+| [Animator](./Animator.md)               |     5 | Channel and polarization navigation, spectral matching, playback modes and viewer/profile synchronization. |
+| [Catalog](./Catalog.md)                 |     7 | Local catalog table, overlay, plot, coordinate and styling behavior.                                       |
+| [ChannelMap](./ChannelMap.md)           |     4 | Channel-map empty state, controls, image panels and selection synchronization.                             |
+| [Contours](./Contours.md)               |     4 | Generators, scaling, Apply/Clear recovery, and rendered overlay styling.                                   |
+| [CursorInfo](./CursorInfo.md)           |     1 | Cursor values and coordinates across viewer, widget and profilers.                                         |
+| [Histogram](./Histogram.md)             |     1 | Channel-dependent histogram and pixel-bound validation.                                                    |
+| [ImageFitting](./ImageFitting.md)       |     1 | Fit validation and derived model/residual images.                                                          |
+| [ImageLayer](./ImageLayer.md)           |     4 | Layer matching, WCS alignment and reordering.                                                              |
+| [ImageViewer](./ImageViewer.md)         |    16 | Viewer controls, settings, layouts and raster appearance.                                                  |
+| [Layout](./Layout.md)                   |     5 | Preset layouts, docking, dynamic layout mappings and context-aware menus.                                  |
+| [LoadingFiles](./LoadingFiles.md)       |     8 | Fixture size, open/append, invalid-file recovery, and FITS/HDF5/CASA metadata and rendering.               |
+| [MomentMap](./MomentMap.md)             |    39 | Moment generator data, controls, lifecycle and failure recovery.                                           |
+| [OnlineDataQuery](./OnlineDataQuery.md) |     1 | Query failure/retry and catalog overlay rendering.                                                         |
+| [Profilers](./Profilers.md)             |    10 | Spatial and spectral profiles, formatting, smoothing, matching and viewer connection.                      |
+| [PVImage](./PVImage.md)                 |    20 | PV generator validation, output, preview and cancellation.                                                 |
+| [Regions](./Regions.md)                 |     1 | Region creation/editing, visibility, locking, deletion and profiler connection.                            |
+| [Snippets](./Snippets.md)               |     6 | Code Snippets workflows that create or modify image products.                                              |
+| [Statistics](./Statistics.md)           |     2 | Statistics for regions across images and Stokes planes.                                                    |
+| [Stokes](./Stokes.md)                   |     2 | Stokes cube assembly and analysis widget controls.                                                         |
+| [TimeSeries](./TimeSeries.md)           |     1 | Dated series loading, ordering and navigation.                                                             |
+| [VectorOverlay](./VectorOverlay.md)     |     1 | Vector configuration, rendering, invalid sources and clearing.                                             |
 
 ## Coverage notes
 

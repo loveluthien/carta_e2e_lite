@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { LayoutName, PlaywrightDevPage, pixel } from '../utilities';
+import { activate, LayoutName, PlaywrightDevPage, pixel } from '../utilities';
 
 const cube = 'HD163296_13CO_2-1_subimage.fits';
 const polarCube = 'IRCp10216_sci.spw0.cube.IQUV.manual.pbcor.subimage.fits';
@@ -342,5 +342,101 @@ test.describe('Animator E2E Tests', () => {
         await expect(page.getByTestId('image-view-header-title')).toContainText(
             epochs[0].file,
         );
+    });
+
+    test('Spectral matching follows animator channel navigation', async ({
+        page,
+    }) => {
+        const carta = new PlaywrightDevPage(page);
+        await carta.goto();
+        await carta.loadImage('cube.fits');
+        await carta.loadImage('matching-cube.fits', true);
+        await page.evaluate(() =>
+            (window as any).app.widgetsStore.setImageMultiPanelEnabled(false),
+        );
+        await carta.applyLayout(LayoutName.Default);
+
+        const imageList = page
+            .locator('[data-testid^="layer-list-"][data-testid$="-content"]')
+            .filter({ has: page.locator('.layer-list-widget') })
+            .last();
+        const matching = imageList.getByTestId('image-list-0-matching-z');
+        const imageListTab = page.getByTestId('layer-list-0-header-title');
+        const animatorTab = page.getByTestId('animator-0-header-title');
+        const channels = () =>
+            page.evaluate(() => {
+                const app = (window as any).app;
+                return {
+                    active: app.activeFrame?.filename,
+                    reference: app.frames[0].channel,
+                    target: app.frames[1].channel,
+                    matched: app.frames[1].spectralReference?.filename ?? null,
+                };
+            });
+
+        if ((await channels()).matched) {
+            await matching.click();
+        }
+        await activate(page, 'cube.fits');
+        await animatorTab.click();
+        await page.getByTestId('animator-last-button').click();
+        await expect.poll(channels).toEqual({
+            active: 'cube.fits',
+            reference: 4,
+            target: 0,
+            matched: null,
+        });
+
+        await imageListTab.click();
+        await matching.click();
+        await expect.poll(channels).toMatchObject({
+            reference: 4,
+            target: 2,
+            matched: 'cube.fits',
+        });
+        await animatorTab.click();
+        await page.getByTestId('animator-previous-button').click();
+        await expect.poll(channels).toMatchObject({ reference: 3, target: 1 });
+        await page.getByTestId('animator-next-button').click();
+        await expect.poll(channels).toMatchObject({ reference: 4, target: 2 });
+
+        await imageListTab.click();
+        await activate(page, 'matching-cube.fits');
+        await page.evaluate(() => {
+            const target = (window as any).app.frames[1];
+            target.setCursorPosition({ x: 8, y: 6 });
+            target.updateCursorRegion({ x: 8, y: 6 });
+        });
+        await expect(page.getByTestId('viewer-cursor-info-bar')).toContainText(
+            'Value:  1.1e+1 K',
+        );
+        await page.mouse.move(0, 0);
+        await expect(
+            page.getByTestId('viewer-div').locator('#raster-canvas').first(),
+        ).toHaveScreenshot('Animator_SpectralMatching_Viewer.png');
+        await page.locator('#SpectralProfilerButton').click();
+        const profiler = page.getByTestId('spectral-profiler-0-content');
+        await expect
+            .poll(() =>
+                page.evaluate(() =>
+                    (window as any).app.widgetsStore.spectralProfileWidgets
+                        .get('spectral-profiler-0')
+                        ?.plotData?.data[0]?.map((point: any) => point.y),
+                ),
+            )
+            .toEqual([2.75, 5.5, 11, 22, 44]);
+        await expect(
+            profiler.locator('.annotation-stage canvas'),
+        ).toHaveScreenshot('Animator_SpectralMatching_Profile.png');
+
+        await matching.click();
+        await activate(page, 'cube.fits');
+        await animatorTab.click();
+        await page.getByTestId('animator-previous-button').click();
+        await expect.poll(channels).toMatchObject({
+            reference: 3,
+            target: 2,
+            matched: null,
+        });
     });
 });
