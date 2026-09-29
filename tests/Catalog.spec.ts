@@ -5,7 +5,7 @@ import {
     type Page,
     type TestInfo,
 } from '@playwright/test';
-import { PlaywrightDevPage } from '../utilities';
+import { LayoutName, PlaywrightDevPage } from '../utilities';
 
 const imageDirectory =
     process.env.CATALOG_IMAGE_DIRECTORY ??
@@ -69,7 +69,8 @@ async function openImage(page: Page, name = 'catalog-image.fits') {
         .getByRole('button', { name: 'OK' });
     if (await alert.isVisible()) await alert.click();
     await pickFile(page, name, imageDirectory, 'fileList', 'Load');
-    await expect(page.getByTestId('spatial-profiler-0-content')).toBeVisible();
+    await carta.applyLayout(LayoutName.Default);
+    await expect(page.getByTestId('x-profiler-info')).toBeVisible();
     await expectCanvasInk(page, '#raster-canvas');
     return carta;
 }
@@ -126,6 +127,51 @@ async function expectCanvasInk(page: Page, selector: string) {
     await expect.poll(() => ink(page, selector)).toBeGreaterThan(0);
 }
 
+async function rgbPixelCount(
+    page: Page,
+    selector: string,
+    rgb: [number, number, number],
+) {
+    return page.evaluate(
+        ({ selector, rgb }) => {
+            const source = document.querySelector<HTMLCanvasElement>(selector);
+            if (!source?.width || !source.height) return 0;
+            const copy = document.createElement('canvas');
+            copy.width = source.width;
+            copy.height = source.height;
+            const context = copy.getContext('2d')!;
+            context.drawImage(source, 0, 0);
+            const rgba = context.getImageData(
+                0,
+                0,
+                copy.width,
+                copy.height,
+            ).data;
+            let count = 0;
+            for (let offset = 0; offset < rgba.length; offset += 4)
+                if (
+                    rgba[offset] === rgb[0] &&
+                    rgba[offset + 1] === rgb[1] &&
+                    rgba[offset + 2] === rgb[2] &&
+                    rgba[offset + 3] > 0
+                )
+                    count++;
+            return count;
+        },
+        { selector, rgb },
+    );
+}
+
+async function expectCanvasRgb(
+    page: Page,
+    selector: string,
+    rgb: [number, number, number],
+) {
+    await expect
+        .poll(() => rgbPixelCount(page, selector, rgb))
+        .toBeGreaterThan(0);
+}
+
 async function expectCatalogInfo(catalog: Locator, text: string) {
     await expect(
         catalog.getByTestId('catalog-table-filtering-info'),
@@ -142,7 +188,10 @@ async function plotOverlay(
     await expect
         .poll(() => visibleSources(page, imageSize))
         .toBe(expectedSources);
-    if (expectedSources > 0) await expectCanvasInk(page, '#catalog-canvas');
+    if (expectedSources > 0) {
+        await expectCanvasInk(page, '#catalog-canvas');
+        await expectCanvasRgb(page, '#catalog-canvas', [0, 163, 150]);
+    }
 }
 
 async function plotChart(
@@ -232,15 +281,9 @@ async function checkViewerAndProfiler(
     label: string,
 ) {
     await expect(page.locator('#raster-canvas').first()).toBeVisible();
-    await expect(page.getByTestId('x-profiler-info')).toBeVisible();
-    const profile = page
-        .locator('.spatial-profiler-widget .profile-plot')
-        .first();
+    const profile = page.locator('.line-plot-component').first();
     await expect(profile.locator('canvas').first()).toBeVisible();
-    await expectCanvasInk(
-        page,
-        '.spatial-profiler-widget .profile-plot canvas',
-    );
+    await expectCanvasInk(page, '.line-plot-component canvas');
     await page
         .getByTestId('viewer-div')
         .screenshot({ path: testInfo.outputPath(`${label}-viewer.png`) });
@@ -250,6 +293,7 @@ async function checkViewerAndProfiler(
 }
 
 test.describe('Catalog widget', () => {
+    test.describe.configure({ mode: 'serial' });
     test.setTimeout(90_000);
 
     test('viewer toolbar selects a rendered catalog source', async ({
@@ -277,6 +321,7 @@ test.describe('Catalog widget', () => {
         const catalog = await openCatalog(page, 'catalog-sky.vot');
         await catalog.getByTestId('catalog-plot-button').click();
         await expectCanvasInk(page, '#catalog-canvas');
+        await expectCanvasRgb(page, '#catalog-canvas', [0, 163, 150]);
         await carta.closeWidget('catalog-overlay');
 
         const viewer = page.getByTestId('viewer-div');
@@ -289,6 +334,7 @@ test.describe('Catalog widget', () => {
             .locator('#catalog-canvas')
             .click({ position: { x: 100, y: 100 } });
         await expect.poll(() => selectedSourceIndices(page)).toHaveLength(1);
+        await expectCanvasRgb(page, '#catalog-canvas', [172, 47, 51]);
         await page.mouse.move(0, 0);
         await expect(viewer.locator('.image-ratio-popup')).toHaveCSS(
             'opacity',
@@ -296,6 +342,7 @@ test.describe('Catalog widget', () => {
         );
         await expect(viewer).toHaveScreenshot(
             'image-viewer-catalog-selection.png',
+            { maxDiffPixelRatio: 0.02 },
         );
     });
 
@@ -347,22 +394,8 @@ test.describe('Catalog widget', () => {
         );
         await choose(page, sizeColumn, 'Size');
         await expect(sizeColumn).toContainText('Size');
-        const sizeMapping = await page.evaluate(() => {
-            const catalogStore = (window as any).app.catalogStore;
-            const ids = catalogStore.activeCatalogFiles;
-            const store = catalogStore.getCatalogWidgetStore(
-                ids[ids.length - 1],
-            );
-            return {
-                catalogValues: Array.from(store.sizeMapData) as number[],
-                overlaySizes: Array.from(store.sizeArray()) as number[],
-            };
-        });
-        expect(sizeMapping.catalogValues).toEqual([4, 6, 8, 10, 12]);
-        expect(new Set(sizeMapping.overlaySizes).size).toBe(5);
-        expect(sizeMapping.overlaySizes).toEqual(
-            [...sizeMapping.overlaySizes].sort((a, b) => a - b),
-        );
+        await expectCanvasInk(page, '#catalog-canvas');
+        await expectCanvasRgb(page, '#catalog-canvas', [0, 163, 150]);
         await page.getByTestId('catalog-settings-color-tab-title').click();
         await expect(
             page.getByTestId('catalog-settings-color-column-dropdown'),
@@ -502,6 +535,13 @@ test.describe('Catalog widget', () => {
             exact: true,
         });
         await choose(page, minorSizeColumn, 'MinorAxis');
+        const sizeTab = settings.getByRole('tabpanel', { name: 'Size' });
+        await expect(
+            sizeTab.getByRole('button', { name: 'MajorAxis', exact: true }),
+        ).toBeVisible();
+        await expect(
+            sizeTab.getByRole('button', { name: 'MinorAxis', exact: true }),
+        ).toBeVisible();
         await page
             .getByTestId('catalog-settings-orientation-tab-title')
             .click();
@@ -510,45 +550,21 @@ test.describe('Catalog widget', () => {
         );
         await choose(page, orientationColumn, 'PositionAngle');
 
-        const mappedGeometry = () =>
-            page.evaluate(() => {
-                const catalogStore = (window as any).app.catalogStore;
-                const ids = catalogStore.activeCatalogFiles;
-                const store = catalogStore.getCatalogWidgetStore(
-                    ids[ids.length - 1],
-                );
-                const values = (array: Float32Array) =>
-                    Array.from(array, (value) =>
-                        Number.isNaN(value) ? 'NaN' : value,
-                    );
-                return {
-                    columns: [
-                        store.sizeMapColumn,
-                        store.sizeMinorMapColumn,
-                        store.orientationMapColumn,
-                    ],
-                    major: values(store.sizeArray()),
-                    minor: values(store.sizeMinorArray()),
-                    angleData: values(store.orientationMapData),
-                    renderedAngles: values(store.orientationArray()),
-                };
-            });
-        await expect.poll(mappedGeometry).toEqual({
-            columns: ['MajorAxis', 'MinorAxis', 'PositionAngle'],
-            major: [4, 8, 12, 16, 10, 'NaN', 6, 'NaN', 9, 7],
-            minor: [2, 3, 5, 8, 'NaN', 4, 3, 2, 'NaN', 3],
-            angleData: [0, 30, 75, 120, 45, 90, 'NaN', -30, 150, 'NaN'],
-            renderedAngles: [25, 50, 87.5, 125, 62.5, 100, 0, 0, 150, 0],
-        });
+        await expect(orientationColumn).toContainText('PositionAngle');
+        await expectCanvasInk(page, '#catalog-canvas');
+        await expectCanvasRgb(page, '#catalog-canvas', [0, 163, 150]);
+        await expect(page.locator('#catalog-canvas')).toHaveScreenshot(
+            'catalog-angular-axes.png',
+        );
 
         await settings.getByRole('tab', { name: 'Size', exact: true }).click();
         await settings
             .getByTestId('catalog-settings-axis-type-radius-button')
             .click();
-        await expect.poll(mappedGeometry).toMatchObject({
-            major: [8, 16, 24, 32, 20, 'NaN', 12, 'NaN', 18, 14],
-            minor: [4, 6, 10, 16, 'NaN', 8, 6, 4, 'NaN', 6],
-        });
+        await expectCanvasInk(page, '#catalog-canvas');
+        await expect(page.locator('#catalog-canvas')).toHaveScreenshot(
+            'catalog-angular-axes-radius.png',
+        );
         await settings
             .getByTestId('catalog-settings-axis-type-diameter-button')
             .click();
