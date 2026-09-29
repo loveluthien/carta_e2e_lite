@@ -1,6 +1,6 @@
 # CARTA E2E test plans
 
-This directory maps every currently collected Playwright test to its action and expected result. The collector reports **131 cases in 21 spec files**. The current Playwright configuration enables Chromium. These are plans derived from the current source, not execution results.
+This directory maps every currently collected Playwright test to its action and expected result. The collector reports **136 cases in 21 spec files**. The current Playwright configuration enables Chromium. These are plans derived from the current source, not execution results.
 
 ## Shared execution plan
 
@@ -32,7 +32,7 @@ Each `npx playwright test` invocation starts one shared CARTA backend and one de
 | [ImageLayer](./ImageLayer.md)           |     4 | Layer matching, WCS alignment and reordering.                                                 |
 | [ImageViewer](./ImageViewer.md)         |    16 | Viewer controls, settings, layouts and raster appearance.                                     |
 | [Layout](./Layout.md)                   |     5 | Preset layouts, docking, dynamic layout mappings and context-aware menus.                     |
-| [LoadingFiles](./LoadingFiles.md)       |     3 | Fixture size, open/append, and invalid-file recovery.                                         |
+| [LoadingFiles](./LoadingFiles.md)       |     8 | Fixture size, open/append, invalid-file recovery, and FITS/HDF5/CASA metadata and rendering.  |
 | [MomentMap](./MomentMap.md)             |    39 | Moment generator data, controls, lifecycle and failure recovery.                              |
 | [OnlineDataQuery](./OnlineDataQuery.md) |     1 | Query failure/retry and catalog overlay rendering.                                            |
 | [Profilers](./Profilers.md)             |     8 | Spatial and spectral profiles, formatting, smoothing, fitting and viewer connection.          |
