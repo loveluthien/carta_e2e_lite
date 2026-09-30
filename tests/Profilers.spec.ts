@@ -1289,36 +1289,11 @@ test.describe('Spectral Profilers E2E set', () => {
             'HD163296_13CO_2-1_subimage_spectral_profile_fitting2.png',
         );
 
-        await page.locator('div:nth-child(3) > .bp6-icon > svg > path').click();
-        await page
-            .getByTestId('spectral-profiler-0-header-close-button')
-            .click();
+        await page.getByTestId('profile-fitting-reset-button').click();
+        await expect(page.getByTestId('profile-fitting-result')).toBeEmpty();
 
-        // Load another test data and create a region on the image
-        await carta.loadImage('HD163296_13CO_2-1_subimage.fits');
-        await page.evaluate(async () => {
-            const frame = (window as any).app.activeFrame;
-            await frame.regionSet.addRegionAsync(0, [{ x: 45, y: 45 }]);
-        });
-        await page.locator('#SpectralProfilerButton').click();
-        await page
-            .getByTestId('spectral-profiler-0-content')
-            .getByTestId('spectral-profiler-region-dropdown')
-            .click();
-        await page
-            .getByTestId('spectral-profiler-region-dropdown-region-1')
-            .click();
-        await waitForSpectralProfile(page, 'HD163296_13CO_2-1_subimage.fits');
-
-        // open settings and switch to fitting tab
-        await page
-            .getByTestId('spectral-profiler-0-header-settings-button')
-            .click();
-        await page.getByRole('tab', { name: 'Fitting' }).click();
-
-        // auto fit
+        // Auto-fit the same profile from a cleared fitting state.
         const fittingPanel = page.getByRole('tabpanel', { name: 'Fitting' });
-        await fittingPanel.getByRole('combobox').first().selectOption('1');
         const autoFit = fittingPanel.getByRole('checkbox', {
             name: 'Auto fit',
         });
@@ -1336,10 +1311,6 @@ test.describe('Spectral Profilers E2E set', () => {
         await expect(
             page.getByTestId('profile-fitting-component-input'),
         ).toHaveValue('1');
-        await carta.screenShot(
-            spectralProfileCanvas,
-            'HD163296_13CO_2-1_subimage_spectral_profile_auto_fit.png',
-        );
         await expect(page.getByTestId('profile-fitting-result')).toContainText(
             'Component #1 Center =',
         );
@@ -1349,6 +1320,17 @@ test.describe('Spectral Profilers E2E set', () => {
         await expect(page.getByTestId('profile-fitting-result')).toContainText(
             'FWHM =',
         );
+        await page.mouse.move(0, 0);
+        await carta.closeWidget('spectral-profiler-0-floating-settings');
+        await carta.screenShot(
+            spectralProfileCanvas,
+            'HD163296_13CO_2-1_subimage_spectral_profile_auto_fit.png',
+        );
+        await page.mouse.move(0, 0);
+        await page
+            .getByTestId('spectral-profiler-0-header-settings-button')
+            .click();
+        await page.getByRole('tab', { name: 'Fitting' }).click();
         await page.getByTestId('profile-fitting-reset-button').click();
         await expect(page.getByTestId('profile-fitting-result')).toBeEmpty();
         await expect(
@@ -1357,6 +1339,242 @@ test.describe('Spectral Profilers E2E set', () => {
         await expect(
             page.getByRole('button', { name: 'View log' }),
         ).toBeDisabled();
+    });
+
+    test('Lorentzian fitting with linear continuum and residual toggle', async ({
+        page,
+    }) => {
+        const carta = new PlaywrightDevPage(page);
+        await carta.goto();
+        await carta.loadImage('HD163296_13CO_2-1_subimage.fits');
+        await page.evaluate(async () => {
+            await (window as any).app.activeFrame.regionSet.addRegionAsync(0, [
+                { x: 45, y: 45 },
+            ]);
+        });
+        await page.locator('#SpectralProfilerButton').click();
+        const profiler = page.getByTestId('spectral-profiler-0-content');
+        await profiler.getByTestId('spectral-profiler-region-dropdown').click();
+        await page
+            .getByTestId('spectral-profiler-region-dropdown-region-1')
+            .click();
+        await waitForSpectralProfile(page, 'HD163296_13CO_2-1_subimage.fits');
+
+        await page
+            .getByTestId('spectral-profiler-0-header-settings-button')
+            .click();
+        await page.getByRole('tab', { name: 'Fitting' }).click();
+        const fitting = page.getByRole('tabpanel', { name: 'Fitting' });
+        await fitting
+            .getByRole('combobox')
+            .nth(1)
+            .selectOption({ label: 'Lorentzian' });
+        await page.getByTestId('profile-fitting-auto-detect-button').click();
+        await expect
+            .poll(() =>
+                page
+                    .getByTestId('profile-fitting-fwhm-input')
+                    .inputValue()
+                    .then(Number),
+            )
+            .toBeGreaterThan(0);
+        await fitting
+            .getByRole('combobox')
+            .nth(2)
+            .selectOption({ label: '1st order' });
+        await expect(
+            page.getByTestId('profile-fitting-fit-button'),
+        ).toBeEnabled();
+        await page.getByTestId('profile-fitting-fit-button').click();
+        const result = page.getByTestId('profile-fitting-result');
+        await expect(result).toContainText('Y Intercept =');
+        await expect(result).toContainText('Slope =');
+        await expect(result).toContainText('Component #1 Center =');
+        await expect(result).toContainText('FWHM =');
+        await expect
+            .poll(() =>
+                page.evaluate(() => {
+                    const fit = (
+                        window as any
+                    ).app.widgetsStore.spectralProfileWidgets.get(
+                        'spectral-profiler-0',
+                    ).fittingStore;
+                    const data = Array.from(fit.originData.y as number[]);
+                    const residual = Array.from(fit.resultResidual as number[]);
+                    const rms = (values: number[]) =>
+                        Math.sqrt(
+                            values.reduce(
+                                (sum, value) => sum + value * value,
+                                0,
+                            ) / values.length,
+                        );
+                    return {
+                        hasResult: fit.hasResult,
+                        points: residual.length,
+                        improvesFit:
+                            residual.length === data.length &&
+                            rms(residual) < rms(data),
+                    };
+                }),
+            )
+            .toMatchObject({ hasResult: true, improvesFit: true });
+        await page.getByRole('button', { name: 'View log' }).click();
+        await expect(page.locator('.fitting-log-pre')).toContainText(
+            'Lorentzian',
+        );
+        await page.keyboard.press('Escape');
+
+        const plot = profiler.locator(
+            '.line-plot-component .annotation-stage canvas',
+        );
+        await carta.closeWidget('spectral-profiler-0-floating-settings');
+        await expect(plot).toHaveScreenshot(
+            'spectral-lorentzian-fit-residual.png',
+        );
+        await page.mouse.move(0, 0);
+        await page
+            .getByTestId('spectral-profiler-0-header-settings-button')
+            .click();
+        await page.getByRole('tab', { name: 'Fitting' }).click();
+        const residualSwitch = page.getByRole('checkbox', { name: 'Residual' });
+        await residualSwitch.locator('..').click();
+        await expect(residualSwitch).not.toBeChecked();
+        await carta.closeWidget('spectral-profiler-0-floating-settings');
+        await expect(plot).toHaveScreenshot(
+            'spectral-lorentzian-fit-no-residual.png',
+        );
+        await carta.closeWidget('spectral-profiler');
+        await expect(page.locator('#raster-canvas').first()).toHaveScreenshot(
+            'spectral-lorentzian-fit-viewer.png',
+        );
+    });
+
+    test('Gaussian fitting recovers a mock emission line', async ({ page }) => {
+        const carta = new PlaywrightDevPage(page);
+        const filename = 'gaussian-emission-line.fits';
+        await carta.goto();
+        await carta.loadImage(filename);
+        await page.evaluate(async () => {
+            const frame = (window as any).app.activeFrame;
+            await frame.regionSet.addRegionAsync(0, [{ x: 8, y: 8 }]);
+            frame.setCursorPosition({ x: 8, y: 8 });
+            frame.updateCursorRegion({ x: 8, y: 8 });
+        });
+        await page.locator('#SpectralProfilerButton').click();
+        const profiler = page.getByTestId('spectral-profiler-0-content');
+        await profiler.getByTestId('spectral-profiler-region-dropdown').click();
+        await page
+            .getByTestId('spectral-profiler-region-dropdown-region-1')
+            .click();
+        await waitForSpectralProfile(page, filename);
+
+        const profile = await page.evaluate(() => {
+            const fitting = (
+                window as any
+            ).app.widgetsStore.spectralProfileWidgets.get('spectral-profiler-0')
+                .fittingStore.fittingData;
+            return {
+                x: Array.from(fitting.x as number[]),
+                y: Array.from(fitting.y as number[]),
+            };
+        });
+        expect(profile.y).toHaveLength(31);
+        expect(profile.x[15]).toBeCloseTo(0.985, 6);
+        expect(profile.y[0]).toBeCloseTo(1, 4);
+        expect(profile.y[12]).toBeCloseTo(1 + 6 * Math.exp(-0.5), 5);
+        expect(profile.y[15]).toBeCloseTo(7, 5);
+        expect(profile.y[18]).toBeCloseTo(1 + 6 * Math.exp(-0.5), 5);
+
+        await page
+            .getByTestId('spectral-profiler-0-header-settings-button')
+            .click();
+        await page.getByRole('tab', { name: 'Fitting' }).click();
+        const fitting = page.getByRole('tabpanel', { name: 'Fitting' });
+        await fitting
+            .getByRole('combobox')
+            .nth(1)
+            .selectOption({ label: 'Gaussian' });
+        const expectedFwhm = 0.001 * 3 * Math.sqrt(8 * Math.log(2));
+        await fitting
+            .getByRole('combobox')
+            .nth(2)
+            .selectOption({ label: '0th order' });
+        await page
+            .getByTestId('profile-fitting-center-input')
+            .fill(String(profile.x[15]));
+        await page.getByTestId('profile-fitting-amplitude-input').fill('6');
+        await page
+            .getByTestId('profile-fitting-fwhm-input')
+            .fill(String(expectedFwhm));
+        await fitting.getByRole('textbox').last().fill('1');
+        await expect(
+            page.getByTestId('profile-fitting-fit-button'),
+        ).toBeEnabled();
+        await page.getByTestId('profile-fitting-fit-button').click();
+        const result = page.getByTestId('profile-fitting-result');
+        await expect(result).toContainText('Component #1');
+        await expect(result).toContainText('Y Intercept =');
+        await expect(result).toContainText('Center =');
+        await expect(result).toContainText('Amplitude =');
+        await expect(result).toContainText('FWHM =');
+        await expect
+            .poll(() =>
+                page.evaluate(() => {
+                    const fit = (
+                        window as any
+                    ).app.widgetsStore.spectralProfileWidgets.get(
+                        'spectral-profiler-0',
+                    ).fittingStore;
+                    const component = fit.components[0];
+                    return {
+                        hasResult: fit.hasResult,
+                        yIntercept: fit.resultYIntercept,
+                        center: component.resultCenter,
+                        amplitude: component.resultAmp,
+                        fwhm: component.resultFwhm,
+                        residual: Array.from(fit.resultResidual as number[]),
+                    };
+                }),
+            )
+            .toMatchObject({ hasResult: true });
+
+        const fitted = await page.evaluate(() => {
+            const fit = (
+                window as any
+            ).app.widgetsStore.spectralProfileWidgets.get(
+                'spectral-profiler-0',
+            ).fittingStore;
+            const component = fit.components[0];
+            const residual = Array.from(fit.resultResidual as number[]);
+            return {
+                center: component.resultCenter,
+                yIntercept: fit.resultYIntercept,
+                amplitude: component.resultAmp,
+                fwhm: component.resultFwhm,
+                residualRms: Math.sqrt(
+                    residual.reduce((sum, value) => sum + value * value, 0) /
+                        residual.length,
+                ),
+            };
+        });
+        expect(fitted.center).toBeCloseTo(0.985, 5);
+        expect(fitted.yIntercept).toBeCloseTo(1, 3);
+        expect(fitted.amplitude).toBeCloseTo(6, 3);
+        expect(fitted.fwhm).toBeCloseTo(expectedFwhm, 5);
+        expect(fitted.residualRms).toBeLessThan(0.0001);
+
+        await page.mouse.move(0, 0);
+        await carta.closeWidget('spectral-profiler-0-floating-settings');
+        const plot = profiler.locator(
+            '.line-plot-component .annotation-stage canvas',
+        );
+        await expect(plot).toHaveScreenshot('gaussian-emission-line-fit.png');
+        await page.keyboard.press('Escape');
+        await page.mouse.move(0, 0);
+        await carta.closeWidget('spectral-profiler');
+        await expect(page.locator('#raster-canvas').first()).toHaveScreenshot(
+            'gaussian-emission-line-viewer.png',
+        );
     });
 
     test('Spectral profile connection', async ({ page }) => {

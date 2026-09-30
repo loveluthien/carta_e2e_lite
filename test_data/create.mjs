@@ -14,6 +14,8 @@ function write(
     spectralShift = 0,
     observationMjd,
     varyingStokes = false,
+    spectralProfile,
+    spectralFrequencyStep = -1e9 / 299792.458,
 ) {
     const values = {
         SIMPLE: true,
@@ -45,7 +47,7 @@ function write(
         CUNIT3: 'Hz',
         CRPIX3: 1,
         CRVAL3: 1e9 - (spectralShift * 1e9) / 299792.458,
-        CDELT3: -1e9 / 299792.458,
+        CDELT3: spectralFrequencyStep,
         BUNIT: 'K',
         ...(observationMjd === undefined ? {} : { 'MJD-OBS': observationMjd }),
         ...(metadata ? { RESTFRQ: 1e9, SPECSYS: 'LSRK' } : {}),
@@ -99,17 +101,22 @@ function write(
                 for (let x = 0; x < 16; x++) {
                     const spectrum =
                         x === 2 ? [-2, -1, 0, 1, 2] : [1, 2, 4, 8, 16];
+                    const source = Math.exp(
+                        -(((x - 8) / 3.2) ** 2 + ((y - 8) / 3.2) ** 2) / 2,
+                    );
                     const value =
-                        x === 1 && y === 1
+                        x === 1 && y === 1 && !spectralProfile
                             ? NaN
-                            : scale *
-                              spectrum[z % 5] *
-                              (1 + y / 16) *
-                              (varyingStokes && s === 1
-                                  ? 2 + z / 4
-                                  : varyingStokes && s === 2
-                                    ? 3 - z / 4
-                                    : s + 1);
+                            : spectralProfile
+                              ? source * spectralProfile(z)
+                              : scale *
+                                spectrum[z % 5] *
+                                (1 + y / 16) *
+                                (varyingStokes && s === 1
+                                    ? 2 + z / 4
+                                    : varyingStokes && s === 2
+                                      ? 3 - z / 4
+                                      : s + 1);
                     data.writeFloatBE(
                         value,
                         4 * (((s * channels + z) * 16 + y) * 16 + x),
@@ -134,3 +141,17 @@ write('stokes.U.fits', 5, 1, true, 3);
 write('stokes.V.fits', 5, 1, true, 4);
 write('time-early.fits', 5, 1, true, 1, false, 0, 0, 59000);
 write('time-late.fits', 5, 1, true, 2, false, 0, 0, 59002);
+write(
+    'gaussian-emission-line.fits',
+    31,
+    1,
+    true,
+    1,
+    false,
+    0,
+    0,
+    undefined,
+    false,
+    (channel) => 1 + 6 * Math.exp(-0.5 * ((channel - 15) / 3) ** 2),
+    -1e6,
+);
