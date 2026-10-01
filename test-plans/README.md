@@ -1,6 +1,6 @@
 # CARTA E2E test plans
 
-This directory maps every currently collected Playwright test to its action and expected result. The collector reports **152 cases in 21 spec files**. The Playwright configuration currently enables Chromium. These are plans derived from the current source, not execution results.
+This directory maps every currently collected Playwright test to its action and expected result. The collector reports **154 cases in 21 spec files**. The Playwright configuration currently enables Chromium. These are plans derived from the current source, not execution results.
 
 ## Shared execution plan
 
@@ -39,7 +39,7 @@ Use concise Title Case names for `test.describe()` groups. Write individual test
 | [LoadingFiles](./LoadingFiles.md)       |     8 | Fixture size, open/append, invalid-file recovery, and FITS/HDF5/CASA metadata and rendering.                                    |
 | [MomentMap](./MomentMap.md)             |    39 | Moment generator data, controls, lifecycle and failure recovery.                                                                |
 | [OnlineDataQuery](./OnlineDataQuery.md) |     1 | Query failure/retry and catalog overlay rendering.                                                                              |
-| [Profilers](./Profilers.md)             |    10 | Spatial and spectral profiles, formatting, smoothing, matching and viewer connection.                                           |
+| [Profilers](./Profilers.md)             |    12 | Spatial and spectral profiles, formatting, smoothing, matching and viewer connection.                                           |
 | [PVImage](./PVImage.md)                 |    20 | PV generator validation, output, preview and cancellation.                                                                      |
 | [Regions](./Regions.md)                 |     5 | All region shapes, CRTF/DS9 load/save, spatial matching, styling and title edits, Region List actions, and profiler connection. |
 | [Snippets](./Snippets.md)               |     6 | Code Snippets workflows that create or modify image products.                                                                   |
@@ -50,7 +50,8 @@ Use concise Title Case names for `test.describe()` groups. Write individual test
 
 ## Coverage notes
 
-- Several current tests inspect app stores or compare screenshots without asserting all user-visible values. The per-case expected results are the checks to retain or add when tests are updated.
-- Some spec files have no PNG assertion even when they affect an image or profiler. Add focused reviewed snapshots there rather than treating canvas visibility as a visual regression check.
-- `MomentMap.md` and `Contours.md` map current cases to their expected outcomes; plans are not claims that every suite case has passed.
-- The Contours spec passed all 7 cases before the combined spatial and spectral matching case was added.
+- The 154-case count is collection output, not a passing-test count. Chromium is the only enabled browser project; Firefox and WebKit are currently commented out in `playwright.config.ts`.
+- Coverage targets selected functional workflows and recovery paths described in the linked plans. It does not establish exhaustive coverage of every CARTA widget or dialog control, and it does not measure performance.
+- Visual checks are targeted: selected viewer and profiler outputs use reviewed PNG snapshots or direct pixel/RGB assertions. Other cases rely on UI state or data assertions, so a snapshot does not imply that every visible property is compared.
+- Three Moment Map cases are annotated with `test.fail()` to track known defects: generation with no selected moments, the rest-frequency reset control remaining enabled, and a missing warning for malformed generated-image acknowledgments. Check the Playwright report to see how those cases behave in a given run.
+- Each plan records the checks present in the current spec; neither the plans nor test collection indicate that a suite has passed.
