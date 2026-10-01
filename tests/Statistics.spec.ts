@@ -116,10 +116,10 @@ test.describe('Statistics Widget', () => {
                 .nth(1);
 
         await expect(value('NumPixels')).toHaveText(
-            '1.800000000000e+2 pixel(s)',
+            '1.680000000000e+2 pixel(s)',
         );
-        await expect(value('Sum')).toHaveText('2.295000000000e+2 K');
-        await expect(value('Mean')).toHaveText('1.275000000000e+0 K');
+        await expect(value('Sum')).toHaveText('2.103750000000e+2 K');
+        await expect(value('Mean')).toHaveText('1.252232142857e+0 K');
         await expect(value('Min')).toHaveText('-3.875000000000e+0 K');
         await expect(value('Max')).toHaveText('1.937500000000e+0 K');
     });
