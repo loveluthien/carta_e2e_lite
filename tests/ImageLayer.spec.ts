@@ -334,12 +334,14 @@ test.describe('Image Layer Widget', () => {
                 )
             ) {
                 await button.click();
+                await page.mouse.move(0, 0);
                 await expect
                     .poll(() => matchingState(page, type))
                     .toEqual(unmatched);
             }
 
             await button.click();
+            await page.mouse.move(0, 0);
             await expect
                 .poll(() => matchingState(page, type))
                 .toEqual(
@@ -349,6 +351,7 @@ test.describe('Image Layer Widget', () => {
                     })),
                 );
             await button.click();
+            await page.mouse.move(0, 0);
             await expect
                 .poll(() => matchingState(page, type))
                 .toEqual(unmatched);
@@ -357,6 +360,7 @@ test.describe('Image Layer Widget', () => {
                 `image-list-2-matching-${type}`,
             );
             await oneFrame.click();
+            await page.mouse.move(0, 0);
             await expect
                 .poll(() => matchingState(page, type))
                 .toEqual(
@@ -366,6 +370,7 @@ test.describe('Image Layer Widget', () => {
                     })),
                 );
             await oneFrame.click();
+            await page.mouse.move(0, 0);
             await expect
                 .poll(() => matchingState(page, type))
                 .toEqual(unmatched);
