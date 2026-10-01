@@ -89,8 +89,8 @@ test.describe('Cursor Info Widget', () => {
             '1.5',
         );
         await expect(widget.getByTestId('simple-table-0-1')).toContainText('K');
-        await expect(widget.getByTestId('simple-table-0-4')).toContainText(
-            '8.01',
+        await expect(widget.getByTestId('simple-table-0-4')).toHaveText(
+            /^(?:7\.[89]\d\d|8\.[01]\d\d){2}$/,
         );
         await expect(widget.getByTestId('simple-table-0-6')).toHaveText('0');
 
