@@ -81,9 +81,7 @@ test.describe('Loading Files', () => {
             .first()
             .hover({ position: { x: 300, y: 200 } });
         await expect(page.getByText(/^Data:/).first()).toContainText('Data:');
-        const profile = page
-            .locator('.spatial-profiler-widget .profile-plot')
-            .first();
+        const profile = page.locator('.line-plot-component').first();
         await expect(profile.locator('canvas').first()).toBeVisible();
         const firstProfile = await profile.screenshot();
 
