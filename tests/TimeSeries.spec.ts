@@ -93,6 +93,7 @@ test('Loads a dated image series and steps through its viewer and profile', asyn
     await expect(page.getByTestId('image-view-header-title')).toContainText(
         images[2],
     );
+    await page.mouse.move(0, 0);
     await image.hover({ position: { x: 300, y: 200 } });
     await expect(page.getByTestId('x-profiler-info')).toContainText('Data:');
     expect(await page.getByTestId('x-profiler-info').textContent()).not.toBe(

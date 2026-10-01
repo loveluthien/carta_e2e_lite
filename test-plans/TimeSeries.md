@@ -17,7 +17,7 @@ Dated series loading, ordering and navigation.
 
 | Test (source line)                                                                                     | Action                                                                         | Expected result                                                                                                               |
 | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
-| [loads a dated image series and steps through its viewer and profile](../tests/TimeSeries.spec.ts#L10) | Select three dated FITS files, load as a time series and step next/last/first. | Files sort chronologically; active index/title and spatial matching are correct; viewer/profile screenshots change with date. |
+| [loads a dated image series and steps through its viewer and profile](../tests/TimeSeries.spec.ts#L10) | Select three dated FITS files, load as a time series and step next/last/first. | Files sort chronologically; active index/title and spatial matching are correct; viewer/profile screenshots change with date. Re-trigger the cursor profile after navigation by moving the pointer off the image before hovering again. |
 
 ## Run
 
