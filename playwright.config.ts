@@ -4,22 +4,7 @@ const cartaPort = Number.parseInt(process.env.CARTA_PORT ?? '3102', 10);
 if (!Number.isInteger(cartaPort) || cartaPort < 1 || cartaPort > 65535) {
     throw new Error(`Invalid CARTA_PORT: ${process.env.CARTA_PORT}`);
 }
-const momentMapPort = Number.parseInt(
-    process.env.CARTA_MOMENT_MAP_PORT ?? '3103',
-    10,
-);
-if (
-    !Number.isInteger(momentMapPort) ||
-    momentMapPort < 1 ||
-    momentMapPort > 65535 ||
-    momentMapPort === cartaPort
-) {
-    throw new Error(
-        `Invalid or conflicting CARTA_MOMENT_MAP_PORT: ${process.env.CARTA_MOMENT_MAP_PORT}`,
-    );
-}
 const cartaUrl = `http://localhost:${cartaPort}`;
-const momentMapUrl = `http://localhost:${momentMapPort}`;
 const backendCommand = (port: number) =>
     `/Users/kchou/bz/carta_build/carta-backend-dev1/build/carta_backend /Users/kchou/bz/carta_build/e2e-lite/test_data --top_level_folder /Users/kchou/bz --frontend_folder /Users/kchou/bz/carta_build/carta-frontend-dev2/build --no_browser --port ${port} --debug_no_auth --omp_threads 8`;
 const backendServer = (url: string, port: number) => ({
@@ -48,9 +33,9 @@ export default defineConfig({
     /* Fail the build on CI if you accidentally left test.only in the source code. */
     forbidOnly: !!process.env.CI,
     /* Retry on CI only */
-    retries: process.env.CI ? 2 : 0,
+    retries: 2,
     /* Limit concurrent WebGL contexts while allowing independent tests to overlap. */
-    workers: 2,
+    workers: 8,
     /* Reporter to use. See https://playwright.dev/docs/test-reporters */
     reporter: 'html',
     /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
@@ -63,10 +48,19 @@ export default defineConfig({
         trace: 'on-first-retry',
     },
 
-    /* Configure projects for major browsers */
+    /* Run Moment Map after the other specs, alone on the shared backend. */
     projects: [
         {
             name: 'chromium',
+            testIgnore: '**/MomentMap.spec.ts',
+            use: {
+                ...devices['Desktop Chrome'],
+                viewport: { width: 1920, height: 1080 },
+            },
+        },
+        {
+            name: 'moment-map',
+            testMatch: '**/MomentMap.spec.ts',
             use: {
                 ...devices['Desktop Chrome'],
                 viewport: { width: 1920, height: 1080 },
@@ -105,8 +99,5 @@ export default defineConfig({
     ],
 
     /* Run your local dev server before starting the tests */
-    webServer: [
-        backendServer(cartaUrl, cartaPort),
-        backendServer(momentMapUrl, momentMapPort),
-    ],
+    webServer: backendServer(cartaUrl, cartaPort),
 });

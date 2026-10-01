@@ -164,18 +164,20 @@ export async function open(
     name = 'cube.fits',
     folder = fixtureFolder,
 ) {
-    await new PlaywrightDevPage(page).goto();
+    const carta = new PlaywrightDevPage(page);
+    await carta.goto();
+    await carta.setTestPreferences();
     await load(page, name, false, folder);
-    await new PlaywrightDevPage(page).fillSnippetInput(
+    await carta.fillSnippetInput(
         'app.widgetsStore.setImageMultiPanelEnabled(false);',
     );
-    await new PlaywrightDevPage(page).applyLayout(LayoutName.Default);
+    await carta.applyLayout(LayoutName.Default);
     await page.locator('#SpectralProfilerButton').click();
-    await new PlaywrightDevPage(page).dragAndDock(
+    await carta.dragAndDock(
         page.getByTestId('spectral-profiler-0-header-title'),
         page.getByTestId('spatial-profiler-0-header-title'),
     );
-    await new PlaywrightDevPage(page).dragAndDock(
+    await carta.dragAndDock(
         page.getByTestId('layer-list-0-header-title'),
         page.getByTestId('render-config-0-header-title'),
     );

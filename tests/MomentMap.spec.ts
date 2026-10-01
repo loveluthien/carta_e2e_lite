@@ -28,10 +28,10 @@ import {
 } from '../utilities';
 
 const MOMENT_TIMEOUT_MS = 90_000;
-const MOMENT_BASE_URL = `http://localhost:${process.env.CARTA_MOMENT_MAP_PORT ?? '3103'}`;
+const CARTA_BASE_URL = `http://localhost:${process.env.CARTA_PORT ?? '3102'}`;
 
 test.use({
-    baseURL: MOMENT_BASE_URL,
+    baseURL: CARTA_BASE_URL,
 });
 test.setTimeout(MOMENT_TIMEOUT_MS);
 test.beforeEach(async ({ page }) => page.setDefaultTimeout(10_000));
@@ -58,12 +58,12 @@ test.describe('Generation', () => {
         );
     });
 
-    test('Generates selected and all moment types', async ({ page }) => {
-        await open(page);
-        for (const selected of [
-            ['0', '1', '2', '3'],
-            moments.map((m) => m[0]),
-        ]) {
+    for (const [scenario, selected] of [
+        ['selected moments', ['0', '1', '2', '3']],
+        ['all moment types', moments.map((m) => m[0])],
+    ] as [string, string[]][]) {
+        test(`Generates ${scenario}`, async ({ page }) => {
+            await open(page);
             await control(page, 'mask-dropdown').selectOption({
                 label: 'Include',
             });
@@ -79,8 +79,8 @@ test.describe('Generation', () => {
                     )!,
                     tag,
                 );
-        }
-    });
+        });
+    }
 });
 
 test.describe('Controls and Lifecycle', () => {
@@ -672,7 +672,7 @@ test.describe('Regions and Spectral Settings', () => {
 
 test.describe('Injected Failures', () => {
     test('Clears rejected request and retries', async ({ page }) => {
-        const injected = await fault(page, 'reject', MOMENT_BASE_URL);
+        const injected = await fault(page, 'reject', CARTA_BASE_URL);
         await open(page);
         await control(page, 'generate-button').click();
         await expect.poll(injected.requests).toBe(1);
@@ -683,7 +683,7 @@ test.describe('Injected Failures', () => {
         await generate(page, ['0']);
     });
     test('Clears cancelled request and retries', async ({ page }) => {
-        const injected = await fault(page, 'cancel', MOMENT_BASE_URL);
+        const injected = await fault(page, 'cancel', CARTA_BASE_URL);
         await open(page);
         await control(page, 'generate-button').click();
         const progress = page.getByRole('dialog', {
@@ -699,7 +699,7 @@ test.describe('Injected Failures', () => {
         await generate(page, ['0']);
     });
     test('Recovers after disconnect', async ({ page }) => {
-        const injected = await fault(page, 'disconnect', MOMENT_BASE_URL);
+        const injected = await fault(page, 'disconnect', CARTA_BASE_URL);
         await open(page);
         await control(page, 'generate-button').click();
         await expect.poll(injected.requests).toBe(1);
@@ -747,7 +747,7 @@ test.describe('Backend Cancellation and Load Failure', () => {
             true,
             'Known defect: malformed generated-image acknowledgments are silently ignored instead of showing the Load file failed warning.',
         );
-        await fault(page, 'load', MOMENT_BASE_URL);
+        await fault(page, 'load', CARTA_BASE_URL);
         await open(page);
         await control(page, 'generate-button').click();
         await expect(
