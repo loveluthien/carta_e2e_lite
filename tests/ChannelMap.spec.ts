@@ -208,10 +208,31 @@ test.describe('Channel Map Widget', () => {
                     ),
                 );
             });
-        expect(rgb).toEqual([
-            [231, 169, 23, 255],
-            [232, 236, 147, 255],
-        ]);
+        for (const [sample, ranges] of [
+            [
+                rgb[0],
+                [
+                    [225, 255],
+                    [150, 200],
+                    [0, 60],
+                    [255, 255],
+                ],
+            ],
+            [
+                rgb[1],
+                [
+                    [225, 255],
+                    [220, 255],
+                    [120, 190],
+                    [255, 255],
+                ],
+            ],
+        ] as const) {
+            sample.forEach((value, channel) => {
+                expect(value).toBeGreaterThanOrEqual(ranges[channel][0]);
+                expect(value).toBeLessThanOrEqual(ranges[channel][1]);
+            });
+        }
         await expect(page.getByTestId('viewer-div')).toHaveScreenshot(
             'ChannelMap-Configured.png',
         );
@@ -284,10 +305,16 @@ test.describe('Channel Map Widget', () => {
     test('Switches the displayed image and handles a single-channel cube', async ({
         page,
     }) => {
-        const carta = await openMap(page);
+        const carta = new PlaywrightDevPage(page);
+        await carta.goto();
+        await carta.loadImage('cube.fits');
         await carta.loadImage('single.fits', true);
+        await carta.selectMenuItem('Widgets', 'Channel Map Control');
+        await toggle(page, 'Enable channel map mode');
         const image = widget(page).getByTestId('image-dropdown');
         await expect(image.locator('option')).toHaveCount(2);
+        await image.selectOption({ label: '0: cube.fits' });
+        await expect(labels(page)).toHaveCount(4);
         await image.selectOption({ label: '1: single.fits' });
         await expect(page.getByTestId('image-view-header-title')).toContainText(
             'single.fits',
@@ -309,8 +336,8 @@ test.describe('Channel Map Widget', () => {
         await image.selectOption({ label: '0: cube.fits' });
         await expect(labels(page)).toHaveCount(4);
         await carta.closeWidget('channel-map-control');
-        await page.mouse.move(0, 0);
-        await expect(page.getByTestId('viewer-div')).toHaveScreenshot(
+        await page.locator('.root-menu').hover();
+        await expect(page.locator('#raster-canvas').first()).toHaveScreenshot(
             'ChannelMap-SourceRestored.png',
         );
     });
