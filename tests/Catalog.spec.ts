@@ -314,11 +314,11 @@ async function checkViewerAndProfiler(
     });
 }
 
-test.describe('Catalog widget', () => {
+test.describe('Catalog Widget', () => {
     test.describe.configure({ mode: 'serial' });
     test.setTimeout(90_000);
 
-    test('viewer toolbar selects a rendered catalog source', async ({
+    test('Viewer toolbar selects a rendered catalog source', async ({
         page,
     }) => {
         page.setDefaultTimeout(10_000);
@@ -368,7 +368,7 @@ test.describe('Catalog widget', () => {
         );
     });
 
-    test('loads sky sources, filters and sorts the table, and edits overlay styling', async ({
+    test('Loads sky sources, filters and sorts the table, and edits overlay styling', async ({
         page,
     }, testInfo) => {
         const carta = await openImage(page);
@@ -458,7 +458,7 @@ test.describe('Catalog widget', () => {
         await checkViewerAndProfiler(page, testInfo, 'sky-catalog');
     });
 
-    test('verifies histogram bins and selects catalog rows from a bar', async ({
+    test('Verifies histogram bins and selects catalog rows from a bar', async ({
         page,
     }, testInfo) => {
         await openImage(page);
@@ -488,7 +488,7 @@ test.describe('Catalog widget', () => {
         await checkViewerAndProfiler(page, testInfo, 'histogram-selection');
     });
 
-    test('verifies scatter values and selects a catalog row from a point', async ({
+    test('Verifies scatter values and selects a catalog row from a point', async ({
         page,
     }, testInfo) => {
         await openImage(page);
@@ -530,7 +530,7 @@ test.describe('Catalog widget', () => {
         await checkViewerAndProfiler(page, testInfo, 'scatter-selection');
     });
 
-    test('renders angular major and minor axes with position angles and missing values', async ({
+    test('Renders angular major and minor axes with position angles and missing values', async ({
         page,
     }, testInfo) => {
         const carta = await openImage(page, 'catalog-angular-size-image.fits');
@@ -663,7 +663,7 @@ test.describe('Catalog widget', () => {
         await checkViewerAndProfiler(page, testInfo, 'angular-size-catalog');
     });
 
-    test('handles pixel and invalid coordinates, closes and switches catalogs', async ({
+    test('Handles pixel and invalid coordinates, closes and switches catalogs', async ({
         page,
     }, testInfo) => {
         await openImage(page);
@@ -697,7 +697,7 @@ test.describe('Catalog widget', () => {
         await checkViewerAndProfiler(page, testInfo, 'catalog-coordinates');
     });
 
-    test('keeps sky sources off a shifted image while pixel sources remain visible', async ({
+    test('Keeps sky sources off a shifted image while pixel sources remain visible', async ({
         page,
     }, testInfo) => {
         await openImage(page, 'catalog-image-shifted.fits');

@@ -7,7 +7,7 @@ const images = [
     'J0423-0120_2024-08-13.fits',
 ];
 
-test('loads a dated image series and steps through its viewer and profile', async ({
+test('Loads a dated image series and steps through its viewer and profile', async ({
     page,
 }) => {
     test.setTimeout(90_000);

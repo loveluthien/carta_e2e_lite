@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { PlaywrightDevPage } from '../utilities';
 
-test.describe('CARTA Snippets E2E Suite', () => {
+test.describe('CARTA Snippets', () => {
     test('Image properties', async ({ page }) => {
         const carta = new PlaywrightDevPage(page);
         const viewerCanvas = page.getByTestId('viewer-div');

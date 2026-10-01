@@ -33,7 +33,7 @@ async function regionRgbCount(
 }
 
 test.describe('Regions', () => {
-    test('rectangle name and style edits update the viewer and profiler; invalid edits and locked deletion are rejected', async ({
+    test('Rectangle name and style edits update the viewer and profiler; invalid edits and locked deletion are rejected', async ({
         page,
     }) => {
         const carta = new PlaywrightDevPage(page);
@@ -191,7 +191,7 @@ test.describe('Regions', () => {
         ).toHaveCount(0);
     });
 
-    test('creates every region shape and cancels an incomplete polygon', async ({
+    test('Creates every region shape and cancels an incomplete polygon', async ({
         page,
     }) => {
         const carta = new PlaywrightDevPage(page);
@@ -345,7 +345,7 @@ test.describe('Regions', () => {
         );
     });
 
-    test('region list actions control regions and open import/export flows', async ({
+    test('Region list actions control regions and open import/export flows', async ({
         page,
     }) => {
         const carta = new PlaywrightDevPage(page);
@@ -461,7 +461,7 @@ test.describe('Regions', () => {
         });
     });
 
-    test('saves regions to a file and loads them back into the image', async ({
+    test('Saves regions to a file and loads them back into the image', async ({
         page,
     }) => {
         const carta = new PlaywrightDevPage(page);
@@ -653,7 +653,7 @@ test.describe('Regions', () => {
         }
     });
 
-    test('spatially matched images share region selection and profiler data', async ({
+    test('Spatially matched images share region selection and profiler data', async ({
         page,
     }) => {
         const carta = new PlaywrightDevPage(page);

@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { LayoutName, PlaywrightDevPage } from '../utilities';
 
-test('online catalog query recovers from a failed mirror and plots sources', async ({
+test('Online catalog query recovers from a failed mirror and plots sources', async ({
     page,
 }) => {
     const carta = new PlaywrightDevPage(page);

@@ -16,7 +16,7 @@ const test = base.extend<{
     },
 });
 
-test.describe('Image viewer control coverage', () => {
+test.describe('Image Viewer Controls', () => {
     test.use({
         viewport: { width: 1600, height: 720 },
         colorScheme: 'dark',
@@ -24,7 +24,7 @@ test.describe('Image viewer control coverage', () => {
     test.setTimeout(90_000);
     test.beforeEach(async ({ page }) => page.setDefaultTimeout(10_000));
 
-    test('toolbar toggle and all export resolutions', async ({
+    test('Toolbar toggle and all export resolutions', async ({
         page,
         carta,
         viewerCanvas,
@@ -80,7 +80,7 @@ test.describe('Image viewer control coverage', () => {
         );
     });
 
-    test('viewer matching controls spatial and spectral alignment', async ({
+    test('Viewer matching controls spatial and spectral alignment', async ({
         page,
         carta,
         viewerCanvas,
@@ -135,7 +135,7 @@ test.describe('Image viewer control coverage', () => {
         await expect.poll(state).toEqual({ spatial: null, spectral: null });
     });
 
-    test('header paging, help, maximize, restore, and popout', async ({
+    test('Header paging, help, maximize, restore, and popout', async ({
         page,
         carta,
         viewerCanvas,
@@ -196,7 +196,7 @@ test.describe('Image viewer control coverage', () => {
         await popup.close();
     });
 
-    test('ruler creation renders a measured region', async ({
+    test('Ruler creation renders a measured region', async ({
         page,
         carta,
         viewerCanvas,
@@ -249,7 +249,7 @@ test.describe('Image viewer control coverage', () => {
         await expect(viewerCanvas).toHaveScreenshot('image-viewer-ruler.png');
     });
 
-    test('raster RGB and invalid beam width', async ({
+    test('Raster RGB and invalid beam width', async ({
         page,
         carta,
         viewerCanvas,
@@ -335,8 +335,12 @@ test.describe('Image viewer control coverage', () => {
     });
 });
 
-test.describe('Image viewer E2E set', () => {
-    test('Image Viewer', async ({ page, carta, viewerCanvas }) => {
+test.describe('Image Viewer', () => {
+    test('Image viewer controls, navigation, and layouts', async ({
+        page,
+        carta,
+        viewerCanvas,
+    }) => {
         await carta.setTestPreferences();
         await page.evaluate(async () => {
             const app = (window as any).app;
@@ -516,7 +520,11 @@ test.describe('Image viewer E2E set', () => {
         );
     });
 
-    test('Image Viewer Toolbar', async ({ page, carta, viewerCanvas }) => {
+    test('Image viewer toolbar and region controls', async ({
+        page,
+        carta,
+        viewerCanvas,
+    }) => {
         await carta.setTestPreferences();
         await carta.setMultiPanelLayout(1, 2);
         // Load test data cube
@@ -671,7 +679,7 @@ test.describe('Image viewer E2E set', () => {
         `);
     });
 
-    test('Image Viewer Settings - Pan and Zoom', async ({
+    test('Image viewer settings: pan and zoom', async ({
         page,
         carta,
         viewerCanvas,
@@ -828,7 +836,7 @@ test.describe('Image viewer E2E set', () => {
         );
     });
 
-    test('Image Viewer Settings - Global', async ({
+    test('Image viewer settings: global', async ({
         page,
         carta,
         viewerCanvas,
@@ -1009,7 +1017,7 @@ test.describe('Image viewer E2E set', () => {
         );
     });
 
-    test('Image Viewer Settings - Title and ticks', async ({
+    test('Image viewer settings: title and ticks', async ({
         page,
         carta,
         viewerCanvas,
@@ -1185,7 +1193,7 @@ test.describe('Image viewer E2E set', () => {
         );
     });
 
-    test('Image Viewer Settings - Grid', async ({
+    test('Image viewer settings: grid', async ({
         page,
         carta,
         viewerCanvas,
@@ -1302,7 +1310,7 @@ test.describe('Image viewer E2E set', () => {
         );
     });
 
-    test('Image Viewer Settings - Border and Axes', async ({
+    test('Image viewer settings: border and axes', async ({
         page,
         carta,
         viewerCanvas,
@@ -1411,7 +1419,7 @@ test.describe('Image viewer E2E set', () => {
         );
     });
 
-    test('Image Viewer Settings - Numbers and Labels', async ({
+    test('Image viewer settings: numbers and labels', async ({
         page,
         carta,
         viewerCanvas,
@@ -1548,7 +1556,7 @@ test.describe('Image viewer E2E set', () => {
         );
     });
 
-    test('Image Viewer Settings - Colorbar', async ({
+    test('Image viewer settings: colorbar', async ({
         page,
         carta,
         viewerCanvas,
@@ -1813,7 +1821,7 @@ test.describe('Image viewer E2E set', () => {
         );
     });
 
-    test('Image Viewer Settings - Beam', async ({
+    test('Image viewer settings: beam', async ({
         page,
         carta,
         viewerCanvas,
@@ -1864,7 +1872,7 @@ test.describe('Image viewer E2E set', () => {
         );
     });
 
-    test('Raster Configuration', async ({ page, carta }) => {
+    test('Raster configuration', async ({ page, carta }) => {
         const viewerCanvas = page.locator(
             '.region-stage > .konvajs-content > canvas',
         );

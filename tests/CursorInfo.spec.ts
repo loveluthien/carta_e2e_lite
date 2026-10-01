@@ -38,8 +38,8 @@ async function moveCursorToPixel(page: Page, x: number, y: number) {
         .toBe(true);
 }
 
-test.describe('Cursor info widget E2E set', () => {
-    test('reports cursor state in the viewer and profilers', async ({
+test.describe('Cursor Info Widget', () => {
+    test('Reports cursor state in the viewer and profilers', async ({
         page,
     }) => {
         const carta = new PlaywrightDevPage(page);

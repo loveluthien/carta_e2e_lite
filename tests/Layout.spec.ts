@@ -61,7 +61,7 @@ async function openLayout(page: Page) {
 }
 
 test.describe('Layout', () => {
-    test('preset layouts place the viewer and widgets in the expected groups', async ({
+    test('Preset layouts place the viewer and widgets in the expected groups', async ({
         page,
     }) => {
         const carta = await boot(page);
@@ -131,7 +131,7 @@ test.describe('Layout', () => {
         }
     });
 
-    test('docking and a new column preserve the viewer and profiler', async ({
+    test('Docking and a new column preserve the viewer and profiler', async ({
         page,
     }) => {
         const carta = await boot(page);
@@ -197,7 +197,7 @@ test.describe('Layout', () => {
         ).toBeVisible();
     });
 
-    test('saved layout validates names and can be applied, renamed, and deleted', async ({
+    test('Saved layout validates names and can be applied, renamed, and deleted', async ({
         page,
     }) => {
         await boot(page);
@@ -290,7 +290,7 @@ test.describe('Layout', () => {
         await expect(renamedRow).toHaveCount(0);
     });
 
-    test('dynamic layouts switch between 2D and 3D images', async ({
+    test('Dynamic layouts switch between 2D and 3D images', async ({
         page,
     }) => {
         test.setTimeout(90000);
@@ -504,7 +504,7 @@ test.describe('Layout', () => {
     });
 });
 
-test('menu bar reflects whether an image is loaded', async ({ page }) => {
+test('Menu bar reflects whether an image is loaded', async ({ page }) => {
     const carta = new PlaywrightDevPage(page);
     await carta.goto();
     await page.getByRole('menuitem', { name: 'File' }).click();

@@ -38,8 +38,8 @@ async function createPartialImageRegion(page: Page, canvas: Locator) {
     });
 }
 
-test.describe('Statistics widget E2E set', () => {
-    test('shows values for regions from multiple images', async ({ page }) => {
+test.describe('Statistics Widget', () => {
+    test('Shows values for regions from multiple images', async ({ page }) => {
         const carta = new PlaywrightDevPage(page);
 
         await carta.goto();
@@ -90,7 +90,7 @@ test.describe('Statistics widget E2E set', () => {
         await expect(value('Max')).toHaveText('3.875000000000e+0 K');
     });
 
-    test('shows values for a non-full image region', async ({ page }) => {
+    test('Shows values for a non-full image region', async ({ page }) => {
         const carta = new PlaywrightDevPage(page);
 
         await carta.goto();

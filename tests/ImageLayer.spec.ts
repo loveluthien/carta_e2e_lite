@@ -48,8 +48,8 @@ async function matchingState(page: any, type: string) {
     }, type);
 }
 
-test.describe('Image layer widget E2E set', () => {
-    test('reports and preserves an unmatched frame when spectral matching fails', async ({
+test.describe('Image Layer Widget', () => {
+    test('Reports and preserves an unmatched frame when spectral matching fails', async ({
         page,
     }) => {
         const carta = new PlaywrightDevPage(page);
@@ -92,7 +92,7 @@ test.describe('Image layer widget E2E set', () => {
         expect(await rasterImage(page)).toEqual(unchangedRaster);
     });
 
-    test('selecting an image and toggling its raster layer updates the canvas', async ({
+    test('Selecting an image and toggling its raster layer updates the canvas', async ({
         page,
     }) => {
         const carta = new PlaywrightDevPage(page);
@@ -156,7 +156,7 @@ test.describe('Image layer widget E2E set', () => {
         ).toBeDisabled();
     });
 
-    test('time-series membership, sorting, references, and close actions use the selected rows', async ({
+    test('Time-series membership, sorting, references, and close actions use the selected rows', async ({
         page,
     }) => {
         const carta = new PlaywrightDevPage(page);
@@ -292,7 +292,7 @@ test.describe('Image layer widget E2E set', () => {
         await expect(widget.getByText('No file loaded')).toBeVisible();
     });
 
-    test('matches and unmatches every frame when four images are open', async ({
+    test('Matches and unmatches every frame when four images are open', async ({
         page,
     }) => {
         const carta = new PlaywrightDevPage(page);
@@ -378,7 +378,7 @@ test.describe('Image layer widget E2E set', () => {
         );
     });
 
-    test('spatial and spectral matching align shifted lightweight cubes', async ({
+    test('Spatial and spectral matching align shifted lightweight cubes', async ({
         page,
     }) => {
         const carta = new PlaywrightDevPage(page);
@@ -498,7 +498,7 @@ test.describe('Image layer widget E2E set', () => {
         );
     });
 
-    test('reorders layers by dragging and toggles all matching modes', async ({
+    test('Reorders layers by dragging and toggles all matching modes', async ({
         page,
     }) => {
         const carta = new PlaywrightDevPage(page);

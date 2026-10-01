@@ -84,7 +84,7 @@ test.afterEach(async ({ page }) => {
     await new PlaywrightDevPage(page).resetAllPreferences();
 });
 
-test.describe('PV Generator Controls & Validation', () => {
+test.describe('PV Generator Controls and Validation', () => {
     test('Initial state filters unsupported regions', async ({ page }) => {
         const carta = new PlaywrightDevPage(page);
         await carta.selectMenuItem('Widgets', 'PV Generator');

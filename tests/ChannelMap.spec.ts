@@ -30,11 +30,11 @@ async function openMap(page: Page) {
     return carta;
 }
 
-test.describe('Channel Map widget', () => {
+test.describe('Channel Map Widget', () => {
     test.setTimeout(90000);
     test.beforeEach(async ({ page }) => page.setDefaultTimeout(10000));
 
-    test('shows an empty state without an image', async ({ page }) => {
+    test('Shows an empty state without an image', async ({ page }) => {
         const carta = new PlaywrightDevPage(page);
         await carta.goto();
         await page
@@ -48,7 +48,7 @@ test.describe('Channel Map widget', () => {
         ).toBeVisible();
     });
 
-    test('navigates channels and pages, resizes the grid, and rejects invalid input', async ({
+    test('Navigates channels and pages, resizes the grid, and rejects invalid input', async ({
         page,
     }) => {
         const carta = await openMap(page);
@@ -124,7 +124,7 @@ test.describe('Channel Map widget', () => {
         );
     });
 
-    test('renders label styling and keeps the selected channel in the spectral profile', async ({
+    test('Renders label styling and keeps the selected channel in the spectral profile', async ({
         page,
     }) => {
         const carta = await openMap(page);
@@ -281,7 +281,7 @@ test.describe('Channel Map widget', () => {
         );
     });
 
-    test('switches the displayed image and handles a single-channel cube', async ({
+    test('Switches the displayed image and handles a single-channel cube', async ({
         page,
     }) => {
         const carta = await openMap(page);

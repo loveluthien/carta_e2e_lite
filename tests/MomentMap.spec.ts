@@ -37,7 +37,7 @@ test.setTimeout(MOMENT_TIMEOUT_MS);
 test.beforeEach(async ({ page }) => page.setDefaultTimeout(10_000));
 
 test.describe('Generation', () => {
-    test('shows defaults and preserves range across tabs', async ({ page }) => {
+    test('Shows defaults and preserves range across tabs', async ({ page }) => {
         await open(page);
         await expect(tags(page)).toHaveText(['0']);
         await expect(control(page, 'mask-dropdown')).toHaveValue('0');
@@ -58,7 +58,7 @@ test.describe('Generation', () => {
         );
     });
 
-    test('generates selected and all moment types', async ({ page }) => {
+    test('Generates selected and all moment types', async ({ page }) => {
         await open(page);
         for (const selected of [
             ['0', '1', '2', '3'],
@@ -83,8 +83,8 @@ test.describe('Generation', () => {
     });
 });
 
-test.describe('Controls and lifecycle', () => {
-    test('disables generation without an image', async ({ page }) => {
+test.describe('Controls and Lifecycle', () => {
+    test('Disables generation without an image', async ({ page }) => {
         await new PlaywrightDevPage(page).goto();
         await page
             .getByTestId('file-browser-dialog-header-close-button')
@@ -100,7 +100,7 @@ test.describe('Controls and lifecycle', () => {
             await expect(control(page, name)).toBeDisabled();
     });
 
-    test('selects, searches, removes, and clears moments', async ({ page }) => {
+    test('Selects, searches, removes, and clears moments', async ({ page }) => {
         await open(page);
         await selectMoments(
             page,
@@ -141,7 +141,7 @@ test.describe('Controls and lifecycle', () => {
         await expect(tags(page)).toHaveText(['0']);
     });
 
-    test('disables generation with no selected moments', async ({ page }) => {
+    test('Disables generation with no selected moments', async ({ page }) => {
         await open(page);
         await control(page, 'clear-select-button').click();
         test.fail(
@@ -189,7 +189,7 @@ test.describe('Controls and lifecycle', () => {
             await checkMap(page, map, '0', [...expected]);
         });
 
-    test('rejects invalid bounds and clamps channels', async ({ page }) => {
+    test('Rejects invalid bounds and clamps channels', async ({ page }) => {
         await open(page);
         for (const kind of ['spectral', 'mask'] as const) {
             for (const invalid of ['', 'NaN', 'Infinity']) {
@@ -216,7 +216,7 @@ test.describe('Controls and lifecycle', () => {
         await checkMap(page, map, '0');
     });
 
-    test('keeps pinned source while Active follows image', async ({ page }) => {
+    test('Keeps pinned source while Active follows image', async ({ page }) => {
         await open(page);
         await load(page, 'iquv.fits', true);
         await expect(control(page, 'file-info')).toContainText('cube.fits');
@@ -237,7 +237,7 @@ test.describe('Controls and lifecycle', () => {
         await expect(control(page, 'generate-button')).toBeEnabled();
     });
 
-    test('retains and replaces maps per source', async ({ page }) => {
+    test('Retains and replaces maps per source', async ({ page }) => {
         await open(page);
         const [a] = await generate(page, ['0']);
         const [b] = await generate(page, ['8']);
@@ -269,7 +269,7 @@ test.describe('Controls and lifecycle', () => {
         expect(remaining).not.toContain(c.id);
     });
 
-    test('matches new maps only when enabled', async ({ page }) => {
+    test('Matches new maps only when enabled', async ({ page }) => {
         await open(page);
         await setSwitch(page, 'Auto spatial matching', false);
         const [unmatched] = await generate(page, ['0']);
@@ -289,7 +289,7 @@ test.describe('Controls and lifecycle', () => {
         ).toHaveCount(0);
     });
 
-    test('disables generation for 2D images', async ({ page }) => {
+    test('Disables generation for 2D images', async ({ page }) => {
         await open(page, 'single.fits');
         await expect(control(page, 'generate-button')).toBeDisabled();
         await expect(control(page, 'spectral-range-from-input')).toHaveCount(0);
@@ -306,7 +306,7 @@ test.describe('Controls and lifecycle', () => {
         await expect(control(page, 'generate-button')).toBeDisabled();
     });
 
-    test('blocks generation during animation', async ({ page }) => {
+    test('Blocks generation during animation', async ({ page }) => {
         await open(page);
         await moveSettings(page, 100, 400);
         await page.getByTestId('animator-0-header-title').click();
@@ -316,7 +316,7 @@ test.describe('Controls and lifecycle', () => {
         await expect(control(page, 'generate-button')).toBeEnabled();
     });
 
-    test('regenerates after closing a moment map', async ({
+    test('Regenerates after closing a moment map', async ({
         page,
     }, testInfo) => {
         await open(page);
@@ -344,7 +344,7 @@ test.describe('Controls and lifecycle', () => {
         expect(sourceFrame!.channels).toBe(5);
     });
 
-    test('selects and generates with keyboard', async ({ page }) => {
+    test('Selects and generates with keyboard', async ({ page }) => {
         await open(page);
         await control(page, 'clear-select-button').click();
         const input = panel(page).getByRole('textbox');
@@ -363,7 +363,7 @@ test.describe('Controls and lifecycle', () => {
     });
 });
 
-test.describe('Regions and spectral settings', () => {
+test.describe('Regions and Spectral Settings', () => {
     for (const [name, type, points] of [
         [
             'rectangle',
@@ -452,7 +452,7 @@ test.describe('Regions and spectral settings', () => {
             }
         });
 
-    test('rejects invalid regions', async ({ page }) => {
+    test('Rejects invalid regions', async ({ page }) => {
         await open(page);
         await new PlaywrightDevPage(page).fillSnippetInput(`
       const set=app.frames[0].regionSet;
@@ -493,7 +493,7 @@ test.describe('Regions and spectral settings', () => {
         await expect(control(page, 'generate-button')).toBeEnabled();
     });
 
-    test('keeps ranges finite across coordinates and systems', async ({
+    test('Keeps ranges finite across coordinates and systems', async ({
         page,
     }) => {
         await open(page);
@@ -560,7 +560,7 @@ test.describe('Regions and spectral settings', () => {
         }
     });
 
-    test('edits, converts, and resets rest frequency', async ({ page }) => {
+    test('Edits, converts, and resets rest frequency', async ({ page }) => {
         await open(page);
         const input = panel(page).getByRole('spinbutton', {
             name: 'Rest frequency',
@@ -599,7 +599,7 @@ test.describe('Regions and spectral settings', () => {
         await checkMap(page, map, '1');
     });
 
-    test('supplies missing rest frequency', async ({ page }) => {
+    test('Supplies missing rest frequency', async ({ page }) => {
         await open(page, 'no-rest.fits');
         const input = panel(page).getByRole('spinbutton', {
             name: 'Rest frequency',
@@ -612,7 +612,7 @@ test.describe('Regions and spectral settings', () => {
         await checkMap(page, map, '1');
     });
 
-    test('toggles cursor modes and exits on typing', async ({ page }) => {
+    test('Toggles cursor modes and exits on typing', async ({ page }) => {
         await open(page);
         const cursors = panel(page).locator('.cursor-select a');
         await expect(cursors).toHaveCount(2);
@@ -633,7 +633,7 @@ test.describe('Regions and spectral settings', () => {
         await expect(channel).not.toHaveClass(/bp6-active/);
     });
 
-    test('preserves Keep setting across tabs', async ({ page }) => {
+    test('Preserves Keep setting across tabs', async ({ page }) => {
         await open(page);
         await setSwitch(page, 'Keep previous moment image(s)', true);
         await page.getByRole('tab', { name: 'Styling', exact: true }).click();
@@ -645,7 +645,7 @@ test.describe('Regions and spectral settings', () => {
         await generate(page, ['8'], 'cube.fits', true);
     });
 
-    test('uses selected Stokes plane in generated map', async ({ page }) => {
+    test('Uses selected Stokes plane in generated map', async ({ page }) => {
         await open(page, 'iquv.fits');
         const [i] = await generate(page, ['0'], 'iquv.fits');
         await checkMap(page, i, '0');
@@ -670,8 +670,8 @@ test.describe('Regions and spectral settings', () => {
     });
 });
 
-test.describe('Injected failures', () => {
-    test('clears rejected request and retries', async ({ page }) => {
+test.describe('Injected Failures', () => {
+    test('Clears rejected request and retries', async ({ page }) => {
         const injected = await fault(page, 'reject', MOMENT_BASE_URL);
         await open(page);
         await control(page, 'generate-button').click();
@@ -682,7 +682,7 @@ test.describe('Injected failures', () => {
         expect(await getFrames(page)).toHaveLength(1);
         await generate(page, ['0']);
     });
-    test('clears cancelled request and retries', async ({ page }) => {
+    test('Clears cancelled request and retries', async ({ page }) => {
         const injected = await fault(page, 'cancel', MOMENT_BASE_URL);
         await open(page);
         await control(page, 'generate-button').click();
@@ -698,7 +698,7 @@ test.describe('Injected failures', () => {
         expect(await getFrames(page)).toHaveLength(1);
         await generate(page, ['0']);
     });
-    test('recovers after disconnect', async ({ page }) => {
+    test('Recovers after disconnect', async ({ page }) => {
         const injected = await fault(page, 'disconnect', MOMENT_BASE_URL);
         await open(page);
         await control(page, 'generate-button').click();
@@ -709,9 +709,9 @@ test.describe('Injected failures', () => {
     });
 });
 
-test.describe('Backend cancellation and load failure', () => {
+test.describe('Backend Cancellation and Load Failure', () => {
     test.setTimeout(120000);
-    test('cancels backend calculation and retries', async ({ page }) => {
+    test('Cancels backend calculation and retries', async ({ page }) => {
         const source = 'Gaussian_array_wide.fits';
         await open(
             page,
@@ -740,7 +740,7 @@ test.describe('Backend cancellation and load failure', () => {
         expect(map.width).toBeGreaterThan(16);
         expect(map.height).toBeGreaterThan(16);
     });
-    test('warns when generated map fails to load (injected)', async ({
+    test('Warns when generated map fails to load (injected)', async ({
         page,
     }) => {
         test.fail(

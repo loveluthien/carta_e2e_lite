@@ -101,8 +101,8 @@ async function stokesPlotColorCounts(page: Page) {
     );
 }
 
-test.describe('Stokes hypercube E2E set', () => {
-    test('merges IQUV inputs and renders every Stokes plane', async ({
+test.describe('Stokes Hypercube', () => {
+    test('Merges IQUV inputs and renders every Stokes plane', async ({
         page,
     }) => {
         const carta = new PlaywrightDevPage(page);
@@ -201,7 +201,7 @@ test.describe('Stokes hypercube E2E set', () => {
         }
     });
 
-    test('exercises every Stokes Analysis widget control', async ({ page }) => {
+    test('Exercises every Stokes Analysis widget control', async ({ page }) => {
         const carta = new PlaywrightDevPage(page);
 
         await carta.goto();
@@ -465,7 +465,7 @@ test.describe('Stokes hypercube E2E set', () => {
             });
     });
 
-    test('keeps fractional polarization unavailable without Q and U', async ({
+    test('Keeps fractional polarization unavailable without Q and U', async ({
         page,
     }) => {
         const carta = new PlaywrightDevPage(page);

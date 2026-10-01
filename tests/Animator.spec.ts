@@ -69,7 +69,7 @@ async function screenshotViewer(page: Page, name: string) {
     await expect(viewer).toHaveScreenshot(name, { maxDiffPixels: 2500 });
 }
 
-test.describe('Animator E2E Tests', () => {
+test.describe('Animator', () => {
     test('Channel change updates viewer and spatial/spectral profiles', async ({
         page,
     }) => {

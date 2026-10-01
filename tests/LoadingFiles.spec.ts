@@ -5,10 +5,10 @@ import { getFrames, LayoutName, PlaywrightDevPage } from '../utilities';
 
 const directory = '/carta_build/e2e-lite/test_data';
 
-test.describe('Loading files', () => {
+test.describe('Loading Files', () => {
     test.setTimeout(60_000);
 
-    test('small mock images load into the viewer and profiler', async ({
+    test('Small mock images load into the viewer and profiler', async ({
         page,
     }) => {
         test.setTimeout(120_000);
@@ -52,7 +52,7 @@ test.describe('Loading files', () => {
         }
     });
 
-    test('opens and appends images in the viewer and profiler', async ({
+    test('Opens and appends images in the viewer and profiler', async ({
         page,
     }) => {
         const carta = new PlaywrightDevPage(page);
@@ -111,7 +111,7 @@ test.describe('Loading files', () => {
         expect((await profile.screenshot()).equals(firstProfile)).toBe(false);
     });
 
-    test('rejects an invalid FITS file and then loads a valid image', async ({
+    test('Rejects an invalid FITS file and then loads a valid image', async ({
         page,
     }) => {
         const carta = new PlaywrightDevPage(page);

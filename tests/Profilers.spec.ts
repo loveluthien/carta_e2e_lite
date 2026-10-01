@@ -70,7 +70,7 @@ async function openMatchingCubes(page: Page, carta: PlaywrightDevPage) {
     return imageList;
 }
 
-test.describe('Spatial Profilers E2E set', () => {
+test.describe('Spatial Profilers', () => {
     test('Spatial widget', async ({ page }) => {
         const carta = new PlaywrightDevPage(page);
 
@@ -416,7 +416,7 @@ test.describe('Spatial Profilers E2E set', () => {
     });
 });
 
-test.describe('Spectral Profilers E2E set', () => {
+test.describe('Spectral Profilers', () => {
     test('Spectral widget', async ({ page }) => {
         const carta = new PlaywrightDevPage(page);
 
@@ -657,7 +657,7 @@ test.describe('Spectral Profilers E2E set', () => {
             `);
     });
 
-    test('Spectral widget settings -- conversion', async ({ page }) => {
+    test('Spectral widget settings: conversion', async ({ page }) => {
         const carta = new PlaywrightDevPage(page);
 
         const spectralProfileCanvas = page
@@ -846,7 +846,7 @@ test.describe('Spectral Profilers E2E set', () => {
         );
     });
 
-    test('Spectral widget settings -- styling and smoothing', async ({
+    test('Spectral widget settings: styling and smoothing', async ({
         page,
     }) => {
         const carta = new PlaywrightDevPage(page);
@@ -1104,7 +1104,7 @@ test.describe('Spectral Profilers E2E set', () => {
         );
     });
 
-    test('Spectral widget settings -- fitting', async ({ page }) => {
+    test('Spectral widget settings: fitting', async ({ page }) => {
         const carta = new PlaywrightDevPage(page);
 
         const spectralProfileCanvas = page
@@ -1627,8 +1627,8 @@ test.describe('Spectral Profilers E2E set', () => {
     });
 });
 
-test.describe('Profiler matching', () => {
-    test('spatial matching moves the viewer cursor and X profile with the reference', async ({
+test.describe('Profiler Matching', () => {
+    test('Spatial matching moves the viewer cursor and X profile with the reference', async ({
         page,
     }) => {
         const carta = new PlaywrightDevPage(page);
@@ -1693,7 +1693,7 @@ test.describe('Profiler matching', () => {
         );
     });
 
-    test('spectral matching moves the viewer channel and spectral marker with the reference', async ({
+    test('Spectral matching moves the viewer channel and spectral marker with the reference', async ({
         page,
     }) => {
         const carta = new PlaywrightDevPage(page);

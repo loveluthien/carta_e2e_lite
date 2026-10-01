@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { LayoutName, PlaywrightDevPage } from '../utilities';
 
-test('histogram widget follows the image channel', async ({ page }) => {
+test('Histogram widget follows the image channel', async ({ page }) => {
     const carta = new PlaywrightDevPage(page);
     await carta.goto();
     await carta.loadImage('cube.fits');

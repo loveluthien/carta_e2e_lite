@@ -92,7 +92,7 @@ async function waitForContours(page: Page, count: number, index = 0) {
 }
 
 test.describe('Contours', () => {
-    test('all generators update levels from the channel histogram', async ({
+    test('All generators update levels from the channel histogram', async ({
         page,
     }) => {
         await loadCube(page);
@@ -170,7 +170,7 @@ test.describe('Contours', () => {
         await expect(viewer(page)).toHaveScreenshot('contour-generated.png');
     });
 
-    test('min-max scaling changes generated levels and the viewer', async ({
+    test('Min-max scaling changes generated levels and the viewer', async ({
         page,
     }) => {
         await loadCube(page);
@@ -354,7 +354,7 @@ test.describe('Contours', () => {
         await waitForContours(page, 2);
     });
 
-    test('styling changes rendered color and dash mode', async ({ page }) => {
+    test('Styling changes rendered color and dash mode', async ({ page }) => {
         await loadCube(page);
         await openDialog(page);
         const input = dialog(page)
@@ -472,7 +472,7 @@ test.describe('Contours', () => {
         expect((await contour(page)).vertices).toBeGreaterThan(0);
     });
 
-    test('spatial matching projects contours onto the reference viewer', async ({
+    test('Spatial matching projects contours onto the reference viewer', async ({
         page,
     }) => {
         const carta = new PlaywrightDevPage(page);
@@ -614,7 +614,7 @@ test.describe('Contours', () => {
         await expect(viewer(page)).toHaveScreenshot('contour-spatial-own.png');
     });
 
-    test('spectral matching updates contour channel without spatial overlay', async ({
+    test('Spectral matching updates contour channel without spatial overlay', async ({
         page,
     }) => {
         const carta = new PlaywrightDevPage(page);
@@ -731,7 +731,7 @@ test.describe('Contours', () => {
         await expect.poll(() => contourPixels(page)).toBe(matchedPixels);
     });
 
-    test('spatial and spectral matching project contours together', async ({
+    test('Spatial and spectral matching project contours together', async ({
         page,
     }) => {
         const carta = new PlaywrightDevPage(page);
@@ -858,7 +858,7 @@ test.describe('Contours', () => {
         expect((await contour(page, 1)).vertices).toBeGreaterThan(0);
     });
 
-    test('cube histogram, level removal, and smoothing update the viewer', async ({
+    test('Cube histogram, level removal, and smoothing update the viewer', async ({
         page,
     }) => {
         const carta = new PlaywrightDevPage(page);

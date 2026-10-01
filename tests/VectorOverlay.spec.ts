@@ -62,8 +62,8 @@ async function vectorPng(page: Page) {
     return Buffer.from(dataUrl.split(',')[1], 'base64');
 }
 
-test.describe('Vector overlay E2E set', () => {
-    test('configures every dialog control and renders the output canvas', async ({
+test.describe('Vector Overlay', () => {
+    test('Configures every dialog control and renders the output canvas', async ({
         page,
     }) => {
         const carta = new PlaywrightDevPage(page);
@@ -308,7 +308,7 @@ test.describe('Vector overlay E2E set', () => {
             .toBe(0);
     });
 
-    test('threshold rejects vectors and recovers with white rendered pixels', async ({
+    test('Threshold rejects vectors and recovers with white rendered pixels', async ({
         page,
     }) => {
         const carta = new PlaywrightDevPage(page);

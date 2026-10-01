@@ -18,6 +18,10 @@ npx playwright test
 
 Each `npx playwright test` invocation starts one shared CARTA backend and one dedicated Moment Map backend. The default is two workers; adjust `workers` in `playwright.config.ts` to change browser parallelism without starting more backends.
 
+## Test title style
+
+Use concise Title Case names for `test.describe()` groups. Write individual test titles in sentence case, describe the behavior being checked, and omit trailing punctuation. The E2E context is implicit, so do not add an `E2E` suffix to group names.
+
 ## Plans
 
 | Plan                                    | Cases | Focus                                                                                                                           |
