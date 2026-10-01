@@ -507,6 +507,9 @@ test.describe('Layout', () => {
 test('Menu bar reflects whether an image is loaded', async ({ page }) => {
     const carta = new PlaywrightDevPage(page);
     await carta.goto();
+    const snippetsEnabled = await page.evaluate(
+        () => (window as any).app.preferenceStore.isCodeSnippetsEnabled,
+    );
     await page.getByRole('menuitem', { name: 'File' }).click();
     await expect(
         page.getByRole('menuitem', { name: /Open Image/ }),
@@ -530,8 +533,17 @@ test('Menu bar reflects whether an image is loaded', async ({ page }) => {
         await expect(page.getByRole('menuitem', { name })).toBeEnabled();
     }
     await page.getByRole('menuitem', { name: 'View' }).click();
-    for (const name of ['Layout', 'Online Data Query', 'Code Snippets']) {
+    for (const name of ['Layout', 'Online Data Query']) {
         await expect(page.getByRole('menuitem', { name })).toBeEnabled();
+    }
+    if (snippetsEnabled) {
+        await expect(
+            page.getByRole('menuitem', { name: 'Code Snippets' }),
+        ).toBeEnabled();
+    } else {
+        await expect(
+            page.getByRole('menuitem', { name: 'Code Snippets' }),
+        ).toHaveCount(0);
     }
     for (const name of [
         'File Header',
@@ -562,9 +574,17 @@ test('Menu bar reflects whether an image is loaded', async ({ page }) => {
         'Vector Overlay',
         'Image Fitting',
         'Online Data Query',
-        'Code Snippets',
     ]) {
         await expect(page.getByRole('menuitem', { name })).toBeEnabled();
+    }
+    if (snippetsEnabled) {
+        await expect(
+            page.getByRole('menuitem', { name: 'Code Snippets' }),
+        ).toBeEnabled();
+    } else {
+        await expect(
+            page.getByRole('menuitem', { name: 'Code Snippets' }),
+        ).toHaveCount(0);
     }
     await page.getByRole('menuitem', { name: 'Widgets' }).click();
     for (const name of [
