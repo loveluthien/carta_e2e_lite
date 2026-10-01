@@ -8,6 +8,7 @@ test.describe('CARTA Snippets', () => {
 
         // Boot up CARTA application
         await carta.goto();
+        await carta.setTestPreferences();
 
         await carta.fillSnippetInput(`
 const file = await app.openFile("./carta_build/e2e-lite/test_data", "M17_SWex.fits"); 
@@ -57,6 +58,7 @@ file.renderConfig.setInverted(true);
 
         // Boot up CARTA application
         await carta.goto();
+        await carta.setTestPreferences();
 
         await carta.fillSnippetInput(`
 const file = await app.openFile("./carta_build/e2e-lite/test_data", "M17_SWex.fits"); 
@@ -65,8 +67,8 @@ const regionSet = file.regionSet;
 const region = await regionSet.addRegionAsync(3, [{x: 200, y: 300}, {x: 50, y: 100}]); 
 const region2 = await regionSet.addRegionAsync(1, [{x: 250, y: 300}, {x: 350, y: 400}]); 
 region.setCenter({x: 0, y: 0}); 
-region.setSize({x: 100, y: 100}); r
-egion.setColor("#ffffff");
+region.setSize({x: 100, y: 100});
+region.setColor("#ffffff");
             `);
         await carta.screenShot(viewerCanvas, 'snippets-regions.png');
     });
@@ -77,6 +79,7 @@ egion.setColor("#ffffff");
 
         // Boot up CARTA application
         await carta.goto();
+        await carta.setTestPreferences();
 
         await carta.fillSnippetInput(`
 // Open an image
@@ -110,6 +113,7 @@ spectralProfileWidget.requestMoment();
 
         // Boot up CARTA application
         await carta.goto();
+        await carta.setTestPreferences();
 
         await carta.fillSnippetInput(`
 // Open an image
