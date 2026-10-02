@@ -41,7 +41,7 @@ const quote = (value) => `'${value.replaceAll("'", "'\\''")}'`;
 const cartaBackendServer = {
     command: [backendExecutable, ...backendArguments].map(quote).join(' '),
     url: `${cartaUrl}/`,
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: true,
     stdout: 'pipe',
     stderr: 'pipe',
 };
