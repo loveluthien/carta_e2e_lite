@@ -73,17 +73,30 @@ for (const project of projects) {
     }
 }
 
+const collectionArgs = [];
+for (let index = 0; index < playwrightArgs.length; index += 1) {
+    const arg = playwrightArgs[index];
+    if (arg === '--ui') continue;
+    if (arg === '--ui-host' || arg === '--ui-port') {
+        index += 1;
+        continue;
+    }
+    if (arg.startsWith('--ui-host=') || arg.startsWith('--ui-port=')) continue;
+    collectionArgs.push(arg);
+}
+
 function countSelectedTests(project) {
     const result = spawnSync(
         process.execPath,
         [
             playwrightCli,
             'test',
-            ...playwrightArgs,
+            ...collectionArgs,
             '--list',
             '--project',
             project,
             '--pass-with-no-tests',
+            '--reporter=list',
         ],
         { cwd: projectRoot, encoding: 'utf8' },
     );
