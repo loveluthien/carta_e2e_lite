@@ -23,7 +23,6 @@ export const testGroups = [
     {
         name: 'test-group3',
         testMatch: [
-            '**/Profilers.spec.ts',
             '**/PVImage.spec.ts',
             '**/Regions.spec.ts',
             '**/Snippets.spec.ts',
@@ -41,6 +40,7 @@ export const testGroups = [
         name: 'test-group5',
         testMatch: [
             '**/ChannelMap.spec.ts',
+            '**/Profilers.spec.ts',
         ],
     },
 ];
