@@ -62,15 +62,22 @@ async function createLineAndOpenGenerator(page: Page) {
 }
 
 async function moveLineCut(page: Page) {
-    const canvas = page
-        .locator('.region-stage > .konvajs-content > canvas')
-        .first();
-    const box = await canvas.boundingBox();
-    if (!box) throw new Error('Image viewer region canvas is not visible');
-    await page.mouse.move(box.x + 359, box.y + 242);
-    await page.mouse.down();
-    await page.mouse.move(box.x + 379, box.y + 292, { steps: 5 });
-    await page.mouse.up();
+    await page.evaluate(() => {
+        const frame = (window as any).app.frames.find(
+            (frame: any) =>
+                frame.filename === 'HD163296_13CO_2-1_subimage.fits',
+        );
+        const line = frame?.regionSet.regions.find(
+            (region: any) => region.regionType === 1,
+        );
+        if (!line) throw new Error('PV preview line region was not found');
+        line.setControlPoints(
+            line.controlPoints.map((point: Point) => ({
+                x: point.x,
+                y: point.y + 5,
+            })),
+        );
+    });
 }
 
 test.beforeEach(async ({ page }) => {
@@ -677,9 +684,25 @@ test.describe('PV Preview', () => {
             'HD163296_13CO_2-1_subimage_pv_preview.png',
         );
 
+        const lineControlPoints = () =>
+            page.evaluate(() => {
+                const frame = (window as any).app.frames.find(
+                    (frame: any) =>
+                        frame.filename === 'HD163296_13CO_2-1_subimage.fits',
+                );
+                const line = frame?.regionSet.regions.find(
+                    (region: any) => region.regionType === 1,
+                );
+                return line?.controlPoints ?? null;
+            });
+        const originalControlPoints = await lineControlPoints();
         await moveLineCut(page);
+        await expect.poll(lineControlPoints).not.toEqual(originalControlPoints);
         await expect(preview).toHaveScreenshot(
             'HD163296_13CO_2-1_subimage_pv_preview_moved.png',
+            {
+                style: '[data-testid="viewer-cursor-info-bar"] { visibility: hidden !important; }',
+            },
         );
 
         // Close preview widget via header close button
