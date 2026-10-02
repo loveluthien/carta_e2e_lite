@@ -1,7 +1,9 @@
 import { expect, test } from '@playwright/test';
 import { LayoutName, PlaywrightDevPage } from '../utilities';
 
-test('Histogram widget follows the image channel', async ({ page }) => {
+test('Histogram widget follows the image channel', async ({
+    page,
+}, testInfo) => {
     const carta = new PlaywrightDevPage(page);
     await carta.goto();
     await carta.loadImage('cube.fits');
@@ -28,11 +30,34 @@ test('Histogram widget follows the image channel', async ({ page }) => {
                     0,
                 ),
                 firstBinCenter: data?.firstBinCenter,
+                binWidth: data?.binWidth,
+                bins: data?.bins ? Array.from(data.bins) : [],
             };
         });
+    const checkBins = async (scale: number) => {
+        const data = await histogram();
+        expect(data.binWidth).toBeGreaterThan(0);
+        const expected = Array<number>(data.binCount).fill(0);
+        const lowerEdge = data.firstBinCenter - data.binWidth / 2;
+        for (let y = 0; y < 16; y++) {
+            for (let x = 0; x < 16; x++) {
+                if (x === 1 && y === 1) continue;
+                const value =
+                    (x === 2 ? (scale === 1 ? -2 : 2) : scale) * (1 + y / 16);
+                const bin = Math.min(
+                    expected.length - 1,
+                    Math.floor((value - lowerEdge) / data.binWidth),
+                );
+                expect(bin).toBeGreaterThanOrEqual(0);
+                expected[bin]++;
+            }
+        }
+        expect(data.bins).toEqual(expected);
+    };
     await expect
         .poll(histogram)
         .toMatchObject({ channel: 0, binCount: 16, count: 255 });
+    await checkBins(1);
     await page.evaluate(() => {
         const frame = (window as any).app.activeFrame;
         frame.setCursorPosition({ x: 8, y: 8 });
@@ -52,6 +77,14 @@ test('Histogram widget follows the image channel', async ({ page }) => {
     await expect
         .poll(histogram)
         .toMatchObject({ channel: 4, binCount: 16, count: 255 });
+    await expect
+        .poll(async () => (await histogram()).firstBinCenter)
+        .toBeGreaterThan(0);
+    await checkBins(16);
+    await testInfo.attach('histogram-last-channel.png', {
+        body: await plot.screenshot(),
+        contentType: 'image/png',
+    });
     expect((await histogram()).firstBinCenter).toBeGreaterThan(0);
     await expect(page.getByTestId('viewer-cursor-info-bar')).toContainText(
         'Velocity: 4.0000 km/s',

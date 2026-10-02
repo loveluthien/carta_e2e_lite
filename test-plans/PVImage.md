@@ -1,6 +1,6 @@
 # PVImage test plan
 
-**Source:** [`tests/PVImage.spec.ts`](../tests/PVImage.spec.ts) · **Cases:** 20
+**Source:** [`tests/PVImage.spec.ts`](../tests/PVImage.spec.ts) · **Cases:** 22
 
 PV generator validation, output, preview and cancellation.
 
@@ -45,3 +45,7 @@ PV generator validation, output, preview and cancellation.
 ```sh
 npm test -- --project=test-group3 tests/PVImage.spec.ts
 ```
+
+## Coverage additions
+
+Reuse gaussian-emission-line.fits: compare widths 1/5 against the independent peak and five-pixel Gaussian average. Retain and activate each product before sampling; each has 31 channels. Simulate oversized frontend metadata without a large file, reject preview, restore eligibility with XY=3/Z=2, restore actual dimensions and generate a complete finite 64-channel preview. Rectangle preview must use Region 2 and contain complete 128-channel data with a finite center. Inject one backend rejection/disconnect, verify no added output and retry/reconnect; assert five spectral samples and a 1.5 K center pixel. Attach PNGs.

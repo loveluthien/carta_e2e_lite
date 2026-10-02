@@ -25,3 +25,7 @@ Statistics for regions across images and Stokes planes.
 ```sh
 npm test -- --project=test-group3 tests/Statistics.spec.ts
 ```
+
+## Coverage additions
+
+Full-image checks cover all ten statistics. Independently derive RMS, sample standard deviation, SumSq, extrema and flux density (sum times 3.6-arcsecond pixel area). Repeat for Stokes Q at twice the intensity. The widget's pinned Stokes choice must not change the viewer's 1.5 K intensity; attach viewer/table PNGs for full and partial regions.

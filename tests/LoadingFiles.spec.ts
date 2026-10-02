@@ -1,17 +1,84 @@
 import { expect, test } from '@playwright/test';
-import { readdirSync, statSync } from 'node:fs';
+import {
+    existsSync,
+    readFileSync,
+    readdirSync,
+    rmSync,
+    statSync,
+} from 'node:fs';
+import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import {
     fixtureBrowserPath,
+    fixtureFolder,
     getFrames,
     LayoutName,
     PlaywrightDevPage,
+    pixel,
 } from '../utilities';
 
 const directory = fixtureBrowserPath;
 
 test.describe('Loading Files', () => {
     test.setTimeout(60_000);
+
+    test('Saves a spectral subset and reopens its pixels', async ({
+        page,
+    }, testInfo) => {
+        const carta = new PlaywrightDevPage(page);
+        const filename = `e2e-save-${randomUUID()}.fits`;
+        const output = path.join(fixtureFolder, filename);
+        await carta.goto();
+        await carta.loadImage('cube.fits');
+        try {
+            await carta.selectMenuItem('File', 'Save Image');
+            const browser = page.getByTestId('file-browser-dialog');
+            await browser.locator('.edit-path-button').click();
+            const directory = browser.getByPlaceholder(
+                'Input directory path with respect to the top level folder',
+            );
+            await directory.fill(fixtureBrowserPath.slice(1));
+            await directory.press('Enter');
+            const name = browser.getByPlaceholder('Enter file name');
+            await name.fill('');
+            const save = browser.getByRole('button', {
+                name: 'Save',
+                exact: true,
+            });
+            await expect(save).toBeDisabled();
+            await browser
+                .locator('.coordinate-select select')
+                .first()
+                .selectOption('Channel');
+            await browser.getByPlaceholder('First channel').fill('1');
+            await browser.getByPlaceholder('First channel').press('Tab');
+            await browser.getByPlaceholder('Last channel').fill('3');
+            await browser.getByPlaceholder('Last channel').press('Tab');
+            await name.fill(filename);
+            await save.click();
+            await expect(browser).toBeHidden({ timeout: 30_000 });
+            await expect.poll(() => existsSync(output)).toBe(true);
+            const header = readFileSync(output)
+                .subarray(0, 2880)
+                .toString('ascii');
+            expect(header).toMatch(/NAXIS3\s*=\s*3\s/);
+            await carta.loadImage(filename);
+            await expect
+                .poll(() => getFrames(page))
+                .toMatchObject([{ filename, channels: 3 }]);
+            expect(await pixel(page, 8, 8)).toBeCloseTo(3, 5);
+            await page.getByTestId('animator-0-header-title').click();
+            await page.getByTestId('animator-last-button').click();
+            expect(await pixel(page, 8, 8)).toBeCloseTo(12, 5);
+            await testInfo.attach('saved-subset-viewer.png', {
+                body: await page.getByTestId('viewer-div').screenshot(),
+                contentType: 'image/png',
+            });
+        } finally {
+            // Only this test's UUID-named export is removed.
+            if (existsSync(output)) rmSync(output);
+        }
+    });
 
     test('Small mock images load into the viewer and profiler', async ({
         page,

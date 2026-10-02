@@ -17,3 +17,7 @@ Use the HD163296 cube, the IQUV cube, three dated J0423-0120 images, and the sma
 ```sh
 npm test -- --project=test-group1 tests/Animator.spec.ts
 ```
+
+## Coverage additions
+
+Merged dated selection/order/spatial matching into Animator. Reject single selection; select dates out of order; exercise first/next/last. Normalize spatial reference before reusing viewer/profile PNGs and verify exact epoch pixels.

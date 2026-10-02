@@ -24,3 +24,7 @@ Query failure/retry and catalog overlay rendering.
 ```sh
 npm test -- --project=test-group2 tests/OnlineDataQuery.spec.ts
 ```
+
+## Exact overlay checks
+
+Independently project both returned sky coordinates using the fixture's SIN WCS and compare the catalog GPU position buffers. Require the expected teal RGB (0, 163, 150), not merely an arbitrary non-transparent pixel. Attach the rendered viewer PNG.

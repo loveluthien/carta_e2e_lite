@@ -29,3 +29,7 @@ Code Snippets workflows that create or modify image products.
 ```sh
 npm test -- --project=test-group3 tests/snippets.spec.ts
 ```
+
+## Coverage additions
+
+Require exactly four fitted components, four finite positive amplitudes and eight finite positive FWHM axes. Remove the broad assertion catch/fallback; retain model/residual PNG comparisons.

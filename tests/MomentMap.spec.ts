@@ -590,13 +590,13 @@ test.describe('Regions and Spectral Settings', () => {
         await expect(reset).toBeEnabled();
         await reset.click();
         await expect(input).toHaveValue('1');
+        const [map] = await generate(page, ['1']);
+        await checkMap(page, map, '1');
         test.fail(
             true,
             'Known defect: resetting the rest frequency restores the value but leaves the reset control enabled.',
         );
         await expect(reset).toBeDisabled();
-        const [map] = await generate(page, ['1']);
-        await checkMap(page, map, '1');
     });
 
     test('Supplies missing rest frequency', async ({ page }) => {
@@ -680,7 +680,24 @@ test.describe('Injected Failures', () => {
             .poll(async () => (await getFrames(page))[0].requesting)
             .toBe(false);
         expect(await getFrames(page)).toHaveLength(1);
-        await generate(page, ['0']);
+        await activate(page, 'cube.fits');
+        const [map] = await generate(page, ['0']);
+        await checkMap(page, map, '0');
+    });
+    test('Recovers after a generated map fails to load', async ({ page }) => {
+        const injected = await fault(page, 'load', CARTA_BASE_URL);
+        await open(page);
+        await control(page, 'generate-button').click();
+        await expect.poll(injected.requests).toBe(1);
+        await expect
+            .poll(async () => (await getFrames(page))[0].requesting)
+            .toBe(false);
+        expect(await getFrames(page)).toHaveLength(1);
+        // The malformed acknowledgment leaves the active image unset.
+        // Reopen the source through the normal file workflow before retrying.
+        await load(page);
+        const [map] = await generate(page, ['0']);
+        await checkMap(page, map, '0');
     });
     test('Clears cancelled request and retries', async ({ page }) => {
         const injected = await fault(page, 'cancel', CARTA_BASE_URL);

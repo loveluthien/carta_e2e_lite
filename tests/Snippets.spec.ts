@@ -195,16 +195,25 @@ component4.setPa(0);
 app.imageFittingStore.fitImage();
         `);
 
-        try {
-            await expect(
-                page.getByTestId('image-fitting-result-tab'),
-            ).toMatchAriaSnapshot(
-                `- text: "/Component #1: Center X = 6:\\\\d+:\\\\d+\\\\.\\\\d+ ± \\\\d+\\\\.\\\\d+ \\\\(s\\\\) Center Y = \\\\d+:\\\\d+:\\\\d+\\\\.\\\\d+ ± \\\\d+\\\\.\\\\d+ \\\\(arcsec\\\\) Amplitude = \\\\d+\\\\.\\\\d+ ± \\\\d+\\\\.\\\\d+ \\\\(Jy\\\\/beam\\\\) FWHM Major Axis = \\\\d+\\\\.\\\\d+ ± \\\\d+\\\\.\\\\d+ \\\\(arcsec\\\\) FWHM Minor Axis = \\\\d+\\\\.\\\\d+ ± \\\\d+\\\\.\\\\d+ \\\\(arcsec\\\\) P\\\\.A\\\\. = \\\\d+\\\\.\\\\d+ ± \\\\d+\\\\.\\\\d+ \\\\(deg\\\\) Integrated flux = \\\\d+\\\\.\\\\d+ ± \\\\d+\\\\.\\\\d+ \\\\(Jy\\\\) Component #2: Center X = 6:\\\\d+:\\\\d+\\\\.\\\\d+ ± \\\\d+\\\\.\\\\d+ \\\\(s\\\\) Center Y = \\\\d+:\\\\d+:\\\\d+\\\\.\\\\d+ ± \\\\d+\\\\.\\\\d+ \\\\(arcsec\\\\) Amplitude = \\\\d+\\\\.\\\\d+ ± \\\\d+\\\\.\\\\d+ \\\\(Jy\\\\/beam\\\\) FWHM Major Axis = \\\\d+\\\\.\\\\d+ ± \\\\d+\\\\.\\\\d+ \\\\(arcsec\\\\) FWHM Minor Axis = \\\\d+\\\\.\\\\d+ ± \\\\d+\\\\.\\\\d+ \\\\(arcsec\\\\) P\\\\.A\\\\. = \\\\d+\\\\.\\\\d+ ± \\\\d+\\\\.\\\\d+ \\\\(deg\\\\) Integrated flux = \\\\d+\\\\.\\\\d+ ± \\\\d+\\\\.\\\\d+ \\\\(Jy\\\\) Component #3: Center X = 6:\\\\d+:\\\\d+\\\\.\\\\d+ ± \\\\d+\\\\.\\\\d+ \\\\(s\\\\) Center Y = \\\\d+:\\\\d+:\\\\d+\\\\.\\\\d+ ± \\\\d+\\\\.\\\\d+ \\\\(arcsec\\\\) Amplitude = \\\\d+\\\\.\\\\d+ ± \\\\d+\\\\.\\\\d+ \\\\(Jy\\\\/beam\\\\) FWHM Major Axis = \\\\d+\\\\.\\\\d+ ± \\\\d+\\\\.\\\\d+ \\\\(arcsec\\\\) FWHM Minor Axis = \\\\d+\\\\.\\\\d+ ± \\\\d+\\\\.\\\\d+ \\\\(arcsec\\\\) P\\\\.A\\\\. = -\\\\d+\\\\.\\\\d+ ± \\\\d+\\\\.\\\\d+ \\\\(deg\\\\) Integrated flux = \\\\d+\\\\.\\\\d+ ± \\\\d+\\\\.\\\\d+ \\\\(Jy\\\\) Component #4: Center X = 6:\\\\d+:\\\\d+\\\\.\\\\d+ ± \\\\d+\\\\.\\\\d+ \\\\(s\\\\) Center Y = \\\\d+:\\\\d+:\\\\d+\\\\.\\\\d+ ± \\\\d+\\\\.\\\\d+ \\\\(arcsec\\\\) Amplitude = \\\\d+\\\\.\\\\d+ ± \\\\d+\\\\.\\\\d+ \\\\(Jy\\\\/beam\\\\) FWHM Major Axis = \\\\d+\\\\.\\\\d+ ± \\\\d+\\\\.\\\\d+ \\\\(arcsec\\\\) FWHM Minor Axis = \\\\d+\\\\.\\\\d+ ± \\\\d+\\\\.\\\\d+ \\\\(arcsec\\\\) P\\\\.A\\\\. = \\\\d+\\\\.\\\\d+ ± \\\\d+\\\\.\\\\d+ \\\\(deg\\\\) Integrated flux = \\\\d+\\\\.\\\\d+ ± \\\\d+\\\\.\\\\d+ \\\\(Jy\\\\) Background = \\\\d+\\\\.\\\\d+ \\\\(Jy\\\\/beam\\\\) \\\\(fixed\\\\)/"`,
-            );
-        } catch {
-            await expect(
-                page.getByTestId('image-fitting-result-tab'),
-            ).toContainText('Component #1');
+        const fittingResult = page.getByTestId('image-fitting-result-tab');
+        await expect(fittingResult).toContainText('Component #4', {
+            timeout: 60000,
+        });
+        await expect(fittingResult).not.toContainText('Component #5');
+        const fittingText = await fittingResult.innerText();
+        const amplitudes = [
+            ...fittingText.matchAll(/Amplitude\s*=\s*([-+\d.eE]+)/g),
+        ].map((match) => Number(match[1]));
+        const widths = [
+            ...fittingText.matchAll(
+                /FWHM (?:Major|Minor) Axis\s*=\s*([-+\d.eE]+)/g,
+            ),
+        ].map((match) => Number(match[1]));
+        expect(amplitudes).toHaveLength(4);
+        expect(widths).toHaveLength(8);
+        for (const value of [...amplitudes, ...widths]) {
+            expect(Number.isFinite(value)).toBe(true);
+            expect(value).toBeGreaterThan(0);
         }
 
         await page

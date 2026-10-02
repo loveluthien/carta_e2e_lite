@@ -5,6 +5,7 @@ import {
     coordDropdown,
     cubeSizeLabel,
     generateButton,
+    fault,
     generatorCloseBtn,
     getFrames,
     imageDropdown,
@@ -16,6 +17,7 @@ import {
     pvCutDropdown,
     pvPanel,
     PlaywrightDevPage,
+    pixel,
     rebinXyInput,
     rebinZInput,
     spectralFromInput,
@@ -89,6 +91,55 @@ test.beforeEach(async ({ page }) => {
 
 test.afterEach(async ({ page }) => {
     await new PlaywrightDevPage(page).resetAllPreferences();
+});
+
+test.describe('PV Backend Failures', () => {
+    for (const mode of ['reject', 'disconnect'] as const) {
+        test(`Recovers after backend ${mode}`, async ({ page }, testInfo) => {
+            const injected = await fault(
+                page,
+                mode,
+                `http://localhost:${process.env.CARTA_PORT ?? '3102'}`,
+                'pv',
+            );
+            const boot = async () => {
+                const carta = new PlaywrightDevPage(page);
+                await carta.goto();
+                await carta.loadImage('cube.fits');
+                await page.evaluate(async () => {
+                    await (
+                        window as unknown as CartaWindow
+                    ).app.activeFrame.regionSet.addRegionAsync(1, [
+                        { x: 4, y: 8 },
+                        { x: 12, y: 8 },
+                    ]);
+                });
+                await carta.selectMenuItem('Widgets', 'PV Generator');
+                await pvCutDropdown(page).selectOption({ label: 'Region 1' });
+            };
+            await boot();
+            await generateButton(page).click();
+            await expect.poll(injected.requests).toBe(1);
+            expect(await getFrames(page)).toHaveLength(1);
+            if (mode === 'disconnect') await boot();
+            await expect(generateButton(page)).toBeEnabled();
+            await generateButton(page).click();
+            await expect(
+                page.getByTestId('image-view-header-title'),
+            ).toContainText('cube_pv.fits', { timeout: 30_000 });
+            const pv = (await getFrames(page)).find(
+                (frame) => frame.filename === 'cube_pv.fits',
+            );
+            expect(pv!.height).toBe(5);
+            expect(
+                await pixel(page, Math.floor(pv!.width / 2), 0, true),
+            ).toBeCloseTo(1.5, 3);
+            await testInfo.attach(`pv-${mode}-recovered.png`, {
+                body: await page.getByTestId('viewer-div').screenshot(),
+                contentType: 'image/png',
+            });
+        });
+    }
 });
 
 test.describe('PV Generator Controls and Validation', () => {
@@ -381,23 +432,92 @@ test.describe('PV Image Generation', () => {
         );
     });
 
-    test('Generate a PV image with custom average width', async ({ page }) => {
-        // Set Average width to 5
-        await averageWidthInput(page).fill('5');
-        await averageWidthInput(page).press('Tab');
-
-        await generateButton(page).click();
-        await expect(page.getByTestId('image-view-header-title')).toContainText(
-            'HD163296_13CO_2-1_subimage_pv.fits',
-            { timeout: 30_000 },
+    test('Average width changes the generated PV pixel values', async ({
+        page,
+    }, testInfo) => {
+        await new PlaywrightDevPage(page).loadImage(
+            'gaussian-emission-line.fits',
         );
-
-        const frames = await getFrames(page);
-        const pv = frames.find(
-            (f: { filename: string }) =>
-                f.filename === 'HD163296_13CO_2-1_subimage_pv.fits',
+        await new PlaywrightDevPage(page).selectMenuItem(
+            'Widgets',
+            'PV Generator',
         );
-        expect(pv).toBeTruthy();
+        await imageDropdown(page).selectOption(
+            String((await getFrames(page))[0].id),
+        );
+        await page.evaluate(async () => {
+            await (
+                window as unknown as CartaWindow
+            ).app.activeFrame.regionSet.addRegionAsync(1, [
+                { x: 8, y: 4 },
+                { x: 8, y: 12 },
+            ]);
+        });
+        await pvCutDropdown(page).selectOption({ label: 'Region 1' });
+        await coordDropdown(page).selectOption('Channel');
+        // Retain both products so each averaging width is sampled from its
+        // own frame, independently of the replacement lifecycle scenario.
+        const keep = pvPanel(page)
+            .locator('.bp6-form-group')
+            .filter({ hasText: 'Keep previous PV image(s)' })
+            .getByRole('checkbox');
+        if (!(await keep.isChecked())) await keepSwitch(page).click();
+        const peak = 1 + 6 * Math.exp(-0.5 * (15 / 3) ** 2);
+        const averaged =
+            (peak *
+                [-2, -1, 0, 1, 2].reduce(
+                    (sum, offset) => sum + Math.exp(-0.5 * (offset / 3.2) ** 2),
+                    0,
+                )) /
+            5;
+        for (const [width, expected] of [
+            [1, peak],
+            [5, averaged],
+        ] as const) {
+            const previousIds = (await getFrames(page)).map(
+                (frame) => frame.id,
+            );
+            await averageWidthInput(page).fill(String(width));
+            await averageWidthInput(page).press('Tab');
+            await generateButton(page).click();
+            await expect
+                .poll(async () =>
+                    (await getFrames(page)).some(
+                        (frame) =>
+                            /^gaussian-emission-line_pv\d*\.fits$/.test(
+                                frame.filename,
+                            ) && !previousIds.includes(frame.id),
+                    ),
+                )
+                .toBe(true);
+            await expect(
+                page.getByTestId('image-view-header-title'),
+            ).toContainText(/gaussian-emission-line_pv\d*\.fits/, {
+                timeout: 30_000,
+            });
+            const frames = await getFrames(page);
+            const pv = frames.find(
+                (frame) =>
+                    /^gaussian-emission-line_pv\d*\.fits$/.test(
+                        frame.filename,
+                    ) && !previousIds.includes(frame.id),
+            );
+            expect(pv).toBeDefined();
+            await page
+                .getByTestId(`image-list-${frames.indexOf(pv!)}-image-name`)
+                .click({ force: true });
+            expect(pv!.height).toBe(31);
+            // Move off the previously sampled coordinate before returning:
+            // replacements can initially retain the previous cursor readout.
+            await pixel(page, Math.floor(pv!.width / 2), 1, true);
+            await expect
+                .poll(() => pixel(page, Math.floor(pv!.width / 2), 0, true))
+                .toBeCloseTo(expected, 3);
+            await testInfo.attach(`pv-average-width-${width}.png`, {
+                body: await page.getByTestId('viewer-div').screenshot(),
+                contentType: 'image/png',
+            });
+        }
     });
 
     test('Generate a PV image from a spectral subset', async ({ page }) => {
@@ -739,7 +859,9 @@ test.describe('PV Preview', () => {
         await expect(preview).toHaveScreenshot('pv_preview_reversed_axes.png');
     });
 
-    test('Rebin controls retain preview eligibility', async ({ page }) => {
+    test('Rebin controls generate a downsampled preview', async ({
+        page,
+    }, testInfo) => {
         const carta = new PlaywrightDevPage(page);
 
         // Reuse the large cube from the cancellation test.
@@ -757,17 +879,13 @@ test.describe('PV Preview', () => {
         await expect(previewSizeLimit).toHaveValue('0.1');
         await page.getByTestId('preference-dialog-header-close-button').click();
 
-        await page.getByTestId('line-region-shortcut-button').click();
-        await page.locator('.region-stage > .konvajs-content > canvas').click({
-            position: { x: 359, y: 242 },
-        });
-        await page.evaluate(() => {
-            const line = (
+        await expect
+            .poll(async () => (await getFrames(page))[0]?.filename)
+            .toBe('Gaussian_array_wide.fits');
+        await page.evaluate(async () => {
+            await (
                 window as unknown as CartaWindow
-            ).app.activeFrame.regionSet.regions.find(
-                (region) => region.regionId === 1,
-            )!;
-            line.setControlPoints([
+            ).app.activeFrame.regionSet.addRegionAsync(1, [
                 { x: 5, y: 40 },
                 { x: 75, y: 40 },
             ]);
@@ -779,11 +897,30 @@ test.describe('PV Preview', () => {
         await expect(cubeSizeLabel(page)).toHaveText('0');
         await expect(previewButton(page)).toBeEnabled();
 
-        // Rebinning controls update while the mock remains below the limit.
+        // Exercise the size guard without storing a huge fixture. Only the
+        // frontend's size metadata is enlarged; restore it before requesting data.
+        await page.evaluate(() => {
+            const frame = (window as any).app.activeFrame;
+            frame.frameInfo = {
+                ...frame.frameInfo,
+                fileInfoExtended: {
+                    ...frame.frameInfo.fileInfoExtended,
+                    width: 1400,
+                    height: 1400,
+                },
+            };
+        });
+        await expect(cubeSizeLabel(page)).toHaveText('0.5');
+        await expect(previewButton(page)).toBeDisabled();
         await page
             .getByTestId('pv-generator-preview-rebin-xy-input-increment-button')
             .click();
         await expect(rebinXyInput(page)).toHaveValue('2');
+        await expect(previewButton(page)).toBeDisabled();
+        await page
+            .getByTestId('pv-generator-preview-rebin-xy-input-increment-button')
+            .click();
+        await expect(rebinXyInput(page)).toHaveValue('3');
         await expect(previewButton(page)).toBeEnabled();
 
         // Increment Z rebin as well.
@@ -792,9 +929,53 @@ test.describe('PV Preview', () => {
             .click();
         await expect(rebinZInput(page)).toHaveValue('2');
         await expect(previewButton(page)).toBeEnabled();
+        await page.evaluate(() => {
+            const frame = (window as any).app.activeFrame;
+            frame.frameInfo = {
+                ...frame.frameInfo,
+                fileInfoExtended: {
+                    ...frame.frameInfo.fileInfoExtended,
+                    width: 80,
+                    height: 80,
+                },
+            };
+        });
+        await previewButton(page).click();
+        const preview = previewWidget(page);
+        await expect(preview).toBeVisible({ timeout: 30_000 });
+        await expect
+            .poll(() =>
+                page.evaluate(() => {
+                    const store = [
+                        ...(
+                            window as any
+                        ).app.widgetsStore.pvGeneratorWidgets.values(),
+                    ][0] as any;
+                    const frame = store.previewFrame;
+                    return (
+                        frame && {
+                            height: frame.frameInfo.fileInfoExtended.height,
+                            complete:
+                                frame.previewPVRasterData.length ===
+                                frame.frameInfo.fileInfoExtended.width *
+                                    frame.frameInfo.fileInfoExtended.height,
+                            finite: Array.from(
+                                frame.previewPVRasterData as Float32Array,
+                            ).some(Number.isFinite),
+                        }
+                    );
+                }),
+            )
+            .toMatchObject({ height: 64, complete: true, finite: true });
+        await testInfo.attach('pv-rebinned-preview.png', {
+            body: await preview.screenshot(),
+            contentType: 'image/png',
+        });
     });
 
-    test('Generate a preview within a rectangle region', async ({ page }) => {
+    test('Generate a preview within a rectangle region', async ({
+        page,
+    }, testInfo) => {
         const carta = new PlaywrightDevPage(page);
 
         // Reuse the lightweight wide cube; its estimate remains below the
@@ -811,18 +992,13 @@ test.describe('PV Preview', () => {
         await expect(previewSizeLimit).toHaveValue('0.1');
         await page.getByTestId('preference-dialog-header-close-button').click();
 
-        // Add line region
-        await page.getByTestId('line-region-shortcut-button').click();
-        await page.locator('.region-stage > .konvajs-content > canvas').click({
-            position: { x: 359, y: 242 },
-        });
-        await page.evaluate(() => {
-            const line = (
+        await expect
+            .poll(async () => (await getFrames(page))[0]?.filename)
+            .toBe('Gaussian_array_wide.fits');
+        await page.evaluate(async () => {
+            await (
                 window as unknown as CartaWindow
-            ).app.activeFrame.regionSet.regions.find(
-                (region) => region.regionId === 1,
-            )!;
-            line.setControlPoints([
+            ).app.activeFrame.regionSet.addRegionAsync(1, [
                 { x: 5, y: 40 },
                 { x: 75, y: 40 },
             ]);
@@ -853,6 +1029,50 @@ test.describe('PV Preview', () => {
         // Start preview with bounded subcube
         await previewButton(page).click();
         await expect(previewWidget(page)).toBeVisible({ timeout: 30_000 });
+        await expect
+            .poll(() =>
+                page.evaluate(() => {
+                    const store = [
+                        ...(
+                            window as any
+                        ).app.widgetsStore.pvGeneratorWidgets.values(),
+                    ][0] as any;
+                    const frame = store.previewFrame;
+                    const data = frame?.previewPVRasterData as
+                        Float32Array | undefined;
+                    return (
+                        frame &&
+                        data && {
+                            height: frame.frameInfo.fileInfoExtended.height,
+                            complete:
+                                data.length ===
+                                frame.frameInfo.fileInfoExtended.width *
+                                    frame.frameInfo.fileInfoExtended.height,
+                            finite: Array.from(data).some(Number.isFinite),
+                            region: store.effectivePreviewRegionId,
+                            centerFinite: Number.isFinite(
+                                data[
+                                    Math.floor(
+                                        frame.frameInfo.fileInfoExtended.width /
+                                            2,
+                                    )
+                                ],
+                            ),
+                        }
+                    );
+                }),
+            )
+            .toMatchObject({
+                height: 128,
+                complete: true,
+                finite: true,
+                region: 2,
+                centerFinite: true,
+            });
+        await testInfo.attach('pv-cropped-preview.png', {
+            body: await previewWidget(page).screenshot(),
+            contentType: 'image/png',
+        });
     });
 
     test('Generate a full PV image while preview remains open', async ({

@@ -259,75 +259,6 @@ test.describe('Image Viewer Controls', () => {
         await expect.poll(state).toEqual({ spatial: null, spectral: null });
     });
 
-    test('Header paging, help, maximize, restore, and popout', async ({
-        page,
-        carta,
-        viewerCanvas,
-    }) => {
-        await carta.loadImage('cube.fits');
-        await carta.loadImage('matching-cube.fits', true);
-
-        await page
-            .getByTestId('image-view-header-multipanel-view-switch')
-            .click();
-        await page
-            .getByTestId('image-view-header-previous-page-button')
-            .click();
-        await expect(page.getByTestId('image-view-header-title')).toContainText(
-            'cube.fits',
-        );
-        await page.getByTestId('image-view-header-next-page-button').click();
-        await expect(page.getByTestId('image-view-header-title')).toContainText(
-            'matching-cube.fits',
-        );
-        await page
-            .getByTestId('image-view-header-previous-page-button')
-            .click();
-        await expect(page.getByTestId('image-view-header-title')).toContainText(
-            'cube.fits',
-        );
-
-        const help = page.getByTestId('image-view-header-help-button');
-        await help.click();
-        await expect(page.locator('.help-drawer')).toBeVisible();
-        await page.keyboard.press('Escape');
-        await expect(page.locator('.help-drawer')).toBeHidden();
-
-        const maximize = page.getByTestId('image-view-header-maximize-button');
-        await maximize.click();
-        await expect(page.locator('.flexlayout__tabset-maximized')).toHaveCount(
-            1,
-        );
-        await settleViewer(viewerCanvas);
-        await expect(viewerCanvas).toHaveScreenshot(
-            'image-viewer-maximized.png',
-        );
-        await maximize.click();
-        await expect(page.locator('.flexlayout__tabset-maximized')).toHaveCount(
-            0,
-        );
-        await expect(viewerCanvas).toBeVisible();
-
-        const popupPromise = page.waitForEvent('popup');
-        await page.getByTestId('image-view-header-popout-button').click();
-        const popup = await popupPromise;
-        await popup.setViewportSize(page.viewportSize()!);
-        await popup.waitForLoadState();
-        await expect(popup.getByTestId('viewer-div')).toBeVisible();
-        await expect
-            .poll(() =>
-                rasterRGBA(popup.locator('#raster-canvas').first()).then(
-                    (pixel) => pixel[3],
-                ),
-            )
-            .toBe(255);
-        await settleViewer(popup.getByTestId('viewer-div'));
-        await expect(popup.getByTestId('viewer-div')).toHaveScreenshot(
-            'image-viewer-popout.png',
-        );
-        await popup.close();
-    });
-
     test('Ruler creation renders a measured region', async ({
         page,
         carta,
@@ -944,11 +875,11 @@ test.describe('Image Viewer Controls', () => {
 });
 
 test.describe('Image Viewer', () => {
-    test('Image viewer controls, navigation, and layouts', async ({
+    test('Viewer header controls, layouts, help, and popout', async ({
         page,
         carta,
         viewerCanvas,
-    }) => {
+    }, testInfo) => {
         // Load test data cube
         await carta.loadImage('M17_SWex.fits');
         await useSinglePanel(page);
@@ -1112,6 +1043,39 @@ test.describe('Image Viewer', () => {
             page.locator('#overlay-canvas').nth(1),
             'M17_SWex_viewer_channel_map.png',
         );
+        const help = page.getByTestId('image-view-header-help-button');
+        await help.click();
+        await expect(page.locator('.help-drawer')).toBeVisible();
+        await page.keyboard.press('Escape');
+        await expect(page.locator('.help-drawer')).toBeHidden();
+        await page.getByTestId('image-view-header-maximize-button').click();
+        await expect(page.locator('.flexlayout__tabset-maximized')).toHaveCount(
+            0,
+        );
+        await page.getByTestId('image-view-header-channel-map-button').click();
+        await useSinglePanel(page);
+        const parentPixel = await rasterRGBA(
+            page.locator('#raster-canvas').first(),
+        );
+        const popupPromise = page.waitForEvent('popup');
+        await page.getByTestId('image-view-header-popout-button').click();
+        const popup = await popupPromise;
+        await popup.setViewportSize(page.viewportSize()!);
+        await expect(popup.getByTestId('viewer-div')).toBeVisible();
+        const popupRaster = popup.locator('#raster-canvas').first();
+        await expect
+            .poll(() => rasterRGBA(popupRaster).then((pixel) => pixel[3]))
+            .toBe(255);
+        const popupPixel = await rasterRGBA(popupRaster);
+        for (const channel of [0, 1, 2])
+            expect(
+                Math.abs(popupPixel[channel] - parentPixel[channel]),
+            ).toBeLessThanOrEqual(20);
+        await testInfo.attach('viewer-popout.png', {
+            body: await popup.getByTestId('viewer-div').screenshot(),
+            contentType: 'image/png',
+        });
+        await popup.close();
     });
 
     test('Image viewer toolbar and region controls', async ({

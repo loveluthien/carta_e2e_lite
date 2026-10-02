@@ -1,6 +1,6 @@
 # LoadingFiles test plan
 
-**Source:** [`tests/LoadingFiles.spec.ts`](../tests/LoadingFiles.spec.ts) · **Cases:** 8
+**Source:** [`tests/LoadingFiles.spec.ts`](../tests/LoadingFiles.spec.ts) · **Cases:** 9
 
 Fixture size, open/append, invalid-file recovery, and FITS/HDF5/CASA file metadata and rendering, including FITS images with minimal headers.
 
@@ -32,3 +32,7 @@ Fixture size, open/append, invalid-file recovery, and FITS/HDF5/CASA file metada
 ```sh
 npm test -- --project=test-group2 tests/LoadingFiles.spec.ts
 ```
+
+## Coverage additions
+
+Save channels 1–3 to a UUID FITS in test_data. Empty filename disables Save. Use a path relative to the top-level folder, wait for export completion, inspect NAXIS3=3, reload and verify 3/12 K first/last pixels. Attach viewer PNG and remove only this export in finally.

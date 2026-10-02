@@ -315,7 +315,7 @@ export async function activate(page: Page, name: string) {
         .toBe(name);
 }
 
-export async function pixel(page: Page, x: number, y: number) {
+export async function pixel(page: Page, x: number, y: number, direct = false) {
     const canvas = page
         .getByTestId('viewer-div')
         .locator('.region-stage > .konvajs-content > canvas')
@@ -326,10 +326,20 @@ export async function pixel(page: Page, x: number, y: number) {
         const f = (window as any).app.activeFrame;
         return f.requiredFrameView;
     });
-    await page.mouse.move(
-        box!.x + ((x - view.xMin) / (view.xMax - view.xMin)) * box!.width,
-        box!.y + ((view.yMax - y) / (view.yMax - view.yMin)) * box!.height,
-    );
+    if (direct) {
+        await page.evaluate(
+            ({ x, y }) => {
+                const frame = (window as any).app.activeFrame;
+                frame.setCursorPosition({ x, y });
+                frame.updateCursorRegion({ x, y });
+            },
+            { x, y },
+        );
+    } else
+        await page.mouse.move(
+            box!.x + ((x - view.xMin) / (view.xMax - view.xMin)) * box!.width,
+            box!.y + ((view.yMax - y) / (view.yMax - view.yMin)) * box!.height,
+        );
     await expect
         .poll(() =>
             page.evaluate(
@@ -367,6 +377,34 @@ export async function renderedRgb(page: Page) {
         }
         return [0, 0, 0, 0];
     });
+}
+
+export async function renderedPixelRgb(page: Page, x: number, y: number) {
+    return page
+        .locator('#raster-canvas')
+        .first()
+        .evaluate(
+            (canvas: HTMLCanvasElement, point) => {
+                const app = (window as any).app;
+                const frame =
+                    app.activeFrame.spatialReference ?? app.activeFrame;
+                const view = frame.requiredFrameView;
+                const ratio = devicePixelRatio * app.imageRatio;
+                const px = Math.floor(
+                    (point.x - view.xMin) * frame.effectiveZoomLevel.x * ratio,
+                );
+                const py = Math.floor(
+                    canvas.height -
+                        (point.y - view.yMin) *
+                            frame.effectiveZoomLevel.y *
+                            ratio,
+                );
+                return Array.from(
+                    canvas.getContext('2d')!.getImageData(px, py, 1, 1).data,
+                );
+            },
+            { x, y },
+        );
 }
 
 export function oracle(
@@ -442,12 +480,6 @@ export async function checkMap(
     await expect
         .poll(async () => (await renderedRgb(page))[3], { timeout: 10_000 })
         .toBeGreaterThan(0);
-    const rgb = await renderedRgb(page);
-    expect(rgb).toHaveLength(4);
-    expect(
-        rgb.slice(0, 3).every((channel) => channel >= 0 && channel <= 255),
-    ).toBe(true);
-    expect(rgb[3]).toBeGreaterThan(0);
     const value = await pixel(page, 8, 8);
     const expected = oracle(
         tag,
@@ -457,12 +489,49 @@ export async function checkMap(
     if (Number.isNaN(expected)) expect(Number.isNaN(value)).toBe(true);
     else expect(value).toBeCloseTo(expected, 3);
     expect(Number.isNaN(await pixel(page, 1, 1))).toBe(true);
+    if (Number.isFinite(expected)) {
+        await page.evaluate((expected) => {
+            (window as any).app.preferenceStore.preferences.set(
+                'pixelGridVisible',
+                false,
+            );
+            const config = (window as any).app.activeFrame.renderConfig;
+            config.setColorMap('gray');
+            config.setScaling(0);
+            config.setBias(0);
+            config.setContrast(1);
+            config.setInverted(false);
+            const span = Math.max(1, Math.abs(expected));
+            config.setCustomScale(expected - 2 * span, expected - span);
+        }, expected);
+        await expect
+            .poll(async () => {
+                const rgba = await renderedPixelRgb(page, 8, 8);
+                return rgba;
+            })
+            .toEqual([
+                expect.closeTo(255, 0),
+                expect.closeTo(255, 0),
+                expect.closeTo(255, 0),
+                255,
+            ]);
+        await page.evaluate(() =>
+            (window as any).app.activeFrame.renderConfig.setInverted(true),
+        );
+        await expect
+            .poll(() => renderedPixelRgb(page, 8, 8))
+            .toEqual([0, 0, 0, 255]);
+        await page.evaluate(() =>
+            (window as any).app.activeFrame.renderConfig.setInverted(false),
+        );
+    }
 }
 
 export async function fault(
     page: Page,
     mode: 'reject' | 'cancel' | 'disconnect' | 'load',
     baseURL: string,
+    operation: 'moment' | 'pv' = 'moment',
 ) {
     let pending: Buffer | undefined;
     let intercepted = 0,
@@ -476,7 +545,7 @@ export async function fault(
                 : Buffer.from(message);
             if (
                 bytes.length >= 8 &&
-                bytes.readUInt16LE(0) === 61 &&
+                bytes.readUInt16LE(0) === (operation === 'pv' ? 75 : 61) &&
                 intercepted++ === 0
             ) {
                 pending = Buffer.from(bytes.subarray(0, 8));
@@ -486,7 +555,7 @@ export async function fault(
                     return;
                 }
                 if (mode === 'cancel') return;
-                pending.writeUInt16LE(62, 0);
+                pending.writeUInt16LE(operation === 'pv' ? 76 : 62, 0);
                 if (mode === 'load') {
                     ws.send(
                         Buffer.concat([
@@ -496,7 +565,7 @@ export async function fault(
                     );
                     return;
                 }
-                const message = Buffer.from('Injected moment failure');
+                const message = Buffer.from(`Injected ${operation} failure`);
                 ws.send(
                     Buffer.concat([
                         pending,
@@ -507,13 +576,21 @@ export async function fault(
             } else if (
                 mode === 'cancel' &&
                 bytes.length >= 8 &&
-                bytes.readUInt16LE(0) === 64 &&
+                bytes.readUInt16LE(0) === (operation === 'pv' ? 78 : 64) &&
                 pending
             ) {
                 cancelled++;
-                pending.writeUInt16LE(62, 0);
+                pending.writeUInt16LE(operation === 'pv' ? 76 : 62, 0);
                 ws.send(
-                    Buffer.concat([pending, Buffer.from([0x08, 1, 0x20, 1])]),
+                    Buffer.concat([
+                        pending,
+                        Buffer.from([
+                            0x08,
+                            1,
+                            operation === 'pv' ? 0x28 : 0x20,
+                            1,
+                        ]),
+                    ]),
                 );
             } else server.send(message);
         });

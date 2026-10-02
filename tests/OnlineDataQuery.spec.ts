@@ -7,7 +7,7 @@ import {
 
 test('Online catalog query recovers from a failed mirror and plots sources', async ({
     page,
-}) => {
+}, testInfo) => {
     const carta = new PlaywrightDevPage(page);
     await carta.goto();
 
@@ -87,6 +87,48 @@ test('Online catalog query recovers from a failed mirror and plots sources', asy
         catalog.getByTestId('catalog-rendering-column-y-dropdown'),
     ).toContainText('dec');
     await catalog.getByTestId('catalog-plot-button').click();
+    // Independent SIN projection from the fixture's reference pixel and WCS.
+    const radians = Math.PI / 180;
+    const expected = [
+        [180.004, -30.003],
+        [179.999, -30],
+    ].map(([ra, dec]) => {
+        const delta = (ra - 180) * radians;
+        const latitude = dec * radians;
+        const reference = -30 * radians;
+        return {
+            x: 7 - (Math.cos(latitude) * Math.sin(delta)) / radians / 0.001,
+            y:
+                7 +
+                (Math.sin(latitude) * Math.cos(reference) -
+                    Math.cos(latitude) *
+                        Math.sin(reference) *
+                        Math.cos(delta)) /
+                    radians /
+                    0.001,
+        };
+    });
+    await expect
+        .poll(() =>
+            page.evaluate(() => {
+                const store = (window as any).app.catalogStore;
+                const points = store.catalogGLData.get(
+                    store.activeCatalogFiles.at(-1),
+                );
+                return points
+                    ? Array.from(points.x as Float32Array, (x, index) => ({
+                          x,
+                          y: points.y[index],
+                      }))
+                    : [];
+            }),
+        )
+        .toEqual(
+            expected.map((point) => ({
+                x: expect.closeTo(point.x, 3),
+                y: expect.closeTo(point.y, 3),
+            })),
+        );
     await expect
         .poll(() =>
             page.evaluate(() => {
@@ -94,18 +136,36 @@ test('Online catalog query recovers from a failed mirror and plots sources', asy
                     document.querySelector<HTMLCanvasElement>(
                         '#catalog-canvas',
                     );
-                if (!canvas?.width || !canvas.height) return false;
+                if (!canvas?.width || !canvas.height) return 0;
                 const copy = document.createElement('canvas');
                 copy.width = canvas.width;
                 copy.height = canvas.height;
                 const context = copy.getContext('2d')!;
                 context.drawImage(canvas, 0, 0);
-                return context
-                    .getImageData(0, 0, copy.width, copy.height)
-                    .data.some((value, index) => index % 4 === 3 && value > 0);
+                const rgba = context.getImageData(
+                    0,
+                    0,
+                    copy.width,
+                    copy.height,
+                ).data;
+                let count = 0;
+                for (let i = 0; i < rgba.length; i += 4) {
+                    if (
+                        rgba[i] === 0 &&
+                        rgba[i + 1] === 163 &&
+                        rgba[i + 2] === 150 &&
+                        rgba[i + 3] > 0
+                    )
+                        count++;
+                }
+                return count;
             }),
         )
-        .toBe(true);
+        .toBeGreaterThan(0);
+    await testInfo.attach('online-catalog-sources.png', {
+        body: await page.getByTestId('viewer-div').screenshot(),
+        contentType: 'image/png',
+    });
     await expect(page.locator('#raster-canvas').first()).toBeVisible();
     await expect(page.getByTestId('x-profiler-info')).toBeVisible();
     await expect(

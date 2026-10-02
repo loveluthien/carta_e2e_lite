@@ -292,11 +292,17 @@ test.describe('Animator', () => {
         );
         await directory.fill(`${fixtureBrowserPath}/time_series`);
         await directory.press('Enter');
-        for (const [index, epoch] of epochs.entries()) {
+        await browser.getByText(epochs[2].file, { exact: true }).click();
+        const loadSeries = browser.getByTestId(
+            'file-browser-load-as-time-series-button',
+        );
+        await expect(loadSeries).toBeHidden();
+        for (const epoch of epochs.slice(0, 2)) {
             await browser
                 .getByText(epoch.file, { exact: true })
-                .click(index ? { modifiers: ['ControlOrMeta'] } : undefined);
+                .click({ modifiers: ['ControlOrMeta'] });
         }
+        await expect(loadSeries).toBeEnabled();
         await browser
             .getByTestId('file-browser-load-as-time-series-button')
             .click();
@@ -308,6 +314,39 @@ test.describe('Animator', () => {
             (window as any).app.widgetsStore.setImageMultiPanelEnabled(false),
         );
 
+        const series = () =>
+            page.evaluate(() => {
+                const app = (window as any).app;
+                return {
+                    files: app.timeSeriesStore.elements.map(
+                        (element: any) => element.frame.filename,
+                    ),
+                    dates: app.timeSeriesStore.elements.map((element: any) =>
+                        element.isoUtc.slice(0, 10),
+                    ),
+                    index: app.timeSeriesStore.currentIndex,
+                    matched: app.frames.map(
+                        (frame: any) =>
+                            frame.spatialReference?.filename ?? null,
+                    ),
+                };
+            });
+        await expect.poll(series).toMatchObject({
+            files: epochs.map((epoch) => epoch.file),
+            dates: ['2015-05-24', '2020-03-17', '2024-08-13'],
+            index: 0,
+            matched: [null, epochs[2].file, epochs[2].file],
+        });
+        await expect(
+            page.getByTestId('animator-time-series-slider'),
+        ).toBeVisible();
+        // Normalize the spatial reference after checking load-order matching,
+        // so the existing reviewed viewer/profile baselines remain applicable.
+        await page.evaluate(async () => {
+            const app = (window as any).app;
+            await app.setSpatialReference(app.activeFrame);
+            app.activeFrame.fitZoom();
+        });
         const plot = page
             .locator('.spatial-profiler-widget .profile-plot')
             .first();
@@ -344,6 +383,10 @@ test.describe('Animator', () => {
                 await page.getByTestId('animator-next-button').click();
             }
         }
+        await page.getByTestId('animator-first-button').click();
+        await expect.poll(series).toMatchObject({ index: 0 });
+        await page.getByTestId('animator-last-button').click();
+        await expect.poll(series).toMatchObject({ index: 2 });
         await page.getByTestId('animator-first-button').click();
         await expect(page.getByTestId('image-view-header-title')).toContainText(
             epochs[0].file,

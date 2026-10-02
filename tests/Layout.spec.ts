@@ -3,6 +3,82 @@ import { LayoutName, PlaywrightDevPage, pixel } from '../utilities';
 
 test.describe.configure({ mode: 'default' });
 
+test('Workspace save retries and restores the image channel', async ({
+    page,
+}, testInfo) => {
+    // Keep the database isolated: use CARTA's real serializer and loader,
+    // but never overwrite a workspace belonging to the developer.
+    let saved: Record<string, unknown> | undefined;
+    let rejectSave = true;
+    const name = 'e2e-channel-workspace';
+    await page.route('**/database/list/workspaces', (route) =>
+        route.fulfill({
+            json: {
+                success: true,
+                workspaces: saved ? [{ name, date: saved.date }] : [],
+            },
+        }),
+    );
+    await page.route(/\/database\/workspace(?:\/.*)?$/, async (route) => {
+        if (route.request().method() === 'PUT') {
+            if (rejectSave) {
+                rejectSave = false;
+                await route.fulfill({ status: 500, json: { success: false } });
+                return;
+            }
+            const body = route.request().postDataJSON();
+            expect(body.workspaceName).toBe(name);
+            saved = body.workspace;
+        }
+        await route.fulfill({ json: { success: true, workspace: saved } });
+    });
+    const carta = new PlaywrightDevPage(page);
+    await carta.goto();
+    await carta.loadImage('cube.fits');
+    await page.getByTestId('animator-0-header-title').click();
+    await page.getByTestId('animator-last-button').click();
+    expect(await pixel(page, 8, 8)).toBeCloseTo(24, 5);
+    const originalRgb = await rasterRgb(page);
+    await carta.selectMenuItem('File', 'Save Workspace');
+    const dialog = page.getByRole('dialog', {
+        name: 'Save Workspace',
+        exact: true,
+    });
+    const save = dialog.getByRole('button', { name: 'Save', exact: true });
+    await expect(save).toBeDisabled();
+    await dialog.getByPlaceholder('Enter workspace name').fill(name);
+    await save.click();
+    await expect(
+        page.getByText('Error saving workspace', { exact: true }),
+    ).toBeVisible();
+    expect(saved).toBeUndefined();
+    await expect(save).toBeEnabled();
+    await save.click();
+    await expect(dialog).toBeHidden();
+    expect(saved).toBeDefined();
+    await page.getByTestId('animator-first-button').click();
+    expect(await pixel(page, 8, 8)).toBeCloseTo(1.5, 5);
+    await carta.selectMenuItem('File', 'Open Workspace');
+    const openDialog = page.getByRole('dialog', {
+        name: 'Open Workspace',
+        exact: true,
+    });
+    await openDialog.getByText(name, { exact: true }).first().click();
+    await openDialog.getByRole('button', { name: 'Open', exact: true }).click();
+    await expect(openDialog).toBeHidden();
+    await expect
+        .poll(() =>
+            page.evaluate(() => (window as any).app.activeFrame.channel),
+        )
+        .toBe(4);
+    expect(await pixel(page, 8, 8)).toBeCloseTo(24, 5);
+    await expect.poll(() => rasterRgb(page)).toEqual(originalRgb);
+    await testInfo.attach('workspace-restored-viewer.png', {
+        body: await page.getByTestId('viewer-div').screenshot(),
+        contentType: 'image/png',
+    });
+});
+
 const tabGroups = (page: Page) =>
     page
         .locator('.flexlayout__tabset')

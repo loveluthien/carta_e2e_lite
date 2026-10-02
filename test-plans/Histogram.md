@@ -24,3 +24,7 @@ Channel-dependent histogram and pixel-bound validation.
 ```sh
 npm test -- --project=test-group1 tests/Histogram.spec.ts
 ```
+
+## Coverage additions
+
+Compute all 255 finite pixels independently and compare every histogram bin for channels 0 and 4, including the distinct x=2 spectrum. Attach the final-channel plot PNG.

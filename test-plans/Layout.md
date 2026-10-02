@@ -1,6 +1,6 @@
 # Layout test plan
 
-**Source:** [`tests/Layout.spec.ts`](../tests/Layout.spec.ts) · **Cases:** 5
+**Source:** [`tests/Layout.spec.ts`](../tests/Layout.spec.ts) · **Cases:** 6
 
 ## Cases
 
@@ -24,3 +24,7 @@ Raster PNGs allow a 1.5–2% pixel difference for canvas annotation text. The RG
 ```sh
 npm test -- --project=test-group2 tests/Layout.spec.ts
 ```
+
+## Coverage additions
+
+Save/reopen workspaces using the real serializer/loader and isolated in-memory database routes. Reject first save, verify error/re-enabled Save and retry. Change channel, reopen and assert channel 4, 24 K pixel and restored RGB; attach viewer PNG. No developer workspace is modified.

@@ -1,6 +1,6 @@
 # MomentMap test plan
 
-**Source:** [`tests/MomentMap.spec.ts`](../tests/MomentMap.spec.ts) · **Scenarios:** 40 Playwright tests
+**Source:** [`tests/MomentMap.spec.ts`](../tests/MomentMap.spec.ts) · **Scenarios:** 41 Playwright tests
 
 Moment generator data, controls, lifecycle and failure recovery.
 
@@ -74,3 +74,7 @@ Moment generator data, controls, lifecycle and failure recovery.
 ```sh
 npm test -- --project=test-group4 tests/MomentMap.spec.ts
 ```
+
+## Coverage additions
+
+Check finite map pixels against an independent oracle and white/black RGB under clipped linear gray scaling and inversion. A separate malformed-response recovery case checks cleared requests/no valid added map, reopens the source and retries. The warning defect stays isolated. Validate the reset-rest-frequency map before marking the reset-button expected failure.

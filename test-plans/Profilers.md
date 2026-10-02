@@ -1,6 +1,6 @@
 # Profilers test plan
 
-**Source:** [`tests/Profilers.spec.ts`](../tests/Profilers.spec.ts) · **Cases:** 12
+**Source:** [`tests/Profilers.spec.ts`](../tests/Profilers.spec.ts) · **Cases:** 13
 
 Spatial and spectral profiles, formatting, smoothing, fitting and viewer connection.
 
@@ -36,3 +36,7 @@ Spatial and spectral profiles, formatting, smoothing, fitting and viewer connect
 ```sh
 npm test -- --project=test-group5 tests/Profilers.spec.ts
 ```
+
+## Coverage additions
+
+Create the spectral profiler through Widgets/Profiles and select radio velocity in its Conversion settings. Mock Splatalogue, fail first query, retry with one known molecular line at 999.993328718096 MHz. Apply a species filter with no matches, then reset it and restore the result. Select/Plot into the profiler, assert 2 km/s and expected green RGB, capture PNG, Clear plot and verify no remaining markers or green pixels.

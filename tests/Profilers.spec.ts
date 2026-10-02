@@ -1,6 +1,151 @@
 import { test, expect, type Page } from '@playwright/test';
 import { PlaywrightDevPage, LayoutName } from '../utilities';
 
+test('Spectral line query retries and plots a known frequency', async ({
+    page,
+}, testInfo) => {
+    let requests = 0;
+    await page.route('https://splatalogue.online/**', async (route) => {
+        requests++;
+        if (requests === 1) {
+            await route.fulfill({
+                status: 503,
+                body: 'Injected query failure',
+            });
+            return;
+        }
+        await route.fulfill({
+            json: [
+                {
+                    species_id: 1,
+                    name: 'Mock molecule',
+                    chemical_name: 'Mock molecule',
+                    orderedFreq: '999.993328718096',
+                    resolved_QNs: '1-0',
+                    linelist: 'Mock',
+                },
+            ],
+        });
+    });
+    const carta = new PlaywrightDevPage(page);
+    await carta.goto();
+    await carta.loadImage('cube.fits');
+    await carta.selectMenuItem('Widgets', ['Profiles', 'Spectral Profiler']);
+    await page
+        .getByTestId('spectral-profiler-0-header-settings-button')
+        .click();
+    await page
+        .getByRole('tabpanel', { name: 'Conversion' })
+        .getByTestId('spectral-profiler-coordinate-dropdown')
+        .selectOption({ label: 'Radio velocity (km/s)' });
+    await page.keyboard.press('Escape');
+    await page.evaluate(() => {
+        const frame = (window as any).app.activeFrame;
+        frame.setCursorPosition({ x: 8, y: 8 });
+        frame.updateCursorRegion({ x: 8, y: 8 });
+    });
+    await carta.selectMenuItem('Widgets', 'Spectral Line Query');
+    const query = page.locator('.spectral-line-query-widget');
+    await page
+        .getByTestId('spectral-line-query-mode-dropdown')
+        .selectOption('Range');
+    await page
+        .getByTestId('spectral-line-query-unit-dropdown')
+        .selectOption('MHz');
+    const from = page.getByTestId('spectral-line-query-from-input');
+    const to = page.getByTestId('spectral-line-query-to-input');
+    await from.fill('999.98');
+    await from.press('Tab');
+    await to.fill('1000.01');
+    await to.press('Tab');
+    await query.getByRole('button', { name: 'Query', exact: true }).click();
+    const alert = page.getByRole('alertdialog');
+    await expect(alert).toBeVisible();
+    await alert.getByRole('button', { name: 'OK', exact: true }).click();
+    await query.getByRole('button', { name: 'Query', exact: true }).click();
+    await expect(
+        page.getByTestId('spectral-line-query-result-info'),
+    ).toContainText('1');
+    expect(requests).toBe(2);
+    await query
+        .getByTestId('filterable-table-filter-input-1')
+        .last()
+        .fill('Missing molecule');
+    await query
+        .getByRole('button', { name: 'Apply filter', exact: true })
+        .click();
+    await expect(
+        page.getByTestId('spectral-line-query-result-info'),
+    ).toContainText('Showing 0 filtered line(s)');
+    await query
+        .getByRole('button', { name: 'Reset filter', exact: true })
+        .click();
+    await expect(
+        page.getByTestId('spectral-line-query-result-info'),
+    ).toContainText('Showing 1 line(s)');
+    await query
+        .getByTestId('filterable-table-header-checkbox')
+        .last()
+        .locator('..')
+        .click();
+    await query.getByRole('button', { name: 'Plot', exact: true }).click();
+    const lines = () =>
+        page.evaluate(
+            () =>
+                (window as any).app.widgetsStore.getSpectralWidgetStoreByID(
+                    'spectral-profiler-0',
+                ).transformedSpectralLines,
+        );
+    await expect.poll(lines).toMatchObject([
+        {
+            species: 'Mock molecule',
+            value: expect.closeTo(2, 3),
+            qn: '1-0',
+        },
+    ]);
+    const plot = page
+        .locator('.spectral-profiler-widget .line-plot-component')
+        .first();
+    const markerPixels = () =>
+        page.evaluate(() => {
+            const canvas = document.querySelector<HTMLCanvasElement>(
+                '.spectral-profiler-widget .annotation-stage canvas',
+            );
+            if (!canvas?.width || !canvas.height) return 0;
+            const rgb = (window as any).app.isDarkTheme
+                ? [50, 164, 103]
+                : [28, 110, 66];
+            const rgba = canvas
+                .getContext('2d')!
+                .getImageData(0, 0, canvas.width, canvas.height).data;
+            let count = 0;
+            for (let i = 0; i < rgba.length; i += 4) {
+                if (
+                    rgba[i] === rgb[0] &&
+                    rgba[i + 1] === rgb[1] &&
+                    rgba[i + 2] === rgb[2] &&
+                    rgba[i + 3] > 0
+                )
+                    count++;
+            }
+            return count;
+        });
+    await expect.poll(markerPixels).toBeGreaterThan(0);
+    await testInfo.attach('spectral-line-query-plotted.png', {
+        body: await plot.screenshot(),
+        contentType: 'image/png',
+    });
+    await query
+        .getByRole('button', { name: 'Clear plot', exact: true })
+        .click();
+    await expect.poll(lines).toEqual([]);
+    await expect.poll(markerPixels).toBe(0);
+    await testInfo.attach('spectral-line-query-cleared.png', {
+        body: await plot.screenshot(),
+        contentType: 'image/png',
+    });
+});
+
 async function waitForSpectralProfile(page: Page, filename: string) {
     await expect
         .poll(
