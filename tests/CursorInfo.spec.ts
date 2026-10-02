@@ -101,12 +101,15 @@ test.describe('Cursor Info Widget', () => {
             'Image: 8 px, 1.5',
         );
 
-        await page
-            .locator(
-                '[data-testid^="cursor-info-"][data-testid$="-header-title"]',
-            )
-            .last()
-            .dispatchEvent('mousedown');
+        const cursorInfoTitle = page.locator(
+            '[data-testid^="cursor-info-"][data-testid$="-header-title"]',
+        ).last();
+        await cursorInfoTitle.dispatchEvent('mousedown');
+        await cursorInfoTitle.dispatchEvent('mouseup');
+        await page.mouse.move(1, 1);
+        await expect(
+            page.getByText('Drag to place docked widget', { exact: false }),
+        ).toBeHidden();
         await carta.screenShot(viewer, 'CursorInfo_Viewer.png');
         await carta.screenShot(widget, 'CursorInfo_Widget.png');
 
