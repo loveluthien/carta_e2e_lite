@@ -4,7 +4,6 @@ export const testGroups = [
         testMatch: [
             '**/Animator.spec.ts',
             '**/Catalog.spec.ts',
-            '**/ChannelMap.spec.ts',
             '**/Contours.spec.ts',
             '**/CursorInfo.spec.ts',
             '**/Histogram.spec.ts',
@@ -37,6 +36,12 @@ export const testGroups = [
     {
         name: 'test-group4',
         testMatch: ['**/MomentMap.spec.ts'],
+    },
+    {
+        name: 'test-group5',
+        testMatch: [
+            '**/ChannelMap.spec.ts',
+        ],
     },
 ];
 
