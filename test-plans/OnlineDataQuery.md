@@ -22,6 +22,5 @@ Query failure/retry and catalog overlay rendering.
 ## Run
 
 ```sh
-npx playwright test tests/OnlineDataQuery.spec.ts --project=chromium
-npx playwright test tests/OnlineDataQuery.spec.ts
+npm test -- --project=test-group2 tests/OnlineDataQuery.spec.ts
 ```

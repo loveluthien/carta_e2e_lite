@@ -26,8 +26,12 @@ async function waitForSpectralProfile(page: Page, filename: string) {
         .toBe(true);
 }
 
-async function openPointSpectralProfiler(page: Page, carta: PlaywrightDevPage) {
-    await carta.goto();
+async function openPointSpectralProfiler(
+    page: Page,
+    carta: PlaywrightDevPage,
+    layout: LayoutName = LayoutName.CubeAnalysis,
+) {
+    await carta.goto(layout);
     await carta.loadImage('HD163296_13CO_2-1_subimage.fits');
     await page.getByTestId('point-region-shortcut-button').click();
     await page.locator('.region-stage > .konvajs-content > canvas').click({
@@ -473,30 +477,30 @@ test.describe('Spectral Profilers', () => {
 
         await expect(page.getByTestId('spectral-profiler-0-content'))
             .toMatchAriaSnapshot(`
-          - checkbox "Image"
-          - text: Image
-          - button "Active"
-          - checkbox "Region"
-          - text: Region
-          - button "Active"
-          - checkbox "Statistic"
-          - text: Statistic
-          - button "Mean"
-          - checkbox "Polarization"
-          - text: Polarization
-          - button "Current"
-          - button:
-            - img
-          - button:
-            - img
-          - button:
-            - img: z
-          - img
-          - button
-          - button
-          - separator "horizontal divider 1"
-          - text: "/Data: \\\\(\\\\d+\\\\.\\\\d+ GHz, 1\\\\.80e-1\\\\)/"
-        `);
+              - checkbox "Image"
+              - text: Image
+              - button "Active"
+              - checkbox "Region"
+              - text: Region
+              - button "Active"
+              - checkbox "Statistic"
+              - text: Statistic
+              - button "Mean"
+              - checkbox "Polarization"
+              - text: Polarization
+              - button "Current"
+              - button:
+                - img
+              - button:
+                - img
+              - button:
+                - img: z
+              - img
+              - button
+              - button
+              - separator "horizontal divider 1"
+              - text: "/Data: \\\\(\\\\d+\\\\.\\\\d+ GHz, 4\\\\.34e-3\\\\)/"
+            `);
 
         await page
             .getByTestId('spectral-profiler-1-content')
@@ -1585,7 +1589,7 @@ test.describe('Spectral Profilers', () => {
         );
         const imageCanvas = page.getByTestId('viewer-div');
 
-        await openPointSpectralProfiler(page, carta);
+        await openPointSpectralProfiler(page, carta, LayoutName.Default);
 
         await spectralProfileCanvas.click({
             position: {

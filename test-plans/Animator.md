@@ -15,5 +15,5 @@ Use the HD163296 cube, the IQUV cube, three dated J0423-0120 images, and the sma
 ## Run
 
 ```sh
-npx playwright test tests/Animator.spec.ts --project=chromium
+npm test -- --project=test-group1 tests/Animator.spec.ts
 ```

@@ -23,6 +23,5 @@ Vector configuration, rendering, invalid sources and clearing.
 ## Run
 
 ```sh
-npx playwright test tests/VectorOverlay.spec.ts --project=chromium
-npx playwright test tests/VectorOverlay.spec.ts
+npm test -- --project=test-group3 tests/VectorOverlay.spec.ts
 ```

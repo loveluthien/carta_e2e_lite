@@ -43,5 +43,5 @@ Viewer controls, settings, layouts and raster appearance.
 ## Run
 
 ```sh
-npx playwright test tests/ImageViewer.spec.ts --project=test-group2
+npm test -- --project=test-group2 tests/ImageViewer.spec.ts
 ```

@@ -532,21 +532,61 @@ export class PlaywrightDevPage {
             '/Users/kchou/bz/carta_build/e2e-lite/test_data';
     }
 
-    async goto() {
+    async goto(layout: LayoutName = LayoutName.Default) {
+        const layoutName = [
+            'Default',
+            'Cube View',
+            'Cube Analysis',
+            'Continuum Analysis',
+        ][layout];
         this.page.on('console', (msg) =>
             console.log('PAGE LOG:', msg.type(), msg.text()),
         );
         this.page.on('pageerror', (err) =>
             console.log('PAGE ERROR:', err.message),
         );
+        // Isolate startup from other tests' saved settings; reloads still test persistence.
+        await this.page.route(
+            '**/database/preferences',
+            async (route) => {
+                if (route.request().method() !== 'GET') {
+                    await route.continue();
+                    return;
+                }
+                await route.fulfill({
+                    json: {
+                        success: true,
+                        preferences: {
+                            layout: layoutName,
+                            telemetryMode: 'none',
+                            telemetryConsentShown: true,
+                            imageMultiPanelEnabled: false,
+                        },
+                    },
+                });
+            },
+            { times: 1 },
+        );
         await this.page.goto('/');
         await this.page.waitForFunction(
             () => (window as any).app?.preferenceStore?.isPreferenceReady,
+            { timeout: 3000 },
         );
         await this.setTestTelemetryPreferences();
         await expect(this.page.locator('.root-menu')).toBeVisible({
-            timeout: 15000,
+            timeout: 3000,
         });
+        await expect
+            .poll(() =>
+                this.page.evaluate(
+                    () => (window as any).app.layoutStore.currentLayoutName,
+                ),
+                { timeout: 3000 },
+            )
+            .toBe(layoutName);
+        await expect(
+            this.page.getByTestId('file-browser-dialog'),
+        ).toBeVisible({ timeout: 3000 });
     }
 
     private async setTestTelemetryPreferences() {
@@ -802,6 +842,12 @@ export class PlaywrightDevPage {
     }
 
     async fillSnippetInput(inputString: string) {
+        await this.page.evaluate(() => {
+            (window as any).app.preferenceStore.preferences.set(
+                'codeSnippetsEnabled',
+                true,
+            );
+        });
         await this.page.getByRole('menuitem', { name: 'Snippets' }).click();
         await this.page
             .getByRole('menuitem', { name: 'Create New Snippet' })

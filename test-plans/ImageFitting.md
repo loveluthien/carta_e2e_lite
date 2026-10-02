@@ -23,6 +23,5 @@ Fit validation and derived model/residual images.
 ## Run
 
 ```sh
-npx playwright test tests/ImageFitting.spec.ts --project=chromium
-npx playwright test tests/ImageFitting.spec.ts
+npm test -- --project=test-group2 tests/ImageFitting.spec.ts
 ```

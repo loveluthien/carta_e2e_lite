@@ -1,23 +1,29 @@
 # CARTA E2E test plans
 
-This directory maps every currently collected Playwright test to its action and expected result. The collector reports **161 cases in 21 spec files**. The Playwright configuration currently enables Chromium. These are plans derived from the current source, not execution results.
+This directory maps every currently collected Playwright test to its action and expected result. The collector reports **161 cases in 21 spec files**. The Playwright configuration splits Chromium specs into four projects, `test-group1` through `test-group4`. These are plans derived from the current source, not execution results.
 
 ## Shared execution plan
 
-1. Start from a fresh Playwright page with a 1920×1080 viewport and load the fixture used by the test. One shared backend serves every spec at `http://localhost:<CARTA_PORT>` (`3102` by default) and reads `test_data`.
+1. Start from a fresh Playwright page with a 1920×1080 viewport and load the fixture used by the test. `goto()` supplies default preferences for the initial server read (including single-panel mode), with Default or the layout supplied by the test, so shared backend preferences cannot choose the startup widget geometry. Later preference writes and reloads still use the real backend. One shared backend serves every spec at `http://localhost:<CARTA_PORT>` (`3102` by default) and reads `test_data`.
 2. Drive each dialog or widget through its visible controls. Assert enabled/disabled state, labels, numeric values, generated frames and error/recovery behavior.
 3. For changes affecting an image or profile, check both the state and rendered output. Review PNG baselines for viewer, profile or overlay changes; use deterministic values for numerical assertions.
 4. At app startup, `goto()` sets `telemetryMode: "none"` and marks telemetry consent as handled before test interactions. Before changing other persisted preferences, call `resetAllPreferences()` and then set only the values needed by the test. Tests that need the shared multi-panel baseline can use `setTestPreferences()`, which resets preferences before applying that baseline. Use the small FITS fixtures in `test_data` or extend `test_data/create.mjs` with bounded, deterministic data. Keep failures explicit, including invalid input and retry paths.
-5. Run the focused spec in Chromium while developing, then all configured browser projects. Review screenshot baselines per platform and inspect the HTML report for failures.
+   `fillSnippetInput()` enables Snippets in the current page's preference map before opening its menu, so preference resets in other tests cannot leave the helper dependent on a saved setting.
+5. Run a focused project while developing, then all projects. Review screenshot baselines per platform and inspect that project's HTML report for failures.
 
 ```sh
-npx playwright test --list --project=chromium
-npx playwright test --project=chromium
-npx playwright test --project=moment-map --no-deps tests/MomentMap.spec.ts
-npx playwright test
+npm test -- --list
+npm test -- --project=test-group1
+npm test -- --project=test-group4
+npm test
+npm run report
 ```
 
-Each `npx playwright test` invocation starts one shared CARTA backend. Regular specs use two workers by default. Playwright runs `MomentMap.spec.ts` afterward with one worker so it does not overlap other tests or backend activity. Use `--no-deps` when running a focused Moment Map selection; otherwise Playwright also runs the full regular project first.
+`npm test` starts or reuses one CARTA backend, then runs the selected projects sequentially with up to eight workers each. It writes a separate HTML report to `playwright-report/<project>/` for each project.
+
+Failed project runs make `npm test` exit with an error. Review the failed project's report for details.
+
+The project reports are merged into `playwright-report/combined/`. Use `npm run report` to open the combined report; focused runs include the selected projects. Direct `npx playwright test` runs all four projects in parallel and produces one combined report.
 
 ## Test title style
 
@@ -35,7 +41,7 @@ Use concise Title Case names for `test.describe()` groups. Write individual test
 | [Histogram](./Histogram.md)             |     1 | Channel-dependent histogram and pixel-bound validation.                                                                         |
 | [ImageFitting](./ImageFitting.md)       |     2 | Fit validation and derived model/residual images.                                                                               |
 | [ImageLayer](./ImageLayer.md)           |     6 | Layer matching, WCS alignment and reordering.                                                                                   |
-| [ImageViewer](./ImageViewer.md)         |    22 | Viewer controls, settings, layouts, invalid-input recovery, RGB and matched profiles.                                                                       |
+| [ImageViewer](./ImageViewer.md)         |    22 | Viewer controls, settings, layouts, invalid-input recovery, RGB and matched profiles.                                           |
 | [Layout](./Layout.md)                   |     5 | Preset layouts, docking, dynamic layout mappings and context-aware menus.                                                       |
 | [LoadingFiles](./LoadingFiles.md)       |     8 | Fixture size, open/append, invalid-file recovery, and FITS/HDF5/CASA metadata and rendering.                                    |
 | [MomentMap](./MomentMap.md)             |    40 | Moment generator data, controls, lifecycle and failure recovery.                                                                |
@@ -51,7 +57,7 @@ Use concise Title Case names for `test.describe()` groups. Write individual test
 
 ## Coverage notes
 
-- The 161-case count is collection output, not a passing-test count. Chromium is the only enabled browser project; Firefox and WebKit are currently commented out in `playwright.config.ts`.
+- The 161-case count is collection output, not a passing-test count. Chromium is the only enabled browser; Firefox and WebKit are currently commented out in `playwright.config.ts`.
 - Coverage targets selected functional workflows and recovery paths described in the linked plans. It does not establish exhaustive coverage of every CARTA widget or dialog control, and it does not measure performance.
 - Visual checks are targeted: selected viewer and profiler outputs use reviewed PNG snapshots or direct pixel/RGB assertions. Other cases rely on UI state or data assertions, so a snapshot does not imply that every visible property is compared.
 - Three Moment Map cases are annotated with `test.fail()` to track known defects: generation with no selected moments, the rest-frequency reset control remaining enabled, and a missing warning for malformed generated-image acknowledgments. Check the Playwright report to see how those cases behave in a given run.

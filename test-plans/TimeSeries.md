@@ -15,13 +15,12 @@ Dated series loading, ordering and navigation.
 
 ## Cases
 
-| Test (source line)                                                                                     | Action                                                                         | Expected result                                                                                                               |
-| ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
+| Test (source line)                                                                                     | Action                                                                         | Expected result                                                                                                                                                                                                                         |
+| ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [loads a dated image series and steps through its viewer and profile](../tests/TimeSeries.spec.ts#L10) | Select three dated FITS files, load as a time series and step next/last/first. | Files sort chronologically; active index/title and spatial matching are correct; viewer/profile screenshots change with date. Re-trigger the cursor profile after navigation by moving the pointer off the image before hovering again. |
 
 ## Run
 
 ```sh
-npx playwright test tests/TimeSeries.spec.ts --project=chromium
-npx playwright test tests/TimeSeries.spec.ts
+npm test -- --project=test-group3 tests/TimeSeries.spec.ts
 ```

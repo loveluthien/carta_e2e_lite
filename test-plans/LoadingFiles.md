@@ -30,6 +30,5 @@ Fixture size, open/append, invalid-file recovery, and FITS/HDF5/CASA file metada
 ## Run
 
 ```sh
-npx playwright test tests/LoadingFiles.spec.ts --project=chromium
-npx playwright test tests/LoadingFiles.spec.ts
+npm test -- --project=test-group2 tests/LoadingFiles.spec.ts
 ```

@@ -7,6 +7,7 @@ Spatial and spectral profiles, formatting, smoothing, fitting and viewer connect
 ## Setup and checks
 
 - Run each Playwright case in a fresh page against the configured CARTA server. Use the existing fixture and helper calls named by the source test.
+- Conversion and styling/smoothing cases explicitly use Cube Analysis and its docked spectral profiler. The connection case explicitly uses Default and a floating spectral profiler; neither setup depends on a previous test's saved layout.
 - Check the requested widget/dialog state, data or store values, and the effect in the image viewer and applicable profiler. Treat a visible canvas alone as insufficient for a numerical result.
 - For viewer or profile changes, compare a stable PNG with a reviewed baseline, including its rendered RGB values; inspect overlay text and numeric readouts as well.
 - For rejected input or a failed operation, verify no unwanted image is created and the user can recover. Exercise every button relevant to the scenario.
@@ -33,6 +34,5 @@ Spatial and spectral profiles, formatting, smoothing, fitting and viewer connect
 ## Run
 
 ```sh
-npx playwright test tests/Profilers.spec.ts --project=chromium
-npx playwright test tests/Profilers.spec.ts
+npm test -- --project=test-group3 tests/Profilers.spec.ts
 ```

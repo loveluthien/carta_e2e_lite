@@ -23,8 +23,8 @@ Moment generator data, controls, lifecycle and failure recovery.
 | Test                                                                             | Action                                                                           | Expected result                                                                                     |
 | -------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
 | [shows defaults and preserves range across tabs](../tests/MomentMap.spec.ts)     | Open Moments, inspect defaults, change spectral range, leave and reopen the tab. | Moment 0, mask None, full channel range, mask 0–1 and Keep off appear; edited range persists.       |
-| [generates selected moments](../tests/MomentMap.spec.ts)                          | Generate moments 0–3 in one request.                                             | Each selected moment yields one map and passes the per-moment map oracle.                           |
-| [generates all moment types](../tests/MomentMap.spec.ts)                          | Generate all 13 moment types in one request.                                     | Each moment yields one map and passes the per-moment map oracle.                                    |
+| [generates selected moments](../tests/MomentMap.spec.ts)                         | Generate moments 0–3 in one request.                                             | Each selected moment yields one map and passes the per-moment map oracle.                           |
+| [generates all moment types](../tests/MomentMap.spec.ts)                         | Generate all 13 moment types in one request.                                     | Each moment yields one map and passes the per-moment map oracle.                                    |
 | [disables generation without an image](../tests/MomentMap.spec.ts)               | Open Moments before loading a file.                                              | Source, region, mask and Generate are disabled.                                                     |
 | [selects, searches, removes, and clears moments](../tests/MomentMap.spec.ts)     | Select, deselect, remove tags, search and clear moments.                         | Tags and menu selection agree without duplicates; search narrows choices and Clear removes all.     |
 | [disables generation with no selected moments](../tests/MomentMap.spec.ts)       | Clear all selected moments and try the generation control.                       | An empty selection cannot launch a destructive request or remove existing maps.                     |
@@ -72,6 +72,5 @@ Moment generator data, controls, lifecycle and failure recovery.
 ## Run
 
 ```sh
-npx playwright test tests/MomentMap.spec.ts --project=chromium
-npx playwright test tests/MomentMap.spec.ts
+npm test -- --project=test-group4 tests/MomentMap.spec.ts
 ```

@@ -22,5 +22,5 @@ Raster PNGs allow a 1.5–2% pixel difference for canvas annotation text. The RG
 ## Run
 
 ```sh
-npx playwright test tests/Layout.spec.ts --project=chromium
+npm test -- --project=test-group2 tests/Layout.spec.ts
 ```

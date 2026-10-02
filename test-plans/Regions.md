@@ -24,6 +24,5 @@ Region geometry creation, editing and styling, matched frames, the Region List w
 ## Run
 
 ```sh
-npx playwright test tests/Regions.spec.ts --project=chromium
-npx playwright test tests/Regions.spec.ts
+npm test -- --project=test-group3 tests/Regions.spec.ts
 ```

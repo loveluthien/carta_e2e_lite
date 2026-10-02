@@ -22,6 +22,5 @@ Channel-dependent histogram and pixel-bound validation.
 ## Run
 
 ```sh
-npx playwright test tests/Histogram.spec.ts --project=chromium
-npx playwright test tests/Histogram.spec.ts
+npm test -- --project=test-group1 tests/Histogram.spec.ts
 ```

@@ -43,6 +43,5 @@ PV generator validation, output, preview and cancellation.
 ## Run
 
 ```sh
-npx playwright test tests/PVImage.spec.ts --project=chromium
-npx playwright test tests/PVImage.spec.ts
+npm test -- --project=test-group3 tests/PVImage.spec.ts
 ```

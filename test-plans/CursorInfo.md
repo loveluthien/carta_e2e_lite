@@ -22,6 +22,5 @@ Cursor values and coordinates across viewer, widget and profilers.
 ## Run
 
 ```sh
-npx playwright test tests/CursorInfo.spec.ts --project=chromium
-npx playwright test tests/CursorInfo.spec.ts
+npm test -- --project=test-group1 tests/CursorInfo.spec.ts
 ```

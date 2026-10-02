@@ -24,6 +24,5 @@ Stokes cube assembly and analysis widget controls.
 ## Run
 
 ```sh
-npx playwright test tests/Stokes.spec.ts --project=chromium
-npx playwright test tests/Stokes.spec.ts
+npm test -- --project=test-group3 tests/Stokes.spec.ts
 ```

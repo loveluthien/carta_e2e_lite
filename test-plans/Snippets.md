@@ -27,6 +27,5 @@ Code Snippets workflows that create or modify image products.
 ## Run
 
 ```sh
-npx playwright test tests/Snippets.spec.ts --project=chromium
-npx playwright test tests/Snippets.spec.ts
+npm test -- --project=test-group3 tests/snippets.spec.ts
 ```

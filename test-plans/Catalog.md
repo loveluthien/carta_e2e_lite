@@ -29,6 +29,5 @@ Local catalog table, overlay, plot, coordinate and styling behavior.
 ## Run
 
 ```sh
-npx playwright test tests/Catalog.spec.ts --project=chromium
-npx playwright test tests/Catalog.spec.ts
+npm test -- --project=test-group1 tests/Catalog.spec.ts
 ```
