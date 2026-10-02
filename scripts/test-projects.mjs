@@ -45,6 +45,6 @@ export const testGroups = [
     },
 ];
 
-export const defaultWorkers = 8;
+export const defaultWorkers = 6;
 
 export const projectNames = testGroups.map(({ name }) => name);

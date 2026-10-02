@@ -1,18 +1,36 @@
+import dotenv from 'dotenv';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const projectRoot = path.resolve(
+    path.dirname(fileURLToPath(import.meta.url)),
+    '..',
+);
+dotenv.config({ path: path.join(projectRoot, 'setting.env') });
+
 export const cartaPort = Number.parseInt(process.env.CARTA_PORT ?? '3102', 10);
 if (!Number.isInteger(cartaPort) || cartaPort < 1 || cartaPort > 65535) {
     throw new Error(`Invalid CARTA_PORT: ${process.env.CARTA_PORT}`);
 }
 
+const backendDirectory = process.env.backend_dir;
+const frontendDirectory = process.env.frontend_dir;
+const fixtureDirectory = path.join(projectRoot, 'test_data');
+if (!backendDirectory || !frontendDirectory) {
+    throw new Error(
+        'Set backend_dir and frontend_dir in setting.env before starting CARTA',
+    );
+}
+
 export const cartaUrl = `http://localhost:${cartaPort}`;
-export const backendExecutable =
-    '/Users/kchou/bz/carta_build/carta-backend-dev1/build/carta_backend';
+export const backendExecutable = path.join(backendDirectory, 'carta_backend');
 
 export const backendArguments = [
-    '/Users/kchou/bz/carta_build/e2e-lite/test_data',
+    fixtureDirectory,
     '--top_level_folder',
     '/Users/kchou/bz',
     '--frontend_folder',
-    '/Users/kchou/bz/carta_build/carta-frontend-dev2/build',
+    frontendDirectory,
     '--no_browser',
     '--port',
     String(cartaPort),

@@ -1,6 +1,6 @@
 # CARTA E2E test plans
 
-This directory maps every currently collected Playwright test to its action and expected result. The collector reports **161 cases in 21 spec files**. The Playwright configuration splits Chromium specs into four projects, `test-group1` through `test-group4`. These are plans derived from the current source, not execution results.
+This directory maps every currently collected Playwright test to its action and expected result. The collector reports **161 cases in 21 spec files**. The Playwright configuration splits Chromium specs into five projects, `test-group1` through `test-group5`. These are plans derived from the current source, not execution results.
 
 ## Shared execution plan
 
@@ -12,6 +12,7 @@ This directory maps every currently collected Playwright test to its action and 
 5. Run a focused project while developing, then all projects. Review screenshot baselines per platform and inspect that project's HTML report for failures.
 
 ```sh
+npm run setup
 npm test -- --list
 npm test -- --project=test-group1
 npm test -- --project=test-group4
@@ -19,11 +20,11 @@ npm test
 npm run report
 ```
 
-`npm test` starts or reuses one CARTA backend, then runs the selected projects sequentially with up to eight workers each. It writes a separate HTML report to `playwright-report/<project>/` for each project.
+`npm test` starts or reuses one CARTA backend, then runs the selected projects sequentially with up to six workers each. It writes a separate HTML report to `playwright-report/<project>/` for each project.
 
 Failed project runs make `npm test` exit with an error. Review the failed project's report for details.
 
-The project reports are merged into `playwright-report/combined/`. Use `npm run report` to open the combined report; focused runs include the selected projects. Direct `npx playwright test` runs all four projects in parallel and produces one combined report.
+The project reports are merged into `playwright-report/combined/`. Use `npm run report` to open the combined report; focused runs include the selected projects. Direct `npx playwright test` runs all five projects in parallel and produces one combined report.
 
 ## Test title style
 
