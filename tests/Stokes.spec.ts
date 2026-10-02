@@ -195,6 +195,8 @@ test.describe('Stokes Hypercube', () => {
                     ),
                 )
                 .toBe(polarization);
+            await page.evaluate(() => (window as any).app.waitForImageData());
+            await page.mouse.move(0, 0);
             await expect(outputCanvas).toHaveScreenshot(
                 `stokes-plane-${polarization.replaceAll(' ', '-')}.png`,
             );

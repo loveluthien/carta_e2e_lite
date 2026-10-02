@@ -9,6 +9,7 @@ Stokes cube assembly and analysis widget controls.
 - Run each Playwright case in a fresh page against the configured CARTA server. Use the existing fixture and helper calls named by the source test.
 - Check the requested widget/dialog state, data or store values, and the effect in the image viewer and applicable profiler. Treat a visible canvas alone as insufficient for a numerical result.
 - For viewer or profile changes, compare a stable PNG with a reviewed baseline; inspect overlay text and numeric readouts as well.
+- Before capturing a per-plane viewer PNG, wait for CARTA's image-data requests and canvas redraw to finish; clear transient pointer overlays from the capture.
 - For rejected input or a failed operation, verify no unwanted image is created and the user can recover. Exercise every button relevant to the scenario.
 - Referenced FITS fixtures: `stokes-varying.fits` (small generated cube with channel-varying Q/I and U/I), `stokes.I.fits`, `stokes.Q.fits`, `stokes.U.fits`, `stokes.V.fits`.
 - Named PNG baselines under `tests/Stokes.spec.ts-snapshots` cover all nine merged viewer planes; absolute/fractional, converted and styled plots; every smoothing method and overlay mode; and the unavailable-data state. PNG comparison checks rendered RGB values, not just canvas visibility.
