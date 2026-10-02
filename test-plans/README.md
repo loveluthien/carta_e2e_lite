@@ -1,6 +1,6 @@
 # CARTA E2E test plans
 
-This directory maps every currently collected Playwright test to its action and expected result. The collector reports **155 cases in 21 spec files**. The Playwright configuration currently enables Chromium. These are plans derived from the current source, not execution results.
+This directory maps every currently collected Playwright test to its action and expected result. The collector reports **161 cases in 21 spec files**. The Playwright configuration currently enables Chromium. These are plans derived from the current source, not execution results.
 
 ## Shared execution plan
 
@@ -35,7 +35,7 @@ Use concise Title Case names for `test.describe()` groups. Write individual test
 | [Histogram](./Histogram.md)             |     1 | Channel-dependent histogram and pixel-bound validation.                                                                         |
 | [ImageFitting](./ImageFitting.md)       |     2 | Fit validation and derived model/residual images.                                                                               |
 | [ImageLayer](./ImageLayer.md)           |     6 | Layer matching, WCS alignment and reordering.                                                                                   |
-| [ImageViewer](./ImageViewer.md)         |    16 | Viewer controls, settings, layouts and raster appearance.                                                                       |
+| [ImageViewer](./ImageViewer.md)         |    22 | Viewer controls, settings, layouts, invalid-input recovery, RGB and matched profiles.                                                                       |
 | [Layout](./Layout.md)                   |     5 | Preset layouts, docking, dynamic layout mappings and context-aware menus.                                                       |
 | [LoadingFiles](./LoadingFiles.md)       |     8 | Fixture size, open/append, invalid-file recovery, and FITS/HDF5/CASA metadata and rendering.                                    |
 | [MomentMap](./MomentMap.md)             |    40 | Moment generator data, controls, lifecycle and failure recovery.                                                                |
@@ -51,7 +51,7 @@ Use concise Title Case names for `test.describe()` groups. Write individual test
 
 ## Coverage notes
 
-- The 155-case count is collection output, not a passing-test count. Chromium is the only enabled browser project; Firefox and WebKit are currently commented out in `playwright.config.ts`.
+- The 161-case count is collection output, not a passing-test count. Chromium is the only enabled browser project; Firefox and WebKit are currently commented out in `playwright.config.ts`.
 - Coverage targets selected functional workflows and recovery paths described in the linked plans. It does not establish exhaustive coverage of every CARTA widget or dialog control, and it does not measure performance.
 - Visual checks are targeted: selected viewer and profiler outputs use reviewed PNG snapshots or direct pixel/RGB assertions. Other cases rely on UI state or data assertions, so a snapshot does not imply that every visible property is compared.
 - Three Moment Map cases are annotated with `test.fail()` to track known defects: generation with no selected moments, the rest-frequency reset control remaining enabled, and a missing warning for malformed generated-image acknowledgments. Check the Playwright report to see how those cases behave in a given run.

@@ -1,5 +1,10 @@
 import { readFile } from 'node:fs/promises';
-import { test as base, expect, type Locator } from '@playwright/test';
+import {
+    test as base,
+    expect,
+    type Locator,
+    type Page,
+} from '@playwright/test';
 import { PlaywrightDevPage } from '../utilities';
 
 const test = base.extend<{
@@ -9,6 +14,7 @@ const test = base.extend<{
     carta: async ({ page }, use) => {
         const carta = new PlaywrightDevPage(page);
         await carta.goto();
+        await carta.setTestPreferences();
         await use(carta);
     },
     viewerCanvas: async ({ page }, use) => {
@@ -16,12 +22,53 @@ const test = base.extend<{
     },
 });
 
-test.describe('Image Viewer Controls', () => {
-    test.use({
-        viewport: { width: 1600, height: 720 },
-        colorScheme: 'dark',
+test.setTimeout(90_000);
+
+function settingsField(panel: Locator, label: RegExp) {
+    const text = new RegExp(label.source.replace(/\$$/, '\\s*$'), label.flags);
+    return panel.locator('.bp6-form-group').filter({
+        has: panel.page().locator('.bp6-label').filter({ hasText: text }),
     });
-    test.setTimeout(90_000);
+}
+
+async function rasterRGBA(canvas: Locator) {
+    return canvas.evaluate((source: HTMLCanvasElement) => {
+        const copy = document.createElement('canvas');
+        copy.width = source.width;
+        copy.height = source.height;
+        const context = copy.getContext('2d')!;
+        context.drawImage(source, 0, 0);
+        return Array.from(
+            context.getImageData(
+                Math.floor(copy.width / 2),
+                Math.floor(copy.height / 2),
+                1,
+                1,
+            ).data,
+        );
+    });
+}
+
+async function settleViewer(viewer: Locator) {
+    await viewer.page().mouse.move(0, 0);
+    await expect(viewer.locator('.image-ratio-popup')).toHaveCSS(
+        'opacity',
+        '0',
+    );
+}
+
+async function useSinglePanel(page: Page) {
+    await page.evaluate(async () => {
+        const app = (window as any).app;
+        await app.preferenceStore.setPreference('imagePanelMode', 'fixed');
+        await app.preferenceStore.setPreference('imagePanelColumns', 1);
+        await app.preferenceStore.setPreference('imagePanelRows', 1);
+        app.widgetsStore.setImageMultiPanelEnabled(true);
+    });
+}
+
+test.describe('Image Viewer Controls', () => {
+    test.use({ colorScheme: 'dark' });
     test.beforeEach(async ({ page }) => page.setDefaultTimeout(10_000));
 
     test('Toolbar toggle and all export resolutions', async ({
@@ -40,6 +87,11 @@ test.describe('Image Viewer Controls', () => {
         await toggle.click();
         await expect(zoom).toBeVisible();
 
+        const raster = page.locator('#raster-canvas').first();
+        await expect
+            .poll(() => rasterRGBA(raster).then((pixel) => pixel[3]))
+            .toBe(255);
+        const expectedPixel = await rasterRGBA(raster);
         const sizes: Array<[number, number]> = [];
         for (const [index, label] of [
             'Normal (100%)',
@@ -60,6 +112,30 @@ test.describe('Image Viewer Controls', () => {
                 Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
             );
             sizes.push([png.readUInt32BE(16), png.readUInt32BE(20)]);
+            const exportedPixel = await page.evaluate(async (base64) => {
+                const image = new Image();
+                image.src = `data:image/png;base64,${base64}`;
+                await image.decode();
+                const canvas = document.createElement('canvas');
+                canvas.width = image.width;
+                canvas.height = image.height;
+                const context = canvas.getContext('2d')!;
+                context.drawImage(image, 0, 0);
+                return Array.from(
+                    context.getImageData(
+                        Math.floor(image.width / 2),
+                        Math.floor(image.height / 2),
+                        1,
+                        1,
+                    ).data,
+                );
+            }, png.toString('base64'));
+            expect(exportedPixel[3]).toBe(255);
+            for (const channel of [0, 1, 2]) {
+                expect(
+                    Math.abs(exportedPixel[channel] - expectedPixel[channel]),
+                ).toBeLessThanOrEqual(20);
+            }
         }
         expect(sizes[0][0]).toBeGreaterThan(0);
         expect(sizes[0][1]).toBeGreaterThan(0);
@@ -85,7 +161,6 @@ test.describe('Image Viewer Controls', () => {
         carta,
         viewerCanvas,
     }) => {
-        await carta.setTestPreferences();
         await carta.loadImage('cube.fits');
         await carta.loadImage('matching-cube.fits', true);
 
@@ -126,10 +201,59 @@ test.describe('Image Viewer Controls', () => {
         await expect
             .poll(state)
             .toEqual({ spatial: 'cube.fits', spectral: 'cube.fits' });
-        await expect(viewerCanvas.locator('.image-ratio-popup')).toHaveCSS(
-            'opacity',
-            '0',
+        await page
+            .locator('#image-panel-0-0 .region-stage canvas')
+            .first()
+            .click();
+        await page.evaluate(() =>
+            (window as any).app.frames[0].setCenter(6, 6),
         );
+        await page.getByTestId('animator-0-header-title').click();
+        await page.getByTestId('animator-last-button').click();
+        const geometry = () =>
+            page.evaluate(() => {
+                const [reference, matched] = (window as any).app.frames;
+                return {
+                    referenceChannel: reference.channel,
+                    channel: matched.channel,
+                    center: matched.center,
+                };
+            });
+        await expect
+            .poll(geometry)
+            .toMatchObject({ referenceChannel: 4, channel: 2 });
+        expect((await geometry()).center.x).toBeCloseTo(7.732, 2);
+        expect((await geometry()).center.y).toBeCloseTo(6, 2);
+        await panel.locator('.region-stage canvas').first().click();
+        await expect
+            .poll(() =>
+                page.evaluate(() => (window as any).app.activeFrame.filename),
+            )
+            .toBe('matching-cube.fits');
+        await page.locator('#SpectralProfilerButton').click();
+        await page.evaluate(() => {
+            const frame = (window as any).app.frames[1];
+            frame.setCursorPosition({ x: 8, y: 6 });
+            frame.updateCursorRegion({ x: 8, y: 6 });
+        });
+        await expect(page.getByTestId('viewer-cursor-info-bar')).toContainText(
+            'Velocity: 4.0000 km/s',
+        );
+        await expect
+            .poll(() =>
+                page.evaluate(() =>
+                    (window as any).app.widgetsStore.spectralProfileWidgets
+                        .get('spectral-profiler-0')
+                        ?.plotData?.data[0]?.map((point: any) => point.y),
+                ),
+            )
+            .toEqual([2.75, 5.5, 11, 22, 44]);
+        const profiler = page.getByTestId('spectral-profiler-0-content');
+        await expect(
+            profiler.locator('.annotation-stage canvas').first(),
+        ).toHaveScreenshot('image-viewer-matched-spectral-profile.png');
+        await carta.closeWidget('spectral-profiler');
+        await settleViewer(viewerCanvas);
         await expect(viewerCanvas).toHaveScreenshot('image-viewer-matched.png');
         await choose('None');
         await expect.poll(state).toEqual({ spatial: null, spectral: null });
@@ -140,7 +264,6 @@ test.describe('Image Viewer Controls', () => {
         carta,
         viewerCanvas,
     }) => {
-        await carta.setTestPreferences();
         await carta.loadImage('cube.fits');
         await carta.loadImage('matching-cube.fits', true);
 
@@ -175,10 +298,7 @@ test.describe('Image Viewer Controls', () => {
         await expect(page.locator('.flexlayout__tabset-maximized')).toHaveCount(
             1,
         );
-        await expect(viewerCanvas.locator('.image-ratio-popup')).toHaveCSS(
-            'opacity',
-            '0',
-        );
+        await settleViewer(viewerCanvas);
         await expect(viewerCanvas).toHaveScreenshot(
             'image-viewer-maximized.png',
         );
@@ -191,8 +311,20 @@ test.describe('Image Viewer Controls', () => {
         const popupPromise = page.waitForEvent('popup');
         await page.getByTestId('image-view-header-popout-button').click();
         const popup = await popupPromise;
+        await popup.setViewportSize(page.viewportSize()!);
         await popup.waitForLoadState();
         await expect(popup.getByTestId('viewer-div')).toBeVisible();
+        await expect
+            .poll(() =>
+                rasterRGBA(popup.locator('#raster-canvas').first()).then(
+                    (pixel) => pixel[3],
+                ),
+            )
+            .toBe(255);
+        await settleViewer(popup.getByTestId('viewer-div'));
+        await expect(popup.getByTestId('viewer-div')).toHaveScreenshot(
+            'image-viewer-popout.png',
+        );
         await popup.close();
     });
 
@@ -221,31 +353,24 @@ test.describe('Image Viewer Controls', () => {
                 ),
             )
             .toBe(before + 1);
-        await expect
-            .poll(() =>
-                page.evaluate(() => {
-                    const region = (
-                        window as any
-                    ).app.activeFrame.regionSet.regions.at(-1);
-                    return (
-                        region && {
-                            type: region.regionType,
-                            width: region.size.x,
-                            height: region.size.y,
-                        }
-                    );
-                }),
-            )
-            .toMatchObject({
-                type: 14,
-                width: expect.any(Number),
-                height: expect.any(Number),
+        const rulerGeometry = () =>
+            page.evaluate(() => {
+                const region = (
+                    window as any
+                ).app.activeFrame.regionSet.regions.at(-1);
+                return {
+                    type: region.regionType,
+                    width: region.size.x,
+                    height: region.size.y,
+                };
             });
-        await page.mouse.move(0, 0);
-        await expect(viewerCanvas.locator('.image-ratio-popup')).toHaveCSS(
-            'opacity',
-            '0',
-        );
+        await expect.poll(rulerGeometry).toMatchObject({ type: 14 });
+        const { width, height } = await rulerGeometry();
+        expect(Number.isFinite(width)).toBe(true);
+        expect(Number.isFinite(height)).toBe(true);
+        expect(width).toBeGreaterThan(0);
+        expect(height).toBeGreaterThan(0);
+        await settleViewer(viewerCanvas);
         await expect(viewerCanvas).toHaveScreenshot('image-viewer-ruler.png');
     });
 
@@ -254,27 +379,8 @@ test.describe('Image Viewer Controls', () => {
         carta,
         viewerCanvas,
     }) => {
-        await carta.setTestPreferences();
         await carta.loadImage('cube.fits');
-        const rgb = () =>
-            page
-                .locator('#raster-canvas')
-                .first()
-                .evaluate((source: HTMLCanvasElement) => {
-                    const copy = document.createElement('canvas');
-                    copy.width = source.width;
-                    copy.height = source.height;
-                    const context = copy.getContext('2d')!;
-                    context.drawImage(source, 0, 0);
-                    return Array.from(
-                        context.getImageData(
-                            Math.floor(copy.width / 2),
-                            Math.floor(copy.height / 2),
-                            1,
-                            1,
-                        ).data,
-                    );
-                });
+        const rgb = () => rasterRGBA(page.locator('#raster-canvas').first());
         const initial = await rgb();
         for (const [channel, min, max] of [
             [0, 235, 250],
@@ -297,11 +403,7 @@ test.describe('Image Viewer Controls', () => {
             })
             .toEqual({ isGray: true, alpha: 255 });
         await carta.closeWidget('render-config');
-        await page.mouse.move(0, 0);
-        await expect(viewerCanvas.locator('.image-ratio-popup')).toHaveCSS(
-            'opacity',
-            '0',
-        );
+        await settleViewer(viewerCanvas);
         await expect(page.locator('#raster-canvas').first()).toHaveScreenshot(
             'image-viewer-gray-raster.png',
         );
@@ -324,13 +426,519 @@ test.describe('Image Viewer Controls', () => {
         await width.press('Tab');
         await expect.poll(beamWidth).toBe(2);
         await carta.closeWidget('image-view-floating-settings');
-        await page.mouse.move(0, 0);
-        await expect(viewerCanvas.locator('.image-ratio-popup')).toHaveCSS(
-            'opacity',
-            '0',
-        );
+        await settleViewer(viewerCanvas);
         await expect(viewerCanvas).toHaveScreenshot(
             'image-viewer-beam-width.png',
+        );
+    });
+    test('Empty viewer controls recover after loading an image', async ({
+        page,
+        carta,
+        viewerCanvas,
+    }) => {
+        await page
+            .getByTestId('file-browser-dialog-header-close-button')
+            .click();
+        await expect(
+            page.getByTestId('image-view-header-previous-page-button'),
+        ).toBeDisabled();
+        await expect(
+            page.getByTestId('image-view-header-next-page-button'),
+        ).toBeDisabled();
+        await expect(page.getByTestId('zoom-in-button')).toHaveCount(0);
+        await page.getByTestId('image-view-header-settings-button').click();
+        await expect(
+            page.getByRole('tab', { name: 'Beam', exact: true }),
+        ).toBeDisabled();
+        await expect(
+            page.getByRole('tab', { name: 'Conversion', exact: true }),
+        ).toBeDisabled();
+        await carta.closeWidget('image-view-floating-settings');
+        await expect(viewerCanvas).toHaveScreenshot('image-viewer-empty.png');
+
+        await carta.loadImage('single.fits');
+        await viewerCanvas.hover();
+        await expect(page.getByTestId('zoom-in-button')).toBeVisible();
+        await expect
+            .poll(() =>
+                rasterRGBA(page.locator('#raster-canvas').first()).then(
+                    (pixel) => pixel[3],
+                ),
+            )
+            .toBe(255);
+        await page.getByTestId('image-view-header-settings-button').click();
+        await expect(
+            page.getByRole('tab', { name: 'Beam', exact: true }),
+        ).toBeEnabled();
+        await expect(
+            page.getByRole('tab', { name: 'Conversion', exact: true }),
+        ).toBeDisabled();
+        await carta.closeWidget('image-view-floating-settings');
+        await settleViewer(viewerCanvas);
+        await expect(viewerCanvas).toHaveScreenshot(
+            'image-viewer-empty-recovered.png',
+        );
+    });
+
+    test('Pan and zoom edits, invalid sizes, and offset toolbar buttons', async ({
+        page,
+        carta,
+        viewerCanvas,
+    }) => {
+        await carta.loadImage('cube.fits');
+        await useSinglePanel(page);
+        await page
+            .getByTestId('render-config-0-content')
+            .getByTestId('colormap-dropdown')
+            .click();
+        await page.getByRole('menuitem', { name: 'gray', exact: true }).click();
+        const raster = page.locator('#raster-canvas').first();
+        await expect
+            .poll(() => rasterRGBA(raster).then((pixel) => pixel[3]))
+            .toBe(255);
+        const originalPixel = await rasterRGBA(raster);
+        await viewerCanvas.hover();
+        await page.getByTestId('toolbar-region-moving-button').dblclick();
+        await expect(
+            page.getByRole('tab', { name: 'Pan and Zoom', exact: true }),
+        ).toHaveAttribute('aria-selected', 'true');
+        const pan = page.locator('.panel-pan-and-zoom');
+        await pan
+            .getByRole('radiogroup')
+            .getByText('Image', { exact: true })
+            .click();
+        const centerX = settingsField(pan, /^Center \(X\)/).getByRole(
+            'spinbutton',
+        );
+        const centerY = settingsField(pan, /^Center \(Y\)/).getByRole(
+            'spinbutton',
+        );
+        await centerX.fill('8');
+        await centerX.press('Enter');
+        await centerY.fill('4');
+        await centerY.press('Tab');
+        const geometry = () =>
+            page.evaluate(() => {
+                const frame = (window as any).app.activeFrame;
+                return {
+                    center: frame.center,
+                    size: {
+                        x: Number(frame.fovSize.x.toFixed(6)),
+                        y: Number(frame.fovSize.y.toFixed(6)),
+                    },
+                    zoom: Number(frame.zoomLevel.toFixed(6)),
+                };
+            });
+        await expect.poll(geometry).toMatchObject({ center: { x: 8, y: 4 } });
+        const width = settingsField(pan, /^Size \(X\)/).getByRole('spinbutton');
+        const height = settingsField(pan, /^Size \(Y\)/).getByRole(
+            'spinbutton',
+        );
+        await width.fill('8');
+        await width.press('Enter');
+        await expect
+            .poll(() => geometry().then((frame) => frame.size.x))
+            .toBeCloseTo(8, 5);
+        await height.fill('8');
+        await height.press('Enter');
+        await expect
+            .poll(() => geometry().then((frame) => frame.size.y))
+            .toBeCloseTo(8, 5);
+        const validGeometry = await geometry();
+        for (const input of [width, height]) {
+            for (const invalid of ['0', '-1', '']) {
+                await input.fill(invalid);
+                await input.press('Enter');
+                await expect.poll(geometry).toEqual(validGeometry);
+            }
+        }
+        await centerX.fill('');
+        await centerX.press('Enter');
+        await expect(centerX).toHaveValue('8');
+        await pan
+            .getByRole('radiogroup')
+            .getByText('World', { exact: true })
+            .click();
+        const wcsX = settingsField(pan, /^Center \(X\)/).getByRole('textbox');
+        const validWcs = await wcsX.inputValue();
+        await wcsX.fill('invalid');
+        await wcsX.press('Tab');
+        await expect(wcsX).toHaveValue(validWcs);
+        await expect.poll(geometry).toEqual(validGeometry);
+        await carta.closeWidget('image-view-floating-settings');
+        await expect
+            .poll(() => rasterRGBA(raster).then((pixel) => pixel[0]))
+            .not.toBe(originalPixel[0]);
+        const [red, green, blue, alpha] = await rasterRGBA(raster);
+        expect({ red, green, blue, alpha }).toEqual({
+            red,
+            green: red,
+            blue: red,
+            alpha: 255,
+        });
+        expect(red).toBeGreaterThan(0);
+        expect(red).toBeLessThan(255);
+        await settleViewer(viewerCanvas);
+        await expect(viewerCanvas).toHaveScreenshot(
+            'image-viewer-pan-zoom-edited.png',
+        );
+
+        await viewerCanvas.hover();
+        await page.getByTestId('overlay-coordinate-button').click();
+        const offset = page.getByRole('checkbox', {
+            name: 'Offset',
+            exact: true,
+        });
+        await offset.check({ force: true });
+        await page.getByRole('button', { name: 'Origin', exact: true }).click();
+        await expect
+            .poll(() =>
+                page.evaluate(() => (window as any).app.activeFrame.skyRefIs),
+            )
+            .toBe(0);
+        await page.getByRole('button', { name: 'Pole', exact: true }).click();
+        await expect
+            .poll(() =>
+                page.evaluate(() => (window as any).app.activeFrame.skyRefIs),
+            )
+            .toBe(1);
+        await page
+            .getByRole('button', {
+                name: 'Set pole to current view center',
+                exact: true,
+            })
+            .click();
+        await expect
+            .poll(() =>
+                page.evaluate(
+                    () => (window as any).app.activeFrame.offsetCenter,
+                ),
+            )
+            .toEqual(validGeometry.center);
+        await page.keyboard.press('Escape');
+        await settleViewer(viewerCanvas);
+        await expect(viewerCanvas).toHaveScreenshot(
+            'image-viewer-offset-pole.png',
+        );
+        await viewerCanvas.hover();
+        await page.getByTestId('overlay-coordinate-button').click();
+        await offset.uncheck({ force: true });
+        await expect
+            .poll(() =>
+                page.evaluate(
+                    () => (window as any).app.activeFrame.isOffsetCoord,
+                ),
+            )
+            .toBe(false);
+    });
+
+    test('Overlay font controls reject invalid sizes and restore visibility', async ({
+        page,
+        carta,
+        viewerCanvas,
+    }) => {
+        await carta.loadImage('cube.fits');
+        for (const [
+            tab,
+            section,
+            label,
+            fontProperty,
+            sizeProperty,
+            visibilityLabel,
+        ] of [
+            ['Title', 'title', 'Font', 'font', 'fontSize', 'Visible'],
+            ['Numbers', 'numbers', 'Font', 'font', 'fontSize', 'Visible'],
+            ['Labels', 'labels', 'Font', 'font', 'fontSize', 'Visible'],
+            [
+                'Colorbar',
+                'colorbar',
+                'Label font',
+                'labelFont',
+                'labelFontSize',
+                'Label',
+            ],
+            [
+                'Colorbar',
+                'colorbar',
+                'Numbers font',
+                'numberFont',
+                'numberFontSize',
+                'Numbers',
+            ],
+        ]) {
+            await page.getByTestId('image-view-header-settings-button').click();
+            await page.getByRole('tab', { name: tab, exact: true }).click();
+            const panel = page.getByRole('tabpanel', {
+                name: tab,
+                exact: true,
+            });
+            const visible = settingsField(
+                panel,
+                new RegExp(`^${visibilityLabel}$`),
+            ).getByRole('checkbox');
+            await visible.setChecked(true, { force: true });
+            const font = settingsField(panel, new RegExp(`^${label}$`));
+            const size = font.getByRole('spinbutton');
+            const modelSize = () =>
+                page.evaluate(
+                    ({ section, sizeProperty }) =>
+                        (window as any).app.overlaySettings[section][
+                            sizeProperty
+                        ],
+                    { section, sizeProperty },
+                );
+            await size.fill('24');
+            await expect.poll(modelSize).toBe(24);
+            await font.getByRole('button', { name: 'decrement' }).click();
+            await expect.poll(modelSize).toBe(23);
+            await font.getByRole('button', { name: 'increment' }).click();
+            await expect.poll(modelSize).toBe(24);
+            for (const invalid of ['6', '97']) {
+                await size.fill(invalid);
+                await size.press('Tab');
+                await expect.poll(modelSize).toBe(24);
+            }
+            await size.fill('24');
+            const previousFont = await page.evaluate(
+                ({ section, fontProperty }) =>
+                    (window as any).app.overlaySettings[section][fontProperty],
+                { section, fontProperty },
+            );
+            await font.getByRole('combobox').getByRole('button').click();
+            await page
+                .getByRole('menuitem', { name: 'times', exact: true })
+                .click();
+            await expect(
+                font.getByRole('combobox').getByRole('button'),
+            ).toHaveText('times');
+            await expect
+                .poll(() =>
+                    page.evaluate(
+                        ({ section, fontProperty }) =>
+                            (window as any).app.overlaySettings[section][
+                                fontProperty
+                            ],
+                        { section, fontProperty },
+                    ),
+                )
+                .not.toBe(previousFont);
+            await visible.uncheck({ force: true });
+            await expect(size).toBeDisabled();
+            await expect(
+                font.getByRole('combobox').getByRole('button'),
+            ).toBeDisabled();
+            await visible.check({ force: true });
+            await expect(size).toBeEnabled();
+            await carta.closeWidget('image-view-floating-settings');
+            await settleViewer(viewerCanvas);
+            await expect(viewerCanvas).toHaveScreenshot(
+                `image-viewer-${section}-${fontProperty}.png`,
+            );
+        }
+    });
+
+    test('Colorbar bottom position, interaction, visibility, and invalid values', async ({
+        page,
+        carta,
+        viewerCanvas,
+    }) => {
+        await carta.loadImage('cube.fits');
+        await page.getByTestId('image-view-header-settings-button').click();
+        await page.getByRole('tab', { name: 'Colorbar', exact: true }).click();
+        const panel = page.getByRole('tabpanel', {
+            name: 'Colorbar',
+            exact: true,
+        });
+        for (const [label, property, valid, invalids] of [
+            ['Width', 'width', '30', ['0', '101']],
+            ['Offset', 'offset', '10', ['-1', '101']],
+            ['Ticks density', 'tickDensity', '2', ['0', '21']],
+        ] as const) {
+            const input = settingsField(
+                panel,
+                new RegExp(`^${label}\\b`),
+            ).getByRole('spinbutton');
+            await input.fill(valid);
+            for (const invalid of invalids) {
+                await input.fill(invalid);
+                await input.press('Tab');
+                await expect
+                    .poll(() =>
+                        page.evaluate(
+                            (property) =>
+                                (window as any).app.overlaySettings.colorbar[
+                                    property
+                                ],
+                            property,
+                        ),
+                    )
+                    .toBe(Number(valid));
+            }
+            await input.fill(valid);
+        }
+        await settingsField(panel, /^Position$/)
+            .getByRole('combobox')
+            .selectOption('bottom');
+        await settingsField(panel, /^Interactive$/)
+            .getByRole('checkbox')
+            .check({ force: true });
+        await expect
+            .poll(() =>
+                page.evaluate(
+                    () => (window as any).app.overlaySettings.colorbar.position,
+                ),
+            )
+            .toBe('bottom');
+        await settingsField(panel, /^Visible$/)
+            .getByRole('checkbox')
+            .uncheck({ force: true });
+        await expect(
+            settingsField(panel, /^Width\b/).getByRole('spinbutton'),
+        ).toBeDisabled();
+        await expect(
+            settingsField(panel, /^Position$/).getByRole('combobox'),
+        ).toBeDisabled();
+        await carta.closeWidget('image-view-floating-settings');
+        await settleViewer(viewerCanvas);
+        await expect(viewerCanvas).toHaveScreenshot(
+            'image-viewer-colorbar-hidden.png',
+        );
+        await page.getByTestId('image-view-header-settings-button').click();
+        await page.getByRole('tab', { name: 'Colorbar', exact: true }).click();
+        await settingsField(panel, /^Visible$/)
+            .getByRole('checkbox')
+            .check({ force: true });
+        await carta.closeWidget('image-view-floating-settings');
+        await page.locator('.colorbar-stage').hover();
+        await expect(page.locator('.colorbar-info')).toContainText(
+            /Colorscale:.* K/,
+        );
+        await expect(page.locator('.colorbar-info')).toBeVisible();
+        await settleViewer(viewerCanvas);
+        await expect(viewerCanvas).toHaveScreenshot(
+            'image-viewer-colorbar-bottom.png',
+        );
+        await page.getByTestId('image-view-header-settings-button').click();
+        await page.getByRole('tab', { name: 'Colorbar', exact: true }).click();
+        await settingsField(panel, /^Interactive$/)
+            .getByRole('checkbox')
+            .uncheck({ force: true });
+        await carta.closeWidget('image-view-floating-settings');
+        await page.locator('.colorbar-stage').hover();
+        await expect(page.locator('.colorbar-info')).toHaveCount(0);
+    });
+
+    test('Beam settings stay with their selected image', async ({
+        page,
+        carta,
+        viewerCanvas,
+    }) => {
+        await carta.loadImage('M17_SWex.fits');
+        await carta.loadImage('HD163296_13CO_2-1_subimage.fits', true);
+        const ids = await page.evaluate(() =>
+            (window as any).app.frames.map((frame: any) => String(frame.id)),
+        );
+        const state = () =>
+            page.evaluate(() =>
+                (window as any).app.frames.map((frame: any) => ({
+                    width: frame.overlayBeamSettings.width,
+                    visible: frame.overlayBeamSettings.isVisible,
+                })),
+            );
+        const original = await state();
+        await page.getByTestId('image-view-header-settings-button').click();
+        await page.getByRole('tab', { name: 'Beam', exact: true }).click();
+        const beam = page.getByRole('tabpanel', { name: 'Beam', exact: true });
+        const image = settingsField(beam, /^Image$/).getByRole('combobox');
+        await image.selectOption(ids[0]);
+        await settingsField(beam, /^Width\b/)
+            .getByRole('spinbutton')
+            .fill('5');
+        await settingsField(beam, /^Visible$/)
+            .getByRole('checkbox')
+            .uncheck({ force: true });
+        await expect
+            .poll(state)
+            .toEqual([{ width: 5, visible: false }, original[1]]);
+        await image.selectOption(ids[1]);
+        await expect(
+            settingsField(beam, /^Width\b/).getByRole('spinbutton'),
+        ).toHaveValue(String(original[1].width));
+        await settingsField(beam, /^Width\b/)
+            .getByRole('spinbutton')
+            .fill('2');
+        await expect.poll(state).toEqual([
+            { width: 5, visible: false },
+            { ...original[1], width: 2 },
+        ]);
+        await image.selectOption(ids[0]);
+        await settingsField(beam, /^Visible$/)
+            .getByRole('checkbox')
+            .check({ force: true });
+        await expect.poll(state).toEqual([
+            { width: 5, visible: true },
+            { ...original[1], width: 2 },
+        ]);
+        await carta.closeWidget('image-view-floating-settings');
+        await settleViewer(viewerCanvas);
+        await expect(viewerCanvas).toHaveScreenshot(
+            'image-viewer-beam-per-image.png',
+        );
+    });
+
+    test('Multi-panel pages preserve selection and stop at both boundaries', async ({
+        page,
+        carta,
+        viewerCanvas,
+    }) => {
+        await carta.loadImage('cube.fits');
+        await carta.loadImage('matching-cube.fits', true);
+        await carta.loadImage('single.fits', true);
+        await page.evaluate(async () => {
+            const app = (window as any).app;
+            await app.preferenceStore.setPreference('imagePanelMode', 'fixed');
+            await app.preferenceStore.setPreference('imagePanelColumns', 2);
+            await app.preferenceStore.setPreference('imagePanelRows', 1);
+        });
+        const previous = page.getByTestId(
+            'image-view-header-previous-page-button',
+        );
+        const next = page.getByTestId('image-view-header-next-page-button');
+        const visibleFrames = () =>
+            page.evaluate(() =>
+                (window as any).app.imageViewConfigStore.visibleFrames.map(
+                    (frame: any) => frame.filename,
+                ),
+            );
+        await expect.poll(visibleFrames).toEqual(['single.fits']);
+        await expect(next).toBeDisabled();
+        await previous.click();
+        await expect
+            .poll(visibleFrames)
+            .toEqual(['cube.fits', 'matching-cube.fits']);
+        await expect(previous).toBeDisabled();
+        await expect(next).toBeEnabled();
+        await settleViewer(viewerCanvas);
+        await expect(viewerCanvas).toHaveScreenshot(
+            'image-viewer-first-multi-panel-page.png',
+        );
+        await next.click();
+        await expect.poll(visibleFrames).toEqual(['single.fits']);
+        await expect(page.getByTestId('image-view-header-title')).toContainText(
+            'single.fits',
+        );
+        await expect(previous).toBeEnabled();
+        await expect(next).toBeDisabled();
+        await expect
+            .poll(() =>
+                rasterRGBA(page.locator('#raster-canvas').first()).then(
+                    (pixel) => pixel[3],
+                ),
+            )
+            .toBe(255);
+        await settleViewer(viewerCanvas);
+        await expect(viewerCanvas).toHaveScreenshot(
+            'image-viewer-last-multi-panel-page.png',
         );
     });
 });
@@ -341,23 +949,9 @@ test.describe('Image Viewer', () => {
         carta,
         viewerCanvas,
     }) => {
-        await carta.setTestPreferences();
-        await page.evaluate(async () => {
-            const app = (window as any).app;
-            await app.preferenceStore.setPreference('imagePanelMode', 'fixed');
-            await app.preferenceStore.setPreference('imagePanelColumns', 1);
-            await app.preferenceStore.setPreference('imagePanelRows', 1);
-            app.widgetsStore.setImageMultiPanelEnabled(true);
-        });
         // Load test data cube
         await carta.loadImage('M17_SWex.fits');
-        await page.evaluate(async () => {
-            const app = (window as any).app;
-            await app.preferenceStore.setPreference('imagePanelMode', 'fixed');
-            await app.preferenceStore.setPreference('imagePanelColumns', 1);
-            await app.preferenceStore.setPreference('imagePanelRows', 1);
-            app.widgetsStore.setImageMultiPanelEnabled(true);
-        });
+        await useSinglePanel(page);
         await expect(viewerCanvas).toBeVisible();
 
         await viewerCanvas.hover();
@@ -504,9 +1098,9 @@ test.describe('Image Viewer', () => {
         );
 
         await page.getByTestId('image-view-header-maximize-button').click();
-        await expect(page).toHaveScreenshot(
+        await settleViewer(viewerCanvas);
+        await expect(viewerCanvas).toHaveScreenshot(
             'M17_SWex_viewer_multipanel_maximized.png',
-            { fullPage: true },
         );
         await carta.screenShot(
             page.getByTestId('image-view-header-maximize-button'),
@@ -525,7 +1119,6 @@ test.describe('Image Viewer', () => {
         carta,
         viewerCanvas,
     }) => {
-        await carta.setTestPreferences();
         await carta.setMultiPanelLayout(1, 2);
         // Load test data cube
         await carta.loadImage('M17_SWex.fits');
@@ -573,7 +1166,10 @@ test.describe('Image Viewer', () => {
             'M17_SWex_viewer_toolbar_region_creating_button.png',
         );
 
-        // no need to click moving button, as it is automatically selected after creating a region
+        await page.getByTestId('toolbar-region-moving-button').click();
+        await expect(
+            page.getByTestId('toolbar-region-moving-button'),
+        ).toHaveClass(/bp6-active/);
         await viewerCanvas.dragTo(viewerCanvas, {
             sourcePosition: { x: 500, y: 300 },
             targetPosition: { x: 200, y: 200 },
@@ -584,33 +1180,54 @@ test.describe('Image Viewer', () => {
         );
 
         await page.getByTestId('zoom-to-fit-button').click();
+        const zoomLevel = () =>
+            page.evaluate(() => (window as any).app.activeFrame.zoomLevel);
+        const fitZoom = await zoomLevel();
         await page.getByTestId('zoom-in-button').click();
         await page.getByTestId('zoom-in-button').click();
+        await expect.poll(zoomLevel).toBeCloseTo(fitZoom * 4, 6);
         await carta.screenShot(
             viewerCanvas,
             'M17_SWex_viewer_toolbar_zoom_in.png',
         );
         await page.getByTestId('zoom-out-button').click();
+        await expect.poll(zoomLevel).toBeCloseTo(fitZoom * 2, 6);
         await carta.screenShot(
             viewerCanvas,
             'M17_SWex_viewer_toolbar_zoom_out.png',
         );
         await page.getByTestId('zoom-to-1x-fit-button').click();
+        await expect.poll(zoomLevel).toBe(1);
         await carta.screenShot(
             viewerCanvas,
             'M17_SWex_viewer_toolbar_zoom_1x.png',
         );
         await page.getByTestId('zoom-to-fit-button').click();
+        await expect.poll(zoomLevel).toBeCloseTo(fitZoom, 6);
         await carta.screenShot(
             viewerCanvas,
             'M17_SWex_viewer_toolbar_zoom_fit.png',
         );
         await page.getByTestId('grid-button').click();
+        await expect
+            .poll(() =>
+                page.evaluate(
+                    () => (window as any).app.overlaySettings.grid.isVisible,
+                ),
+            )
+            .toBe(true);
         await carta.screenShot(
             viewerCanvas,
             'M17_SWex_viewer_toolbar_grid_on.png',
         );
         await page.getByTestId('toggle-labels-button').click();
+        await expect
+            .poll(() =>
+                page.evaluate(
+                    () => (window as any).app.overlaySettings.labels.isHidden,
+                ),
+            )
+            .toBe(true);
         await carta.screenShot(
             viewerCanvas,
             'M17_SWex_viewer_toolbar_label_off.png',
@@ -651,16 +1268,12 @@ test.describe('Image Viewer', () => {
         `);
 
         await carta.loadImage('HD163296_13CO_2-1_subimage.fits', true);
-        await page
-            .locator(
-                'div:nth-child(9) > .region-stage > .konvajs-content > canvas',
-            )
-            .click({
-                position: {
-                    x: 217,
-                    y: 122,
-                },
-            });
+        await page.locator('#image-panel-1-0 .region-stage canvas').click({
+            position: {
+                x: 217,
+                y: 122,
+            },
+        });
 
         await page
             .locator('#image-panel-1-0')
@@ -684,23 +1297,10 @@ test.describe('Image Viewer', () => {
         carta,
         viewerCanvas,
     }) => {
-        await carta.setTestPreferences();
-        const useSingleImagePanel = () =>
-            page.evaluate(async () => {
-                const app = (window as any).app;
-                await app.preferenceStore.setPreference(
-                    'imagePanelMode',
-                    'fixed',
-                );
-                await app.preferenceStore.setPreference('imagePanelColumns', 1);
-                await app.preferenceStore.setPreference('imagePanelRows', 1);
-                app.widgetsStore.setImageMultiPanelEnabled(true);
-            });
-        await useSingleImagePanel();
-
+        const pan = page.locator('.panel-pan-and-zoom');
         // Load test data cube
         await carta.loadImage('M17_SWex.fits');
-        await useSingleImagePanel();
+        await useSinglePanel(page);
 
         // Open image viewer settings
         await page.getByTestId('image-view-header-settings-button').click();
@@ -749,13 +1349,10 @@ test.describe('Image Viewer', () => {
         await expect(
             page.getByRole('spinbutton', { name: 'Height' }),
         ).toHaveValue(/^\d+(?:\.\d+)?$/);
-        await page
-            .locator(
-                '[id="bp6-tab-panel_imageViewSettingsTabs_Pan and Zoom"] select',
-            )
-            .selectOption('ECLIPTIC');
-        await page
-            .locator('label:nth-child(2) > .bp6-control-indicator')
+        await pan.getByRole('combobox').selectOption('ECLIPTIC');
+        await pan
+            .getByRole('radiogroup')
+            .getByText('World', { exact: true })
             .click();
         await expect(
             page.getByRole('textbox', { name: 'X WCS coordinate' }),
@@ -769,26 +1366,16 @@ test.describe('Image Viewer', () => {
         await expect(page.getByRole('textbox', { name: 'Height' })).toHaveValue(
             /^\d+\.\d+["']$/,
         );
-        await page
-            .locator(
-                '[id="bp6-tab-panel_imageViewSettingsTabs_Pan and Zoom"] select',
-            )
-            .selectOption('CARTESIAN');
+        await pan.getByRole('combobox').selectOption('CARTESIAN');
         await expect(
             page.getByRole('textbox', { name: 'X WCS coordinate' }),
         ).toBeEmpty();
         await expect(page.getByRole('textbox', { name: 'Width' })).toBeEmpty();
 
-        await page
-            .locator(
-                '.panel-pan-and-zoom > div:nth-child(6) > .bp6-form-content > .bp6-control > .bp6-control-indicator',
-            )
-            .click();
-        await page
-            .locator(
-                '[id="bp6-tab-panel_imageViewSettingsTabs_Pan and Zoom"] select',
-            )
-            .selectOption('GALACTIC');
+        await settingsField(pan, /^Offset coordinates$/)
+            .getByRole('checkbox')
+            .click({ force: true });
+        await pan.getByRole('combobox').selectOption('GALACTIC');
         const xCoordinates = page.getByRole('textbox', {
             name: 'X WCS coordinate',
         });
@@ -823,8 +1410,8 @@ test.describe('Image Viewer', () => {
 
         await page.getByTestId('image-view-header-settings-button').click();
         await expect(page.locator('.image-view-settings')).toBeVisible();
-        await page
-            .locator('.bp6-collapse-body > .bp6-popover-target > .bp6-button')
+        await settingsField(pan, /^Offset coordinates$/)
+            .getByRole('button')
             .click();
         await expect(offsetX).toHaveValue(await centerX.inputValue());
         await expect(offsetY).toHaveValue(await centerY.inputValue());
@@ -841,8 +1428,11 @@ test.describe('Image Viewer', () => {
         carta,
         viewerCanvas,
     }) => {
+        const global = page.getByRole('tabpanel', {
+            name: 'Global',
+            exact: true,
+        });
         // set to default multi-panel layout
-        await carta.setTestPreferences();
 
         // Load test data cubes
         await carta.loadImage('M17_SWex.fits');
@@ -896,12 +1486,9 @@ test.describe('Image Viewer', () => {
             - img "Open dropdown"
           `);
 
-        await page
-            .locator(
-                '.panel-container > div > .bp6-form-content > .bp6-control > .bp6-control-indicator',
-            )
-            .first()
-            .click();
+        await settingsField(global, /^Enable multi-panel$/)
+            .getByRole('checkbox')
+            .click({ force: true });
         await expect(page.getByLabel('Global')).toMatchAriaSnapshot(`
             - tabpanel "Global":
               - text: Enable multi-panel
@@ -951,13 +1538,12 @@ test.describe('Image Viewer', () => {
             'M17_SWex_viewer_settings_multi_panel_button.png',
         );
 
-        await page
-            .locator(
-                '.panel-container > div > .bp6-form-content > .bp6-control > .bp6-control-indicator',
-            )
-            .first()
-            .click();
-        await page.locator('select').nth(5).selectOption('fixed');
+        await settingsField(global, /^Enable multi-panel$/)
+            .getByRole('checkbox')
+            .click({ force: true });
+        await settingsField(global, /^Multi-panel mode$/)
+            .getByRole('combobox')
+            .selectOption('fixed');
         await carta.screenShot(
             viewerCanvas,
             'M17_SWex_viewer_settings_fixed_multi_panel_2x2.png',
@@ -988,28 +1574,28 @@ test.describe('Image Viewer', () => {
             'M17_SWex_viewer_settings_fixed_multi_panel_1x3.png',
         );
 
-        await page.locator('.bp6-button.colorselect').first().click();
+        await settingsField(global, /^Overlay color$/)
+            .getByRole('button')
+            .click();
         await page.locator('li:nth-child(4) > .bp6-menu-item').click();
         await carta.screenShot(
             viewerCanvas,
             'M17_SWex_viewer_settings_fixed_multi_panel_1x3_color.png',
         );
 
-        await page
-            .locator(
-                'div:nth-child(7) > .bp6-form-content > .bp6-html-select > select',
-            )
+        await settingsField(global, /^Labelling$/)
+            .getByRole('combobox')
             .selectOption('Interior');
-        await page.locator('select').nth(5).selectOption('dynamic');
+        await settingsField(global, /^Multi-panel mode$/)
+            .getByRole('combobox')
+            .selectOption('dynamic');
         await carta.screenShot(
             viewerCanvas,
             'M17_SWex_viewer_settings_fixed_multi_panel_interior_label.png',
         );
 
-        await page
-            .locator(
-                'div:nth-child(8) > .bp6-form-content > .bp6-html-select > select',
-            )
+        await settingsField(global, /^Coordinate system$/)
+            .getByRole('combobox')
             .selectOption('ECLIPTIC');
         await carta.screenShot(
             viewerCanvas,
@@ -1022,8 +1608,15 @@ test.describe('Image Viewer', () => {
         carta,
         viewerCanvas,
     }) => {
+        const title = page.getByRole('tabpanel', {
+            name: 'Title',
+            exact: true,
+        });
+        const ticks = page.getByRole('tabpanel', {
+            name: 'Ticks',
+            exact: true,
+        });
         // set to default multi-panel layout
-        await carta.setTestPreferences();
 
         // Load test data cubes
         await carta.loadImage('M17_SWex.fits');
@@ -1048,12 +1641,9 @@ test.describe('Image Viewer', () => {
           - checkbox [disabled]
           `);
 
-        await page
-            .locator(
-                '#bp6-tab-panel_imageViewSettingsTabs_Title > .scroll-shadow > .scroll-shadow-cover > .panel-container > div > .bp6-form-content > .bp6-control > .bp6-control-indicator',
-            )
-            .first()
-            .click();
+        await settingsField(title, /^Visible$/)
+            .getByRole('checkbox')
+            .click({ force: true });
         await expect(page.getByLabel('Title')).toMatchAriaSnapshot(`
           - text: Visible
           - checkbox [checked]
@@ -1074,25 +1664,17 @@ test.describe('Image Viewer', () => {
             viewerCanvas,
             'M17_SWex_viewer_settings_title_on.png',
         );
-        await page
-            .locator(
-                'div:nth-child(3) > .bp6-form-content > .bp6-control > .bp6-control-indicator',
-            )
-            .first()
-            .click();
+        await settingsField(title, /^Custom text$/)
+            .getByRole('checkbox')
+            .click({ force: true });
         await page
             .getByRole('textbox', { name: 'Enter title text' })
             .fill('I am Title');
-        await page
-            .locator(
-                'div:nth-child(5) > .bp6-form-content > .bp6-control > .bp6-control-indicator',
-            )
-            .first()
-            .click();
-        await page
-            .locator(
-                '.bp6-collapse-body > .bp6-form-group > .bp6-form-content > .bp6-popover-target > .bp6-button',
-            )
+        await settingsField(title, /^Custom color$/)
+            .getByRole('checkbox')
+            .click({ force: true });
+        await settingsField(title, /^Color$/)
+            .getByRole('button')
             .click();
         await page.locator('li:nth-child(3) > .bp6-menu-item').click();
         await carta.screenShot(
@@ -1100,12 +1682,9 @@ test.describe('Image Viewer', () => {
             'M17_SWex_viewer_settings_custom_title.png',
         );
 
-        await page
-            .locator(
-                '#bp6-tab-panel_imageViewSettingsTabs_Title > .scroll-shadow > .scroll-shadow-cover > .panel-container > div > .bp6-form-content > .bp6-control > .bp6-control-indicator',
-            )
-            .first()
-            .click();
+        await settingsField(title, /^Visible$/)
+            .getByRole('checkbox')
+            .click({ force: true });
 
         await page.getByRole('tab', { name: 'Ticks' }).click();
         await expect(page.getByLabel('Ticks')).toMatchAriaSnapshot(`
@@ -1132,23 +1711,16 @@ test.describe('Image Viewer', () => {
               - button "increment"
               - button "decrement"
           `);
-        await page
-            .locator(
-                '#bp6-tab-panel_imageViewSettingsTabs_Ticks > .scroll-shadow > .scroll-shadow-cover > .panel-container > div > .bp6-form-content > .bp6-control > .bp6-control-indicator',
-            )
-            .first()
-            .click();
+        await settingsField(ticks, /^Draw on all edges$/)
+            .getByRole('checkbox')
+            .click({ force: true });
         await carta.screenShot(
             viewerCanvas,
             'M17_SWex_viewer_settings_ticks_all_edges_off.png',
         );
-        await page
-            .locator(
-                'div:nth-child(2) > .bp6-form-content > .bp6-control > .bp6-control-indicator',
-            )
-            .first()
-            .click();
-        const ticks = page.getByLabel('Ticks');
+        await settingsField(ticks, /^Custom density$/)
+            .getByRole('checkbox')
+            .click({ force: true });
         await ticks
             .getByRole('spinbutton', { name: 'Density' })
             .nth(0)
@@ -1161,16 +1733,11 @@ test.describe('Image Viewer', () => {
             viewerCanvas,
             'M17_SWex_viewer_settings_ticks_custom_density.png',
         );
-        await page
-            .locator(
-                'div:nth-child(4) > .bp6-form-content > .bp6-control > .bp6-control-indicator',
-            )
-            .first()
-            .click();
-        await page
-            .locator(
-                '.bp6-collapse-body > .bp6-form-group > .bp6-form-content > .bp6-popover-target > .bp6-button',
-            )
+        await settingsField(ticks, /^Custom color$/)
+            .getByRole('checkbox')
+            .click({ force: true });
+        await settingsField(ticks, /^Color$/)
+            .getByRole('button')
             .click();
         await page.locator('li:nth-child(2) > .bp6-menu-item').click();
         await expect(viewerCanvas).toHaveScreenshot(
@@ -1198,9 +1765,10 @@ test.describe('Image Viewer', () => {
         carta,
         viewerCanvas,
     }) => {
-        // set to default preferences
-        await carta.setTestPreferences();
-
+        const grids = page.getByRole('tabpanel', {
+            name: 'Grids',
+            exact: true,
+        });
         // Load test data cubes
         await carta.loadImage('M17_SWex.fits');
 
@@ -1227,26 +1795,19 @@ test.describe('Image Viewer', () => {
             - button
           `);
 
-        await page
-            .locator(
-                '#bp6-tab-panel_imageViewSettingsTabs_Grids > .scroll-shadow > .scroll-shadow-cover > .panel-container > div > .bp6-form-content > .bp6-control > .bp6-control-indicator',
-            )
-            .first()
-            .click();
+        await settingsField(grids, /^WCS grid$/)
+            .getByRole('checkbox')
+            .click({ force: true });
         await carta.screenShot(
             viewerCanvas,
             'M17_SWex_viewer_settings_grid.png',
         );
 
-        await page
-            .locator(
-                '#bp6-tab-panel_imageViewSettingsTabs_Grids > .scroll-shadow > .scroll-shadow-cover > .panel-container > div:nth-child(2) > .bp6-form-content > .bp6-control > .bp6-control-indicator',
-            )
-            .click();
-        await page
-            .locator(
-                '.bp6-collapse-body > .bp6-form-group > .bp6-form-content > .bp6-popover-target > .bp6-button',
-            )
+        await settingsField(grids, /^Custom color$/)
+            .getByRole('checkbox')
+            .click({ force: true });
+        await settingsField(grids, /^Color$/)
+            .getByRole('button')
             .click();
         await page.locator('li:nth-child(9) > .bp6-menu-item').click();
         await page
@@ -1268,12 +1829,9 @@ test.describe('Image Viewer', () => {
         );
 
         await carta.setSystem('CARTESIAN');
-        await page
-            .locator(
-                '#bp6-tab-panel_imageViewSettingsTabs_Grids > .scroll-shadow > .scroll-shadow-cover > .panel-container > div:nth-child(5) > .bp6-form-content > .bp6-control > .bp6-control-indicator',
-            )
-            .click();
-        const grids = page.getByLabel('Grids');
+        await settingsField(grids, /^Custom gap$/)
+            .getByRole('checkbox')
+            .click({ force: true });
         await grids.getByRole('spinbutton', { name: 'Gap' }).nth(0).fill('100');
         await grids.getByRole('spinbutton', { name: 'Gap' }).nth(1).fill('50');
         await carta.screenShot(
@@ -1281,22 +1839,14 @@ test.describe('Image Viewer', () => {
             'M17_SWex_viewer_settings_grid_gap.png',
         );
 
-        await page
-            .locator(
-                '#bp6-tab-panel_imageViewSettingsTabs_Grids > .scroll-shadow > .scroll-shadow-cover > .panel-container > div > .bp6-form-content > .bp6-control > .bp6-control-indicator',
-            )
-            .first()
-            .click();
-        await page
-            .locator(
-                'div:nth-child(7) > .bp6-form-content > .bp6-control > .bp6-control-indicator',
-            )
-            .first()
-            .click();
-        await page
-            .locator(
-                'div:nth-child(8) > .bp6-form-content > .bp6-popover-target > .bp6-button',
-            )
+        await settingsField(grids, /^WCS grid$/)
+            .getByRole('checkbox')
+            .click({ force: true });
+        await settingsField(grids, /^Pixel grid$/)
+            .getByRole('checkbox')
+            .click({ force: true });
+        await settingsField(grids, /^Pixel grid color$/)
+            .getByRole('button')
             .click();
         await page
             .getByRole('listbox', { name: 'selectable options' })
@@ -1315,9 +1865,11 @@ test.describe('Image Viewer', () => {
         carta,
         viewerCanvas,
     }) => {
-        // set to default preferences
-        await carta.setTestPreferences();
-
+        const border = page.getByRole('tabpanel', {
+            name: 'Border',
+            exact: true,
+        });
+        const axes = page.getByRole('tabpanel', { name: 'Axes', exact: true });
         // Load test data cubes
         await carta.loadImage('M17_SWex.fits');
 
@@ -1336,15 +1888,11 @@ test.describe('Image Viewer', () => {
             - button "increment"
             - button "decrement"
           `);
-        await page
-            .locator(
-                '#bp6-tab-panel_imageViewSettingsTabs_Border > .scroll-shadow > .scroll-shadow-cover > .panel-container > div:nth-child(2) > .bp6-form-content > .bp6-control > .bp6-control-indicator',
-            )
-            .click();
-        await page
-            .locator(
-                '.bp6-collapse-body > .bp6-form-group > .bp6-form-content > .bp6-popover-target > .bp6-button',
-            )
+        await settingsField(border, /^Custom color$/)
+            .getByRole('checkbox')
+            .click({ force: true });
+        await settingsField(border, /^Color$/)
+            .getByRole('button')
             .click();
         await page.locator('li:nth-child(6) > .bp6-menu-item').click();
         await page
@@ -1356,11 +1904,14 @@ test.describe('Image Viewer', () => {
             .getByRole('button', { name: 'increment' })
             .click();
 
+        await carta.closeWidget('image-view-floating-settings');
+        await settleViewer(viewerCanvas);
         await carta.screenShot(
             viewerCanvas,
             'M17_SWex_viewer_settings_border.png',
         );
 
+        await page.getByTestId('image-view-header-settings-button').click();
         await page.getByRole('tab', { name: 'Axes' }).click();
         await expect(page.getByLabel('Axes')).toMatchAriaSnapshot(`
           - text: Visible
@@ -1376,12 +1927,9 @@ test.describe('Image Viewer', () => {
           `);
 
         await carta.setLabelType('Interior');
-        await page
-            .locator(
-                '#bp6-tab-panel_imageViewSettingsTabs_Axes > .scroll-shadow > .scroll-shadow-cover > .panel-container > div > .bp6-form-content > .bp6-control > .bp6-control-indicator',
-            )
-            .first()
-            .click();
+        await settingsField(axes, /^Visible$/)
+            .getByRole('checkbox')
+            .click({ force: true });
         await expect(page.getByLabel('Axes')).toMatchAriaSnapshot(`
           - text: Visible
           - checkbox [checked]
@@ -1393,15 +1941,11 @@ test.describe('Image Viewer', () => {
             - button "increment"
             - button "decrement"
           `);
-        await page
-            .locator(
-                '#bp6-tab-panel_imageViewSettingsTabs_Axes > .scroll-shadow > .scroll-shadow-cover > .panel-container > div:nth-child(2) > .bp6-form-content > .bp6-control > .bp6-control-indicator',
-            )
-            .click();
-        await page
-            .locator(
-                '#bp6-tab-panel_imageViewSettingsTabs_Axes > .scroll-shadow > .scroll-shadow-cover > .panel-container > .bp6-collapse > .bp6-collapse-body > .bp6-form-group > .bp6-form-content > .bp6-popover-target > .bp6-button',
-            )
+        await settingsField(axes, /^Custom color$/)
+            .getByRole('checkbox')
+            .click({ force: true });
+        await settingsField(axes, /^Color$/)
+            .getByRole('button')
             .click();
         await page.locator('li:nth-child(3) > .bp6-menu-item').click();
         await page
@@ -1413,6 +1957,8 @@ test.describe('Image Viewer', () => {
             .getByRole('button', { name: 'increment' })
             .click();
 
+        await carta.closeWidget('image-view-floating-settings');
+        await settleViewer(viewerCanvas);
         await carta.screenShot(
             viewerCanvas,
             'M17_SWex_viewer_settings_axes.png',
@@ -1424,9 +1970,14 @@ test.describe('Image Viewer', () => {
         carta,
         viewerCanvas,
     }) => {
-        // set to default preferences
-        await carta.setTestPreferences();
-
+        const numbers = page.getByRole('tabpanel', {
+            name: 'Numbers',
+            exact: true,
+        });
+        const labels = page.getByRole('tabpanel', {
+            name: 'Labels',
+            exact: true,
+        });
         // Load test data cubes
         await carta.loadImage('M17_SWex.fits');
 
@@ -1452,38 +2003,25 @@ test.describe('Image Viewer', () => {
           - checkbox
           `);
 
-        await page
-            .locator(
-                '#bp6-tab-panel_imageViewSettingsTabs_Numbers > .scroll-shadow > .scroll-shadow-cover > .panel-container > div:nth-child(3) > .bp6-form-content > .bp6-control > .bp6-control-indicator',
-            )
-            .click();
-        await page
-            .locator(
-                '.bp6-collapse-body > .bp6-form-group > .bp6-form-content > .bp6-popover-target > .bp6-button',
-            )
+        await settingsField(numbers, /^Custom color$/)
+            .getByRole('checkbox')
+            .click({ force: true });
+        await settingsField(numbers, /^Color$/)
+            .getByRole('button')
             .click();
         await page.locator('li:nth-child(2) > .bp6-menu-item').click();
-        await page
-            .locator(
-                '#bp6-tab-panel_imageViewSettingsTabs_Numbers > .scroll-shadow > .scroll-shadow-cover > .panel-container > div:nth-child(5) > .bp6-form-content > .bp6-control > .bp6-control-indicator',
-            )
-            .click();
-        await page
-            .locator(
-                '.bp6-collapse-body > div > .bp6-form-content > .bp6-html-select > select',
-            )
-            .first()
+        await settingsField(numbers, /^Custom format$/)
+            .getByRole('checkbox')
+            .click({ force: true });
+        await settingsField(numbers, /^Format \(X\)$/)
+            .getByRole('combobox')
             .selectOption('d');
-        await page
-            .locator(
-                '.bp6-collapse-body > div:nth-child(2) > .bp6-form-content > .bp6-html-select > select',
-            )
+        await settingsField(numbers, /^Format \(Y\)$/)
+            .getByRole('combobox')
             .selectOption('d');
-        await page
-            .locator(
-                '#bp6-tab-panel_imageViewSettingsTabs_Numbers > .scroll-shadow > .scroll-shadow-cover > .panel-container > div:nth-child(7) > .bp6-form-content > .bp6-control > .bp6-control-indicator',
-            )
-            .click();
+        await settingsField(numbers, /^Custom precision$/)
+            .getByRole('checkbox')
+            .click({ force: true });
         const numberPrecision = page
             .getByLabel('Numbers')
             .locator('.bp6-form-group')
@@ -1520,16 +2058,12 @@ test.describe('Image Viewer', () => {
           - checkbox
           `);
 
-        await page
-            .locator(
-                '.panel-labels > div:nth-child(3) > .bp6-form-content > .bp6-control > .bp6-control-indicator',
-            )
-            .click();
-        await page
-            .locator(
-                '.panel-labels > div:nth-child(4) > .bp6-form-content > .bp6-control > .bp6-control-indicator',
-            )
-            .click();
+        await settingsField(labels, /^Show RA\/Dec reference$/)
+            .getByRole('checkbox')
+            .click({ force: true });
+        await settingsField(labels, /^Custom text$/)
+            .getByRole('checkbox')
+            .click({ force: true });
         await page
             .getByRole('textbox', { name: 'Enter label text' })
             .first()
@@ -1538,15 +2072,11 @@ test.describe('Image Viewer', () => {
             .getByRole('textbox', { name: 'Enter label text' })
             .nth(1)
             .fill('WeAreDEC');
-        await page
-            .locator(
-                '.panel-labels > div:nth-child(6) > .bp6-form-content > .bp6-control > .bp6-control-indicator',
-            )
-            .click();
-        await page
-            .locator(
-                'div:nth-child(7) > .bp6-collapse-body > .bp6-form-group > .bp6-form-content > .bp6-popover-target > .bp6-button',
-            )
+        await settingsField(labels, /^Custom color$/)
+            .getByRole('checkbox')
+            .click({ force: true });
+        await settingsField(labels, /^Color$/)
+            .getByRole('button')
             .click();
         await page.locator('li:nth-child(2) > .bp6-menu-item').click();
 
@@ -1561,11 +2091,12 @@ test.describe('Image Viewer', () => {
         carta,
         viewerCanvas,
     }) => {
-        const colorbarCanvas = page.locator('canvas').nth(5);
+        const colorbarCanvas = page.locator('.colorbar-stage canvas').first();
 
-        // set to default preferences
-        await carta.setTestPreferences();
-
+        const colorbar = page.getByRole('tabpanel', {
+            name: 'Colorbar',
+            exact: true,
+        });
         // Load test data cubes
         await carta.loadImage('M17_SWex.fits');
 
@@ -1667,11 +2198,9 @@ test.describe('Image Viewer', () => {
           - checkbox
           `);
 
-        await page
-            .locator(
-                '.panel-colorbar > div:nth-child(2) > .bp6-form-content > .bp6-control > .bp6-control-indicator',
-            )
-            .click();
+        await settingsField(colorbar, /^Interactive$/)
+            .getByRole('checkbox')
+            .click({ force: true });
         await page
             .getByLabel('Colorbar')
             .getByRole('combobox')
@@ -1689,76 +2218,65 @@ test.describe('Image Viewer', () => {
             .fill('30');
         await page.getByRole('spinbutton', { name: 'Offset' }).fill('10');
         await page.getByRole('spinbutton', { name: 'Ticks density' }).fill('2');
-        await page
-            .locator(
-                '.panel-colorbar > div:nth-child(7) > .bp6-form-content > .bp6-control > .bp6-control-indicator',
-            )
-            .click();
-        await page
-            .locator(
-                '.bp6-collapse-body > .bp6-form-group > .bp6-form-content > .bp6-popover-target > .bp6-button',
-            )
+        await settingsField(colorbar, /^Custom color$/)
+            .getByRole('checkbox')
+            .click({ force: true });
+        await settingsField(colorbar, /^color$/)
+            .getByRole('button')
             .click();
         await page.locator('li:nth-child(3) > .bp6-menu-item').click();
-        await page
-            .locator('canvas')
-            .nth(5)
-            .click({
-                position: {
-                    x: 384,
-                    y: 37,
-                },
-            });
+        await page.locator('.colorbar-stage').click({
+            position: {
+                x: 384,
+                y: 37,
+            },
+        });
+        await carta.closeWidget('image-view-floating-settings');
+        await settleViewer(viewerCanvas);
         await expect(viewerCanvas).toHaveScreenshot(
             'M17_SWex_viewer_settings_colorbar_position.png',
             { maxDiffPixelRatio: 0.02 },
         );
 
-        await page
-            .locator(
-                'div:nth-child(10) > .bp6-form-content > .bp6-control > .bp6-control-indicator',
-            )
-            .click();
-        await page
-            .locator(
-                'div:nth-child(13) > .bp6-form-content > .bp6-control > .bp6-control-indicator',
-            )
-            .click();
+        await page.getByTestId('image-view-header-settings-button').click();
+        await page.getByRole('tab', { name: 'Colorbar', exact: true }).click();
+        await settingsField(colorbar, /^Label$/)
+            .getByRole('checkbox')
+            .click({ force: true });
+        await settingsField(colorbar, /^Label custom text$/)
+            .getByRole('checkbox')
+            .click({ force: true });
         await page.getByRole('textbox', { name: 'Enter label text' }).click();
         await page
             .getByRole('textbox', { name: 'Enter label text' })
             .fill('LabelLabel');
-        await page
-            .locator(
-                'div:nth-child(15) > .bp6-form-content > .bp6-control > .bp6-control-indicator',
-            )
-            .click();
-        await page
-            .locator(
-                'div:nth-child(16) > .bp6-collapse-body > .bp6-form-group > .bp6-form-content > .bp6-popover-target > .bp6-button',
-            )
+        await settingsField(colorbar, /^Label custom color$/)
+            .getByRole('checkbox')
+            .click({ force: true });
+        await settingsField(colorbar, /^Label color$/)
+            .getByRole('button')
             .click();
         await page.locator('li:nth-child(5) > .bp6-menu-item').click();
+        await carta.closeWidget('image-view-floating-settings');
+        await settleViewer(viewerCanvas);
         await carta.screenShot(
             colorbarCanvas,
             'M17_SWex_viewer_settings_colorbar_label.png',
         );
 
+        await page.getByTestId('image-view-header-settings-button').click();
+        await page.getByRole('tab', { name: 'Colorbar', exact: true }).click();
         await page
             .getByLabel('Colorbar')
             .getByRole('combobox')
             .first()
             .selectOption('right');
-        await page
-            .locator(
-                'div:nth-child(19) > .bp6-form-content > .bp6-html-select > select',
-            )
+        await settingsField(colorbar, /^Numbers rotation$/)
+            .getByRole('combobox')
             .selectOption('0');
-        await page
-            .locator(
-                'div:nth-child(21) > .bp6-form-content > .bp6-control > .bp6-control-indicator',
-            )
-            .click();
+        await settingsField(colorbar, /^Numbers custom precision$/)
+            .getByRole('checkbox')
+            .click({ force: true });
         const colorbarPrecision = page
             .getByLabel('Colorbar')
             .locator('.bp6-form-group')
@@ -1769,27 +2287,25 @@ test.describe('Image Viewer', () => {
         await expect(colorbarPrecision.getByRole('spinbutton')).toHaveValue(
             '2',
         );
-        await page
-            .locator(
-                'div:nth-child(23) > .bp6-form-content > .bp6-control > .bp6-control-indicator',
-            )
-            .click();
-        await page
-            .locator(
-                'div:nth-child(24) > .bp6-collapse-body > .bp6-form-group > .bp6-form-content > .bp6-popover-target > .bp6-button',
-            )
+        await settingsField(colorbar, /^Numbers custom color$/)
+            .getByRole('checkbox')
+            .click({ force: true });
+        await settingsField(colorbar, /^Numbers color$/)
+            .getByRole('button')
             .click();
         await page.locator('li:nth-child(7) > .bp6-menu-item').click();
+        await carta.closeWidget('image-view-floating-settings');
+        await settleViewer(viewerCanvas);
         await expect(colorbarCanvas).toHaveScreenshot(
             'M17_SWex_viewer_settings_colorbar_numbers.png',
             { maxDiffPixelRatio: 0.02 },
         );
 
-        await page
-            .locator(
-                'div:nth-child(18) > .bp6-form-content > .bp6-control > .bp6-control-indicator',
-            )
-            .click();
+        await page.getByTestId('image-view-header-settings-button').click();
+        await page.getByRole('tab', { name: 'Colorbar', exact: true }).click();
+        await settingsField(colorbar, /^Numbers$/)
+            .getByRole('checkbox')
+            .click({ force: true });
         await expect(page.getByText('Numbers rotation -90090Open'))
             .toMatchAriaSnapshot(`
           - text: Numbers rotation
@@ -1800,11 +2316,8 @@ test.describe('Image Viewer', () => {
           - img "Open dropdown"
           `);
 
-        await expect(
-            page.locator(
-                'div:nth-child(22) > .bp6-collapse-body > .bp6-form-group',
-            ),
-        ).toMatchAriaSnapshot(`
+        await expect(settingsField(colorbar, /^Numbers precision$/))
+            .toMatchAriaSnapshot(`
             - text: Numbers precision
             - group:
               - spinbutton [disabled]: "2"
@@ -1815,6 +2328,8 @@ test.describe('Image Viewer', () => {
         await page.getByRole('spinbutton', { name: 'Ticks length' }).fill('10');
         await page.getByRole('spinbutton', { name: 'Ticks width' }).fill('5');
         await page.getByRole('spinbutton', { name: 'Border width' }).fill('3');
+        await carta.closeWidget('image-view-floating-settings');
+        await settleViewer(viewerCanvas);
         await carta.screenShot(
             colorbarCanvas,
             'M17_SWex_viewer_settings_colorbar_ticks.png',
@@ -1826,7 +2341,7 @@ test.describe('Image Viewer', () => {
         carta,
         viewerCanvas,
     }) => {
-        await carta.setTestPreferences();
+        const beam = page.getByRole('tabpanel', { name: 'Beam', exact: true });
         // set to default preferences
         await carta.setMultiPanelLayout();
         await carta.enablePixelGrid(false);
@@ -1841,16 +2356,12 @@ test.describe('Image Viewer', () => {
 
         await carta.setZoom(0, 15);
 
-        await page
-            .locator(
-                'div:nth-child(3) > .bp6-form-content > .bp6-popover-target > .bp6-button',
-            )
+        await settingsField(beam, /^Color$/)
+            .getByRole('button')
             .click();
         await page.locator('li:nth-child(17) > .bp6-menu-item').click();
-        await page
-            .locator(
-                'div:nth-child(4) > .bp6-form-content > .bp6-html-select > select',
-            )
+        await settingsField(beam, /^Type$/)
+            .getByRole('combobox')
             .selectOption('solid');
         await page.getByRole('spinbutton', { name: 'Width' }).click();
         await page.getByRole('spinbutton', { name: 'Width' }).fill('5');
@@ -1861,11 +2372,9 @@ test.describe('Image Viewer', () => {
             'M17_SWex_viewer_settings_beam.png',
         );
 
-        await page
-            .locator(
-                '#bp6-tab-panel_imageViewSettingsTabs_Beam > .scroll-shadow > .scroll-shadow-cover > .panel-container > div:nth-child(2) > .bp6-form-content > .bp6-control > .bp6-control-indicator',
-            )
-            .click();
+        await settingsField(beam, /^Visible$/)
+            .getByRole('checkbox')
+            .click({ force: true });
         await carta.screenShot(
             viewerCanvas,
             'M17_SWex_viewer_settings_no_beam.png',
@@ -1880,7 +2389,6 @@ test.describe('Image Viewer', () => {
             .locator('.annotation-stage > .konvajs-content > canvas')
             .first();
 
-        await carta.setTestPreferences();
         // Load test data cube
         await carta.loadImage('M17_SWex.fits');
         const renderConfigContent = page.getByTestId('render-config-0-content');
@@ -1888,6 +2396,37 @@ test.describe('Image Viewer', () => {
             await page.getByTestId('render-config-0-header-title').click();
         }
         await expect(renderConfigContent).toBeVisible();
+        const renderedPixels = () =>
+            page
+                .locator('#raster-canvas')
+                .first()
+                .evaluate((source: HTMLCanvasElement) => {
+                    const sample = document.createElement('canvas');
+                    sample.width = sample.height = 8;
+                    const context = sample.getContext('2d')!;
+                    context.drawImage(source, 0, 0, 8, 8);
+                    return Array.from(context.getImageData(0, 0, 8, 8).data);
+                });
+        const selectColormap = async (name: string) => {
+            const previous = await renderedPixels();
+            await renderConfigContent.getByTestId('colormap-dropdown').click();
+            const item = page.getByRole('menuitem', { name, exact: true });
+            // Keyboard selection avoids hover previews moving the menu beneath the pointer.
+            await item.focus();
+            await item.press('Enter');
+            await expect(item).toBeHidden();
+            await page.mouse.move(0, 0);
+            await expect
+                .poll(() =>
+                    page.evaluate(
+                        () =>
+                            (window as any).app.activeFrame.renderConfig
+                                .colorMap,
+                    ),
+                )
+                .toBe(name);
+            await expect.poll(renderedPixels).not.toEqual(previous);
+        };
 
         // set channel to 8 and take screenshots of different rendering modes and colormaps
         await carta.setChannel(0, 8);
@@ -1897,9 +2436,7 @@ test.describe('Image Viewer', () => {
         await carta.screenShot(viewerCanvas, 'M17_SWex_channel8_log_99.99.png');
         await page.getByTestId('clip-button-99').click();
         await carta.screenShot(viewerCanvas, 'M17_SWex_channel8_log_99.png');
-        await renderConfigContent
-            .locator('.bp6-form-group')
-            .filter({ hasText: /^Alpha/ })
+        await settingsField(renderConfigContent, /^Alpha/)
             .getByRole('spinbutton')
             .fill('100');
         await carta.screenShot(
@@ -1917,7 +2454,9 @@ test.describe('Image Viewer', () => {
             viewerCanvas,
             'M17_SWex_channel8_square_root_99.png',
         );
-        await page.locator('.bp6-control-indicator').first().click();
+        await settingsField(renderConfigContent, /^Invert colormap$/)
+            .getByRole('checkbox')
+            .click({ force: true });
         await carta.screenShot(
             viewerCanvas,
             'M17_SWex_channel8_square_root_99_invert.png',
@@ -1926,24 +2465,21 @@ test.describe('Image Viewer', () => {
         await page.getByRole('button', { name: 'Square root' }).click();
         await page.getByRole('menuitem', { name: 'Squared' }).click();
         await carta.screenShot(viewerCanvas, 'M17_SWex_channel8_square_99.png');
-        await page.getByTestId('colormap-dropdown').click();
-        await page.getByRole('menuitem', { name: 'cubehelix' }).click();
+        await selectColormap('cubehelix');
         await carta.screenShot(
             viewerCanvas,
             'M17_SWex_channel8_square_99_cubehelix.png',
         );
-        await page.getByTestId('colormap-dropdown').click();
-        await page.getByRole('menuitem', { name: 'gnuplot2' }).click();
+        await selectColormap('gnuplot2');
         await carta.screenShot(
             viewerCanvas,
             'M17_SWex_channel8_square_99_gnuplot2.png',
         );
         await carta.screenShot(
-            page.locator('canvas').nth(5),
+            page.locator('.colorbar-stage canvas').first(),
             'gnuplot2_colorbar.png',
         );
-        await page.getByTestId('colormap-dropdown').click();
-        await page.getByRole('menuitem', { name: 'custom' }).click();
+        await selectColormap('custom');
         await carta.screenShot(
             viewerCanvas,
             'M17_SWex_channel8_square_99_custom.png',
@@ -1952,15 +2488,14 @@ test.describe('Image Viewer', () => {
         await page.getByRole('button', { name: 'Squared' }).click();
         await page.getByRole('menuitem', { name: 'Gamma' }).click();
 
-        const gammaInput = renderConfigContent
-            .locator('.bp6-form-group')
-            .filter({ hasText: /^Gamma/ })
-            .getByRole('spinbutton');
+        const gammaInput = settingsField(
+            renderConfigContent,
+            /^Gamma$/,
+        ).getByRole('spinbutton');
         await gammaInput.fill('1.5');
         await gammaInput.press('Enter');
 
-        await page.getByTestId('colormap-dropdown').click();
-        await page.getByRole('menuitem', { name: 'seismic' }).click();
+        await selectColormap('seismic');
         await carta.screenShot(
             viewerCanvas,
             'M17_SWex_channel8_gamma_99_gamma_1.5_seismic.png',
@@ -1968,9 +2503,10 @@ test.describe('Image Viewer', () => {
         await page.getByTestId('clip-button-99.99').click();
 
         await page.getByRole('button', { name: 'Bias / Contrast' }).click();
-        const contrastControls = page
-            .locator('.bp6-form-group')
-            .filter({ hasText: /^Contrast/ });
+        const contrastControls = settingsField(
+            renderConfigContent,
+            /^Contrast$/,
+        );
         const contrastDecrement = contrastControls.getByRole('button', {
             name: 'decrement',
         });
@@ -1992,23 +2528,31 @@ test.describe('Image Viewer', () => {
             'M17_SWex_channel8_gamma_99.99_gamma_1.5_seismic_bias_hist.png',
         );
         await carta.screenShot(
-            page.locator('canvas').nth(5),
+            page.locator('.colorbar-stage canvas').first(),
             'seismic_colorbar.png',
         );
 
         await page.getByRole('button', { name: 'Gamma', exact: true }).click();
         await page.getByRole('menuitem', { name: 'Power' }).click();
 
-        await page.locator('.bp6-input-action > .bp6-button').first().click();
-        await page
-            .locator(
-                'div:nth-child(3) > .bp6-form-content > .bp6-control-group > .bp6-input-group > .bp6-input-action > .bp6-button',
-            )
+        await settingsField(renderConfigContent, /^Bias$/)
+            .locator('.bp6-input-action > button')
             .click();
+        await contrastControls.locator('.bp6-input-action > button').click();
+        await expect
+            .poll(() =>
+                page.evaluate(() => {
+                    const { bias, contrast } = (window as any).app.activeFrame
+                        .renderConfig;
+                    return { bias, contrast };
+                }),
+            )
+            .toEqual({ bias: 0, contrast: 1 });
         await page.getByTestId('clip-button-99.5').click();
-        await page.getByTestId('colormap-dropdown').click();
-        await page.getByRole('menuitem', { name: 'gist_stern' }).click();
-        await page.locator('#numericInput-6').fill('10');
+        await selectColormap('gist_stern');
+        await settingsField(renderConfigContent, /^Alpha/)
+            .getByRole('spinbutton')
+            .fill('10');
         await carta.screenShot(
             viewerCanvas,
             'M17_SWex_channel8_power_99.5_alpha_10_gist_stern.png',

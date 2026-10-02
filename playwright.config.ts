@@ -40,6 +40,7 @@ export default defineConfig({
     reporter: 'html',
     /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
     use: {
+        ...devices['Desktop Chrome'],
         /* Base URL to use in actions like `await page.goto('')`. */
         baseURL: cartaUrl,
         viewport: { width: 1920, height: 1080 },
@@ -53,34 +54,18 @@ export default defineConfig({
         {
             name: 'test-group1',
             testMatch: ['**/Animator.spec.ts', '**/Catalog.spec.ts', '**/ChannelMap.spec.ts', '**/Contours.spec.ts', '**/CursorInfo.spec.ts', '**/Histogram.spec.ts'],
-            use: {
-                ...devices['Desktop Chrome'],
-                viewport: { width: 1920, height: 1080 },
-            },
         },
         {
             name: 'test-group2',
             testMatch: ['**/ImageFitting.spec.ts', '**/ImageLayer.spec.ts', '**/ImageViewer.spec.ts', '**/Layout.spec.ts', '**/LoadingFiles.spec.ts', '**/OnlineDataQuery.spec.ts'],
-            use: {
-                ...devices['Desktop Chrome'],
-                viewport: { width: 1920, height: 1080 },
-            },
         },
         {
             name: 'test-group3',
             testMatch: ['**/Profilers.spec.ts', '**/PVImage.spec.ts', '**/Regions.spec.ts', '**/Snippets.spec.ts', '**/Statistics.spec.ts', '**/Stokes.spec.ts', '**/TimeSeries.spec.ts', 'VectorOverlay.spec.ts'],
-            use: {
-                ...devices['Desktop Chrome'],
-                viewport: { width: 1920, height: 1080 },
-            },
         },
         {
             name: 'moment-map',
             testMatch: '**/MomentMap.spec.ts',
-            use: {
-                ...devices['Desktop Chrome'],
-                viewport: { width: 1920, height: 1080 },
-            },
         },
     ],
 
