@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { PlaywrightDevPage } from '../utilities';
+import { fixtureRelativePath, PlaywrightDevPage } from '../utilities';
 
 test.describe('CARTA Snippets', () => {
     test('Image properties', async ({ page }) => {
@@ -11,14 +11,14 @@ test.describe('CARTA Snippets', () => {
         await carta.setTestPreferences();
 
         await carta.fillSnippetInput(`
-const file = await app.openFile("./carta_build/e2e-lite/test_data", "M17_SWex.fits"); 
-file.setCenter(100, 100); 
-file.setCenterWcs("18:20:09.52", "-16:10:09.8"); 
-file.fitZoom(); file.zoomToSizeX(2000); 
-file.zoomToSizeY(500); 
-file.zoomToSizeXWcs(\`15'\`); 
-file.zoomToSizeYWcs(\`120"\`); 
-file.setChannel(12); 
+const file = await app.openFile("./${fixtureRelativePath}", "M17_SWex.fits");
+file.setCenter(100, 100);
+file.setCenterWcs("18:20:09.52", "-16:10:09.8");
+file.fitZoom(); file.zoomToSizeX(2000);
+file.zoomToSizeY(500);
+file.zoomToSizeXWcs(\`15'\`);
+file.zoomToSizeYWcs(\`120"\`);
+file.setChannel(12);
         `);
         await page
             .getByTestId('animator-0-header-title')
@@ -30,12 +30,12 @@ file.setChannel(12);
         await carta.screenShot(viewerCanvas, 'snippets-image-properties.png');
 
         await carta.fillSnippetInput(`
-const file = await app.openFile("./carta_build/e2e-lite/test_data", "IRCp10216_sci.spw0.cube.IQUV.manual.pbcor.subimage.fits"); 
-file.setStokes(2); file.setStokesByIndex(2); 
-file.renderConfig.setCustomScale(-0.02, 0.03); 
+const file = await app.openFile("./${fixtureRelativePath}", "IRCp10216_sci.spw0.cube.IQUV.manual.pbcor.subimage.fits");
+file.setStokes(2); file.setStokesByIndex(2);
+file.renderConfig.setCustomScale(-0.02, 0.03);
 file.renderConfig.setPercentileRank(90);
-file.renderConfig.setScaling(1); 
-file.renderConfig.setColorMap("gray"); 
+file.renderConfig.setScaling(1);
+file.renderConfig.setColorMap("gray");
 file.renderConfig.setInverted(true);
             `);
         await expect(page.getByTestId('animator-polarization-slider'))
@@ -61,12 +61,12 @@ file.renderConfig.setInverted(true);
         await carta.setTestPreferences();
 
         await carta.fillSnippetInput(`
-const file = await app.openFile("./carta_build/e2e-lite/test_data", "M17_SWex.fits"); 
-console.log(file.regionSet.regions); console.log(file.regionSet.selectedRegion); 
-const regionSet = file.regionSet; 
-const region = await regionSet.addRegionAsync(3, [{x: 200, y: 300}, {x: 50, y: 100}]); 
-const region2 = await regionSet.addRegionAsync(1, [{x: 250, y: 300}, {x: 350, y: 400}]); 
-region.setCenter({x: 0, y: 0}); 
+const file = await app.openFile("./${fixtureRelativePath}", "M17_SWex.fits");
+console.log(file.regionSet.regions); console.log(file.regionSet.selectedRegion);
+const regionSet = file.regionSet;
+const region = await regionSet.addRegionAsync(3, [{x: 200, y: 300}, {x: 50, y: 100}]);
+const region2 = await regionSet.addRegionAsync(1, [{x: 250, y: 300}, {x: 350, y: 400}]);
+region.setCenter({x: 0, y: 0});
 region.setSize({x: 100, y: 100});
 region.setColor("#ffffff");
             `);
@@ -83,7 +83,7 @@ region.setColor("#ffffff");
 
         await carta.fillSnippetInput(`
 // Open an image
-const file = await app.openFile("./carta_build/e2e-lite/test_data", "M17_SWex.fits");
+const file = await app.openFile("./${fixtureRelativePath}", "M17_SWex.fits");
 
 // Create a spectral profile settings widget
 app.widgetsStore.createFloatingSpectralProfilerWidget();
@@ -117,7 +117,7 @@ spectralProfileWidget.requestMoment();
 
         await carta.fillSnippetInput(`
 // Open an image
-const file = await app.openFile("./carta_build/e2e-lite/test_data", "M17_SWex.fits");
+const file = await app.openFile("./${fixtureRelativePath}", "M17_SWex.fits");
 
 // Create a line region
 const region = await file.regionSet.addRegionAsync(1, [{x: 180, y: 180}, {x: 350, y: 350}]);
@@ -146,7 +146,7 @@ pvGeneratorWidget.requestPV();
 
         await carta.fillSnippetInput(`
 // Open an image
-const file = await app.openFile("./carta_build/e2e-lite/test_data", "dice_four.fits");
+const file = await app.openFile("./${fixtureRelativePath}", "dice_four.fits");
 
 // Display the fitting widget
 app.dialogStore.showDialog("fitting-dialog");
@@ -197,9 +197,9 @@ app.imageFittingStore.fitImage();
 
         try {
             await expect(
-            page.getByTestId('image-fitting-result-tab'),
-        ).toMatchAriaSnapshot(
-            `- text: "/Component #1: Center X = 6:\\\\d+:\\\\d+\\\\.\\\\d+ ± \\\\d+\\\\.\\\\d+ \\\\(s\\\\) Center Y = \\\\d+:\\\\d+:\\\\d+\\\\.\\\\d+ ± \\\\d+\\\\.\\\\d+ \\\\(arcsec\\\\) Amplitude = \\\\d+\\\\.\\\\d+ ± \\\\d+\\\\.\\\\d+ \\\\(Jy\\\\/beam\\\\) FWHM Major Axis = \\\\d+\\\\.\\\\d+ ± \\\\d+\\\\.\\\\d+ \\\\(arcsec\\\\) FWHM Minor Axis = \\\\d+\\\\.\\\\d+ ± \\\\d+\\\\.\\\\d+ \\\\(arcsec\\\\) P\\\\.A\\\\. = \\\\d+\\\\.\\\\d+ ± \\\\d+\\\\.\\\\d+ \\\\(deg\\\\) Integrated flux = \\\\d+\\\\.\\\\d+ ± \\\\d+\\\\.\\\\d+ \\\\(Jy\\\\) Component #2: Center X = 6:\\\\d+:\\\\d+\\\\.\\\\d+ ± \\\\d+\\\\.\\\\d+ \\\\(s\\\\) Center Y = \\\\d+:\\\\d+:\\\\d+\\\\.\\\\d+ ± \\\\d+\\\\.\\\\d+ \\\\(arcsec\\\\) Amplitude = \\\\d+\\\\.\\\\d+ ± \\\\d+\\\\.\\\\d+ \\\\(Jy\\\\/beam\\\\) FWHM Major Axis = \\\\d+\\\\.\\\\d+ ± \\\\d+\\\\.\\\\d+ \\\\(arcsec\\\\) FWHM Minor Axis = \\\\d+\\\\.\\\\d+ ± \\\\d+\\\\.\\\\d+ \\\\(arcsec\\\\) P\\\\.A\\\\. = \\\\d+\\\\.\\\\d+ ± \\\\d+\\\\.\\\\d+ \\\\(deg\\\\) Integrated flux = \\\\d+\\\\.\\\\d+ ± \\\\d+\\\\.\\\\d+ \\\\(Jy\\\\) Component #3: Center X = 6:\\\\d+:\\\\d+\\\\.\\\\d+ ± \\\\d+\\\\.\\\\d+ \\\\(s\\\\) Center Y = \\\\d+:\\\\d+:\\\\d+\\\\.\\\\d+ ± \\\\d+\\\\.\\\\d+ \\\\(arcsec\\\\) Amplitude = \\\\d+\\\\.\\\\d+ ± \\\\d+\\\\.\\\\d+ \\\\(Jy\\\\/beam\\\\) FWHM Major Axis = \\\\d+\\\\.\\\\d+ ± \\\\d+\\\\.\\\\d+ \\\\(arcsec\\\\) FWHM Minor Axis = \\\\d+\\\\.\\\\d+ ± \\\\d+\\\\.\\\\d+ \\\\(arcsec\\\\) P\\\\.A\\\\. = -\\\\d+\\\\.\\\\d+ ± \\\\d+\\\\.\\\\d+ \\\\(deg\\\\) Integrated flux = \\\\d+\\\\.\\\\d+ ± \\\\d+\\\\.\\\\d+ \\\\(Jy\\\\) Component #4: Center X = 6:\\\\d+:\\\\d+\\\\.\\\\d+ ± \\\\d+\\\\.\\\\d+ \\\\(s\\\\) Center Y = \\\\d+:\\\\d+:\\\\d+\\\\.\\\\d+ ± \\\\d+\\\\.\\\\d+ \\\\(arcsec\\\\) Amplitude = \\\\d+\\\\.\\\\d+ ± \\\\d+\\\\.\\\\d+ \\\\(Jy\\\\/beam\\\\) FWHM Major Axis = \\\\d+\\\\.\\\\d+ ± \\\\d+\\\\.\\\\d+ \\\\(arcsec\\\\) FWHM Minor Axis = \\\\d+\\\\.\\\\d+ ± \\\\d+\\\\.\\\\d+ \\\\(arcsec\\\\) P\\\\.A\\\\. = \\\\d+\\\\.\\\\d+ ± \\\\d+\\\\.\\\\d+ \\\\(deg\\\\) Integrated flux = \\\\d+\\\\.\\\\d+ ± \\\\d+\\\\.\\\\d+ \\\\(Jy\\\\) Background = \\\\d+\\\\.\\\\d+ \\\\(Jy\\\\/beam\\\\) \\\\(fixed\\\\)/"`,
+                page.getByTestId('image-fitting-result-tab'),
+            ).toMatchAriaSnapshot(
+                `- text: "/Component #1: Center X = 6:\\\\d+:\\\\d+\\\\.\\\\d+ ± \\\\d+\\\\.\\\\d+ \\\\(s\\\\) Center Y = \\\\d+:\\\\d+:\\\\d+\\\\.\\\\d+ ± \\\\d+\\\\.\\\\d+ \\\\(arcsec\\\\) Amplitude = \\\\d+\\\\.\\\\d+ ± \\\\d+\\\\.\\\\d+ \\\\(Jy\\\\/beam\\\\) FWHM Major Axis = \\\\d+\\\\.\\\\d+ ± \\\\d+\\\\.\\\\d+ \\\\(arcsec\\\\) FWHM Minor Axis = \\\\d+\\\\.\\\\d+ ± \\\\d+\\\\.\\\\d+ \\\\(arcsec\\\\) P\\\\.A\\\\. = \\\\d+\\\\.\\\\d+ ± \\\\d+\\\\.\\\\d+ \\\\(deg\\\\) Integrated flux = \\\\d+\\\\.\\\\d+ ± \\\\d+\\\\.\\\\d+ \\\\(Jy\\\\) Component #2: Center X = 6:\\\\d+:\\\\d+\\\\.\\\\d+ ± \\\\d+\\\\.\\\\d+ \\\\(s\\\\) Center Y = \\\\d+:\\\\d+:\\\\d+\\\\.\\\\d+ ± \\\\d+\\\\.\\\\d+ \\\\(arcsec\\\\) Amplitude = \\\\d+\\\\.\\\\d+ ± \\\\d+\\\\.\\\\d+ \\\\(Jy\\\\/beam\\\\) FWHM Major Axis = \\\\d+\\\\.\\\\d+ ± \\\\d+\\\\.\\\\d+ \\\\(arcsec\\\\) FWHM Minor Axis = \\\\d+\\\\.\\\\d+ ± \\\\d+\\\\.\\\\d+ \\\\(arcsec\\\\) P\\\\.A\\\\. = \\\\d+\\\\.\\\\d+ ± \\\\d+\\\\.\\\\d+ \\\\(deg\\\\) Integrated flux = \\\\d+\\\\.\\\\d+ ± \\\\d+\\\\.\\\\d+ \\\\(Jy\\\\) Component #3: Center X = 6:\\\\d+:\\\\d+\\\\.\\\\d+ ± \\\\d+\\\\.\\\\d+ \\\\(s\\\\) Center Y = \\\\d+:\\\\d+:\\\\d+\\\\.\\\\d+ ± \\\\d+\\\\.\\\\d+ \\\\(arcsec\\\\) Amplitude = \\\\d+\\\\.\\\\d+ ± \\\\d+\\\\.\\\\d+ \\\\(Jy\\\\/beam\\\\) FWHM Major Axis = \\\\d+\\\\.\\\\d+ ± \\\\d+\\\\.\\\\d+ \\\\(arcsec\\\\) FWHM Minor Axis = \\\\d+\\\\.\\\\d+ ± \\\\d+\\\\.\\\\d+ \\\\(arcsec\\\\) P\\\\.A\\\\. = -\\\\d+\\\\.\\\\d+ ± \\\\d+\\\\.\\\\d+ \\\\(deg\\\\) Integrated flux = \\\\d+\\\\.\\\\d+ ± \\\\d+\\\\.\\\\d+ \\\\(Jy\\\\) Component #4: Center X = 6:\\\\d+:\\\\d+\\\\.\\\\d+ ± \\\\d+\\\\.\\\\d+ \\\\(s\\\\) Center Y = \\\\d+:\\\\d+:\\\\d+\\\\.\\\\d+ ± \\\\d+\\\\.\\\\d+ \\\\(arcsec\\\\) Amplitude = \\\\d+\\\\.\\\\d+ ± \\\\d+\\\\.\\\\d+ \\\\(Jy\\\\/beam\\\\) FWHM Major Axis = \\\\d+\\\\.\\\\d+ ± \\\\d+\\\\.\\\\d+ \\\\(arcsec\\\\) FWHM Minor Axis = \\\\d+\\\\.\\\\d+ ± \\\\d+\\\\.\\\\d+ \\\\(arcsec\\\\) P\\\\.A\\\\. = \\\\d+\\\\.\\\\d+ ± \\\\d+\\\\.\\\\d+ \\\\(deg\\\\) Integrated flux = \\\\d+\\\\.\\\\d+ ± \\\\d+\\\\.\\\\d+ \\\\(Jy\\\\) Background = \\\\d+\\\\.\\\\d+ \\\\(Jy\\\\/beam\\\\) \\\\(fixed\\\\)/"`,
             );
         } catch {
             await expect(
@@ -235,9 +235,9 @@ app.imageFittingStore.fitImage();
 
         await carta.fillSnippetInput(`
 // Open three images
-const file1 = await app.openFile("./carta_build/e2e-lite/test_data", "m16_f0770w.fits");
-const file2 = await app.appendFile("./carta_build/e2e-lite/test_data", "m16_f1130w.fits");
-const file3 = await app.appendFile("./carta_build/e2e-lite/test_data", "m16_f1500w.fits");
+const file1 = await app.openFile("./${fixtureRelativePath}", "m16_f0770w.fits");
+const file2 = await app.appendFile("./${fixtureRelativePath}", "m16_f1130w.fits");
+const file3 = await app.appendFile("./${fixtureRelativePath}", "m16_f1500w.fits");
 
 // Match images
 file2.setSpatialReference(file1);
@@ -245,16 +245,16 @@ file3.setSpatialReference(file1);
 
 // Create a color blended image
 const colorBlendingStore = app.imageViewConfigStore.createColorBlending();
-console.log(colorBlendingStore.frames.length); // 3            
+console.log(colorBlendingStore.frames.length); // 3
             `);
 
         await carta.screenShot(panelCanvas11, 'snippets-color-blending1.png');
 
         await carta.fillSnippetInput(`
 // Open three images
-const file1 = await app.openFile("./carta_build/e2e-lite/test_data", "m16_f0770w.fits");
-const file2 = await app.appendFile("./carta_build/e2e-lite/test_data", "m16_f1130w.fits");
-const file3 = await app.appendFile("./carta_build/e2e-lite/test_data", "m16_f1500w.fits");
+const file1 = await app.openFile("./${fixtureRelativePath}", "m16_f0770w.fits");
+const file2 = await app.appendFile("./${fixtureRelativePath}", "m16_f1130w.fits");
+const file3 = await app.appendFile("./${fixtureRelativePath}", "m16_f1500w.fits");
 
 // Match images
 file2.setSpatialReference(file1);
@@ -262,7 +262,7 @@ file3.setSpatialReference(file1);
 
 // Create a color blended image
 const colorBlendingStore = app.imageViewConfigStore.createColorBlending();
-console.log(colorBlendingStore.frames.length); // 3                   
+console.log(colorBlendingStore.frames.length); // 3
 app.imageViewConfigStore.removeColorBlending(colorBlendingStore);
             `);
 
@@ -270,9 +270,9 @@ app.imageViewConfigStore.removeColorBlending(colorBlendingStore);
 
         await carta.fillSnippetInput(`
 // Open three images
-const file1 = await app.openFile("./carta_build/e2e-lite/test_data", "m16_f0770w.fits");
-const file2 = await app.appendFile("./carta_build/e2e-lite/test_data", "m16_f1130w.fits");
-const file3 = await app.appendFile("./carta_build/e2e-lite/test_data", "m16_f1500w.fits");
+const file1 = await app.openFile("./${fixtureRelativePath}", "m16_f0770w.fits");
+const file2 = await app.appendFile("./${fixtureRelativePath}", "m16_f1130w.fits");
+const file3 = await app.appendFile("./${fixtureRelativePath}", "m16_f1500w.fits");
 
 // Match images
 file2.setSpatialReference(file1);
@@ -282,7 +282,7 @@ file3.setSpatialReference(file1);
 const colorBlendingStore = app.imageViewConfigStore.createColorBlending();
 
 // Add a new layer
-const file4 = await app.appendFile("./carta_build/e2e-lite/test_data", "m16_f0444w.fits");
+const file4 = await app.appendFile("./${fixtureRelativePath}", "m16_f0444w.fits");
 file4.setSpatialReference(file1);
 colorBlendingStore.addSelectedFrame(file4);
 

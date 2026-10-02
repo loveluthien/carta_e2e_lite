@@ -1,4 +1,4 @@
-export const testGroups = [
+const testGroups = [
     {
         name: 'test-group1',
         testMatch: [
@@ -38,13 +38,10 @@ export const testGroups = [
     },
     {
         name: 'test-group5',
-        testMatch: [
-            '**/ChannelMap.spec.ts',
-            '**/Profilers.spec.ts',
-        ],
+        testMatch: ['**/ChannelMap.spec.ts', '**/Profilers.spec.ts'],
     },
 ];
+const defaultWorkers = 6;
+const projectNames = testGroups.map(({ name }) => name);
 
-export const defaultWorkers = 6;
-
-export const projectNames = testGroups.map(({ name }) => name);
+export { defaultWorkers, projectNames, testGroups };

@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { PlaywrightDevPage } from '../utilities';
+import { fixtureBrowserPath, PlaywrightDevPage } from '../utilities';
 
 const images = [
     'J0423-0120_2015-05-24.fits',
@@ -19,7 +19,7 @@ test('Loads a dated image series and steps through its viewer and profile', asyn
     const path = browser.getByPlaceholder(
         'Input directory path with respect to the top level folder',
     );
-    await path.fill('/carta_build/e2e-lite/test_data/time_series');
+    await path.fill(`${fixtureBrowserPath}/time_series`);
     await path.press('Enter');
 
     await browser.getByText(images[2], { exact: true }).click();

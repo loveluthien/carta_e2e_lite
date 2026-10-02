@@ -58,7 +58,7 @@ Use concise Title Case names for `test.describe()` groups. Write individual test
 
 ## Coverage notes
 
-- The 161-case count is collection output, not a passing-test count. Chromium is the only enabled browser; Firefox and WebKit are currently commented out in `playwright.config.ts`.
+- The 161-case count is collection output, not a passing-test count. Chromium is the only enabled browser in `playwright.config.mjs`.
 - Coverage targets selected functional workflows and recovery paths described in the linked plans. It does not establish exhaustive coverage of every CARTA widget or dialog control, and it does not measure performance.
 - Visual checks are targeted: selected viewer and profiler outputs use reviewed PNG snapshots or direct pixel/RGB assertions. Other cases rely on UI state or data assertions, so a snapshot does not imply that every visible property is compared.
 - Three Moment Map cases are annotated with `test.fail()` to track known defects: generation with no selected moments, the rest-frequency reset control remaining enabled, and a missing warning for malformed generated-image acknowledgments. Check the Playwright report to see how those cases behave in a given run.

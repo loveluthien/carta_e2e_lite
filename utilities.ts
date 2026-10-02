@@ -87,6 +87,13 @@ export const cubeSizeLabel = (page: Page) =>
     pvPanel(page).locator('.cube-size');
 
 export const fixtureFolder = path.resolve(__dirname, 'test_data');
+export const cartaTopLevelFolder =
+    process.env.CARTA_TOP_LEVEL_FOLDER ?? path.resolve(__dirname, '../..');
+export const fixtureRelativePath = path
+    .relative(cartaTopLevelFolder, fixtureFolder)
+    .split(path.sep)
+    .join('/');
+export const fixtureBrowserPath = `/${fixtureRelativePath}`;
 export const moments = [
     ['-1', 'Mean value of the spectrum', 'average'],
     ['0', 'Integrated value of the spectrum', 'integrated'],
@@ -142,7 +149,7 @@ export async function load(
     );
     await directory.fill(
         (folder === fixtureFolder && process.env.MOMENT_FIXTURE_DIRECTORY) ||
-            folder.replace('/Users/kchou/bz', ''),
+            `/${path.relative(cartaTopLevelFolder, folder).split(path.sep).join('/')}`,
     );
     await directory.press('Enter');
     await carta.loadImage(name, append);
@@ -527,9 +534,7 @@ export class PlaywrightDevPage {
 
     constructor(page: Page) {
         this.page = page;
-        this.imagePath =
-            process.env.IMAGE_PATH ||
-            '/Users/kchou/bz/carta_build/e2e-lite/test_data';
+        this.imagePath = process.env.IMAGE_PATH || fixtureFolder;
     }
 
     async goto(layout: LayoutName = LayoutName.Default) {
@@ -577,16 +582,17 @@ export class PlaywrightDevPage {
             timeout: 3000,
         });
         await expect
-            .poll(() =>
-                this.page.evaluate(
-                    () => (window as any).app.layoutStore.currentLayoutName,
-                ),
+            .poll(
+                () =>
+                    this.page.evaluate(
+                        () => (window as any).app.layoutStore.currentLayoutName,
+                    ),
                 { timeout: 3000 },
             )
             .toBe(layoutName);
-        await expect(
-            this.page.getByTestId('file-browser-dialog'),
-        ).toBeVisible({ timeout: 3000 });
+        await expect(this.page.getByTestId('file-browser-dialog')).toBeVisible({
+            timeout: 3000,
+        });
     }
 
     private async setTestTelemetryPreferences() {

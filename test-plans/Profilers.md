@@ -34,5 +34,5 @@ Spatial and spectral profiles, formatting, smoothing, fitting and viewer connect
 ## Run
 
 ```sh
-npm test -- --project=test-group3 tests/Profilers.spec.ts
+npm test -- --project=test-group5 tests/Profilers.spec.ts
 ```

@@ -4,6 +4,7 @@ import { createRequire } from 'node:module';
 import { mkdir, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+
 import {
     backendArguments,
     backendExecutable,
@@ -70,6 +71,43 @@ for (const project of projects) {
             `Unknown project ${project}. Choose one of: ${projectNames.join(', ')}`,
         );
     }
+}
+
+function countSelectedTests(project) {
+    const result = spawnSync(
+        process.execPath,
+        [
+            playwrightCli,
+            'test',
+            ...playwrightArgs,
+            '--list',
+            '--project',
+            project,
+            '--pass-with-no-tests',
+        ],
+        { cwd: projectRoot, encoding: 'utf8' },
+    );
+    if (result.error) throw result.error;
+    if (result.status !== 0) {
+        process.stderr.write(result.stderr);
+        throw new Error(`Could not collect tests for ${project}`);
+    }
+    const total = `${result.stdout}\n${result.stderr}`.match(
+        /^Total:\s+(\d+) tests?\b/m,
+    );
+    if (!total)
+        throw new Error(`Could not read collected test count for ${project}`);
+    return Number(total[1]);
+}
+
+const selectedTestCounts = new Map(
+    projects.map((project) => [project, countSelectedTests(project)]),
+);
+const runnableProjects = projects.filter(
+    (project) => selectedTestCounts.get(project) > 0,
+);
+if (!runnableProjects.length) {
+    throw new Error('No tests matched the selected projects and filters');
 }
 
 const delay = (milliseconds) =>
@@ -223,10 +261,14 @@ try {
     await startBackendIfNeeded();
     for (const project of projects) {
         if (receivedSignal) break;
+        if (selectedTestCounts.get(project) === 0) {
+            console.log(`[projects] Skipping ${project}; no tests matched`);
+            continue;
+        }
         results.push(
             await runTests(
                 project,
-                ['--project', project, '--pass-with-no-tests'],
+                ['--project', project],
                 workers ?? String(defaultWorkers),
             ),
         );
@@ -238,15 +280,13 @@ try {
     await stopBackend();
 }
 
-if (results.length === projects.length && !receivedSignal) {
+if (results.length === runnableProjects.length && !receivedSignal) {
     if (mergeReports() !== 0) process.exitCode = 1;
 }
 
 if (receivedSignal) {
     process.exitCode = receivedSignal === 'SIGINT' ? 130 : 143;
-} else if (
-    results.some(({ code }) => code !== 0)
-) {
+} else if (results.some(({ code }) => code !== 0)) {
     process.exitCode = 1;
 }
 

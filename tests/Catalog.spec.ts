@@ -5,11 +5,14 @@ import {
     type Page,
     type TestInfo,
 } from '@playwright/test';
-import { LayoutName, PlaywrightDevPage } from '../utilities';
+import {
+    fixtureBrowserPath,
+    LayoutName,
+    PlaywrightDevPage,
+} from '../utilities';
 
 const imageDirectory =
-    process.env.CATALOG_IMAGE_DIRECTORY ??
-    '/carta_build/e2e-lite/test_data/catalogs';
+    process.env.CATALOG_IMAGE_DIRECTORY ?? `${fixtureBrowserPath}/catalogs`;
 const catalogDirectory = process.env.CATALOG_TABLE_DIRECTORY ?? imageDirectory;
 const fileBrowser = (page: Page) => page.locator('.file-browser-dialog');
 const catalogWidget = (page: Page) =>

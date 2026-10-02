@@ -1,9 +1,14 @@
 import { expect, test } from '@playwright/test';
 import { readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
-import { getFrames, LayoutName, PlaywrightDevPage } from '../utilities';
+import {
+    fixtureBrowserPath,
+    getFrames,
+    LayoutName,
+    PlaywrightDevPage,
+} from '../utilities';
 
-const directory = '/carta_build/e2e-lite/test_data';
+const directory = fixtureBrowserPath;
 
 test.describe('Loading Files', () => {
     test.setTimeout(60_000);

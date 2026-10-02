@@ -1,5 +1,9 @@
 import { expect, test } from '@playwright/test';
-import { LayoutName, PlaywrightDevPage } from '../utilities';
+import {
+    fixtureBrowserPath,
+    LayoutName,
+    PlaywrightDevPage,
+} from '../utilities';
 
 test('Online catalog query recovers from a failed mirror and plots sources', async ({
     page,
@@ -13,8 +17,7 @@ test('Online catalog query recovers from a failed mirror and plots sources', asy
         'Input directory path with respect to the top level folder',
     );
     await directory.fill(
-        process.env.CATALOG_IMAGE_DIRECTORY ??
-            '/carta_build/e2e-lite/test_data/catalogs',
+        process.env.CATALOG_IMAGE_DIRECTORY ?? `${fixtureBrowserPath}/catalogs`,
     );
     await directory.press('Enter');
     await carta.loadImage('catalog-image.fits');

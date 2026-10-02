@@ -1,5 +1,11 @@
 import { expect, test, type Page } from '@playwright/test';
-import { activate, LayoutName, PlaywrightDevPage, pixel } from '../utilities';
+import {
+    activate,
+    fixtureBrowserPath,
+    LayoutName,
+    PlaywrightDevPage,
+    pixel,
+} from '../utilities';
 
 const cube = 'HD163296_13CO_2-1_subimage.fits';
 const polarCube = 'IRCp10216_sci.spw0.cube.IQUV.manual.pbcor.subimage.fits';
@@ -284,7 +290,7 @@ test.describe('Animator', () => {
         const directory = browser.getByPlaceholder(
             'Input directory path with respect to the top level folder',
         );
-        await directory.fill('/carta_build/e2e-lite/test_data/time_series');
+        await directory.fill(`${fixtureBrowserPath}/time_series`);
         await directory.press('Enter');
         for (const [index, epoch] of epochs.entries()) {
             await browser

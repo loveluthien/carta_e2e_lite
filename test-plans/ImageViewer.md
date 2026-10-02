@@ -6,7 +6,7 @@ Viewer controls, settings, layouts and raster appearance.
 
 ## Setup and checks
 
-- Run each Playwright case in a fresh page against the configured CARTA server. The local Playwright fixtures start CARTA and provide the viewer locator; the shared fixture resets preferences before each case. Inherit the 1920×1080 viewport from `playwright.config.ts`; the popout copies the main page's viewport. Each case loads its own image and applies its own settings.
+- Run each Playwright case in a fresh page against the configured CARTA server. The local Playwright fixtures start CARTA and provide the viewer locator; the shared fixture resets preferences before each case. Inherit the 1920×1080 viewport from `playwright.config.mjs`; the popout copies the main page's viewport. Each case loads its own image and applies its own settings.
 - Check the requested widget/dialog state, data or store values, and the effect in the image viewer and applicable profiler. Treat a visible canvas alone as insufficient for a numerical result.
 - For viewer or profile changes, compare a stable PNG with a reviewed baseline; inspect overlay text and numeric readouts as well.
 - For rejected input or a failed operation, verify no unwanted image is created and the user can recover. Exercise every button relevant to the scenario.

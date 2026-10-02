@@ -713,12 +713,7 @@ test.describe('Backend Cancellation and Load Failure', () => {
     test.setTimeout(120000);
     test('Cancels backend calculation and retries', async ({ page }) => {
         const source = 'Gaussian_array_wide.fits';
-        await open(
-            page,
-            source,
-            process.env.IMAGE_PATH ||
-                '/Users/kchou/bz/carta_build/e2e-lite/test_data',
-        );
+        await open(page, source, process.env.IMAGE_PATH || fixtureFolder);
         await selectMoments(
             page,
             moments.filter((m) => m[0] !== '4').map((m) => m[0]),

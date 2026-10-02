@@ -23,5 +23,5 @@ Channel-map empty state, navigation and bounds, rendered panels and labels, spec
 ## Run
 
 ```sh
-npm test -- --project=test-group1 tests/ChannelMap.spec.ts
+npm test -- --project=test-group5 tests/ChannelMap.spec.ts
 ```

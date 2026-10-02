@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { existsSync, readFileSync, rmSync } from 'node:fs';
 import path from 'node:path';
-import { PlaywrightDevPage } from '../utilities';
+import { fixtureBrowserPath, PlaywrightDevPage } from '../utilities';
 
 async function regionRgbCount(
     page: import('@playwright/test').Page,
@@ -484,7 +484,7 @@ test.describe('Regions', () => {
                 ds9: true,
             },
         ];
-        const regionDirectory = '/carta_build/e2e-lite/test_data';
+        const regionDirectory = fixtureBrowserPath;
         for (const format of formats) rmSync(format.filePath, { force: true });
 
         try {

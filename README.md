@@ -12,6 +12,8 @@ npm run setup
 
 The setup command asks for the backend build directory (containing `carta_backend`) and the frontend build directory. It writes those paths to the ignored `setting.env`, installs npm dependencies, and installs the Chromium browser.
 
+The CARTA file browser uses the directory two levels above this checkout as its top-level folder by default. Set `CARTA_TOP_LEVEL_FOLDER` to use a different data root.
+
 ## Run tests
 
 Run all tests:
