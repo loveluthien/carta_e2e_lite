@@ -103,7 +103,7 @@ test.describe('Image Viewer Controls', () => {
             await page.getByRole('menuitem', { name: label }).click();
             const download = await downloadPromise;
             expect(download.suggestedFilename()).toMatch(
-                /^cube\.fits-image-.*\.png$/,
+                /^cube\.fits-image-\d{4}(?:-\d{2}){5}\.png$/,
             );
             const savedPath = testInfo.outputPath(`export-${index}.png`);
             await download.saveAs(savedPath);

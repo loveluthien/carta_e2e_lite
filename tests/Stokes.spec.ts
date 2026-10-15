@@ -1,4 +1,11 @@
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { readFile } from 'node:fs/promises';
+import {
+    expect,
+    test,
+    type Download,
+    type Locator,
+    type Page,
+} from '@playwright/test';
 import { PlaywrightDevPage } from '../utilities';
 
 const stokesFiles = [
@@ -100,6 +107,134 @@ async function stokesPlotColorCounts(page: Page) {
         }),
     );
 }
+
+test.describe('Stokes Analysis exports', () => {
+    for (const [plotName, selector, tsvNames] of [
+        ['quLine', '.profile-plot-qu', ['q', 'u']],
+        ['piLine', '.profile-plot-pi', ['piLine']],
+        ['paLine', '.profile-plot-pa', ['paLine']],
+        ['quScatter', '.profile-plot-qvsu', ['quScatter']],
+    ] as const) {
+        for (const [extension, icon] of [
+            ['png', 'floppy-disk'],
+            ['tsv', 'th'],
+        ] as const) {
+            test(`${plotName} ${extension.toUpperCase()} export uses complete filenames`, async ({
+                page,
+            }, testInfo) => {
+                test.setTimeout(60_000);
+                page.setDefaultTimeout(10_000);
+                const carta = new PlaywrightDevPage(page);
+                await carta.goto();
+                await carta.setTestPreferences();
+                await carta.loadImage('stokes-varying.fits');
+                await carta.selectMenuItem('Widgets', 'Stokes Analysis Widget');
+                const widget = page.getByTestId('stokes-0-content');
+                await widget
+                    .getByTestId('image-dropdown')
+                    .selectOption({ index: 0 });
+                const regionId = await page.evaluate(async () => {
+                    const frame = (window as any).app.activeFrame;
+                    const region = await frame.regionSet.addRegionAsync(0, [
+                        { x: 8, y: 8 },
+                    ]);
+                    frame.regionSet.setFocusedRegion(region);
+                    return region.regionId;
+                });
+                await widget
+                    .getByTestId('region-dropdown')
+                    .selectOption(String(regionId));
+                await widget
+                    .locator('.stokes-analysis-toolbar input[type="checkbox"]')
+                    .check({ force: true });
+                await expect
+                    .poll(() => stokesPlotState(page))
+                    .toEqual({
+                        qOverI: [200, 225, 250, 275, 300],
+                        uOverI: [300, 275, 250, 225, 200],
+                    });
+                await expect
+                    .poll(
+                        async () =>
+                            (await stokesPlotColorCounts(page)).filter(
+                                (count) => count > 0,
+                            ).length,
+                    )
+                    .toBe(4);
+                const plot = widget.locator(selector);
+                await plot.hover();
+                const toolbar = plot.locator('.profiler-toolbar');
+                await expect(toolbar).toHaveCSS('opacity', '1');
+                const downloads: Download[] = [];
+                const collect = (download: Download) =>
+                    downloads.push(download);
+                page.on('download', collect);
+                const names: readonly string[] =
+                    extension === 'png' ? [plotName] : tsvNames;
+                try {
+                    await toolbar
+                        .locator('a')
+                        .filter({ has: page.locator(`[data-icon="${icon}"]`) })
+                        .click();
+                    await expect
+                        .poll(() => downloads.length)
+                        .toBe(names.length);
+                    const contents: string[] = [];
+                    for (const [index, download] of downloads.entries()) {
+                        const match = download
+                            .suggestedFilename()
+                            .match(
+                                new RegExp(
+                                    `^stokes-varying\\.fits-([A-Za-z]+)-\\d{4}(?:-\\d{2}){5}\\.${extension}$`,
+                                ),
+                            );
+                        expect(
+                            match,
+                            download.suggestedFilename(),
+                        ).not.toBeNull();
+                        contents.push(match![1]);
+                        const output = testInfo.outputPath(
+                            `${plotName}-${index}.${extension}`,
+                        );
+                        await download.saveAs(output);
+                        const data = await readFile(output);
+                        if (extension === 'png') {
+                            expect(data.subarray(0, 8)).toEqual(
+                                Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+                            );
+                        } else {
+                            const rows = data
+                                .toString('utf8')
+                                .trim()
+                                .split('\n')
+                                .filter((line) => !line.startsWith('#'));
+                            expect(rows).toHaveLength(5);
+                            expect(
+                                rows.every((line) =>
+                                    line
+                                        .split('\t')
+                                        .slice(0, 2)
+                                        .every((value) =>
+                                            Number.isFinite(Number(value)),
+                                        ),
+                                ),
+                            ).toBe(true);
+                        }
+                    }
+                    expect(contents.sort()).toEqual([...names].sort());
+                } finally {
+                    page.off('download', collect);
+                }
+                await plot.screenshot({
+                    path: testInfo.outputPath(`${plotName}-rendered.png`),
+                });
+                await page.getByTestId('viewer-div').screenshot({
+                    path: testInfo.outputPath(`${plotName}-viewer.png`),
+                });
+            });
+        }
+    }
+});
 
 test.describe('Stokes Hypercube', () => {
     test('Merges IQUV inputs and renders every Stokes plane', async ({

@@ -1,5 +1,117 @@
+import { readFile } from 'node:fs/promises';
 import { test, expect, type Page } from '@playwright/test';
 import { PlaywrightDevPage, LayoutName } from '../utilities';
+
+for (const [axis, widget] of [
+    ['X', 'spatial-profiler-0'],
+    ['Y', 'spatial-profiler-1'],
+    ['Z', 'spectral-profiler-0'],
+] as const) {
+    for (const [extension, icon] of [
+        ['png', 'floppy-disk'],
+        ['tsv', 'th'],
+    ] as const) {
+        test(`${axis} profiler ${extension.toUpperCase()} export uses a complete filename`, async ({
+            page,
+        }, testInfo) => {
+            test.setTimeout(60_000);
+            page.setDefaultTimeout(10_000);
+            const carta = new PlaywrightDevPage(page);
+            await carta.goto();
+            await carta.setTestPreferences();
+            await carta.loadImage('cube.fits');
+            if (axis === 'Z') {
+                await carta.selectMenuItem('Widgets', [
+                    'Profiles',
+                    'Spectral Profiler',
+                ]);
+            }
+            await page.mouse.move(0, 0);
+            await page.evaluate(() => {
+                const frame = (window as any).app.activeFrame;
+                frame.setCursorPosition({ x: 8, y: 8 });
+                frame.updateCursorRegion({ x: 8, y: 8 });
+            });
+            const profiler = page.getByTestId(`${widget}-content`);
+            const plot = profiler.locator('.line-plot-component');
+            await expect(plot).toBeVisible();
+            await expect
+                .poll(() =>
+                    page.evaluate(
+                        ({ axis, widget }) => {
+                            const app = (window as any).app;
+                            if (axis === 'Z')
+                                return (
+                                    app.widgetsStore.spectralProfileWidgets.get(
+                                        widget,
+                                    )?.plotData?.data?.[0]?.length ?? 0
+                                );
+                            return (
+                                app.spatialProfiles
+                                    .get(
+                                        `${app.activeFrame.frameInfo.fileId}-0`,
+                                    )
+                                    ?.getProfile(axis.toLowerCase())?.values
+                                    ?.length ?? 0
+                            );
+                        },
+                        { axis, widget },
+                    ),
+                )
+                .toBe(axis === 'Z' ? 5 : 16);
+            await plot.hover();
+            const toolbar = plot.locator('.profiler-toolbar');
+            await expect(toolbar).toHaveCSS('opacity', '1');
+            const pending = page.waitForEvent('download');
+            await toolbar
+                .locator('a')
+                .filter({ has: page.locator(`[data-icon="${icon}"]`) })
+                .click();
+            const download = await pending;
+            const content =
+                axis !== 'Z'
+                    ? `${axis}-profile`
+                    : extension === 'png'
+                      ? 'Z-Profile-Region_Cursor-Statistic_Sum-Coordinate_Current'
+                      : 'Z-profile-Cursor-Statistic_Sum-Coordinate_Current';
+            const output = testInfo.outputPath(`${axis}-profile.${extension}`);
+            await download.saveAs(output);
+            const data = await readFile(output);
+            if (extension === 'png') {
+                expect(data.subarray(0, 8)).toEqual(
+                    Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+                );
+            } else {
+                const rows = data
+                    .toString('utf8')
+                    .trim()
+                    .split('\n')
+                    .filter((line) => !line.startsWith('#'));
+                expect(rows).toHaveLength(axis === 'Z' ? 5 : 16);
+                expect(
+                    rows.some((line) =>
+                        Number.isFinite(Number(line.split('\t')[1])),
+                    ),
+                ).toBe(true);
+            }
+            await plot.screenshot({
+                path: testInfo.outputPath(`${axis}-profile-rendered.png`),
+            });
+            await page.getByTestId('viewer-div').screenshot({
+                path: testInfo.outputPath(`${axis}-profile-viewer.png`),
+            });
+            test.fail(
+                axis === 'Z' && extension === 'png',
+                'Known frontend defect: spectral PNG names append an extra } after Coordinate_Current.',
+            );
+            expect(download.suggestedFilename()).toMatch(
+                new RegExp(
+                    `^cube\\.fits-${content}-\\d{4}(?:-\\d{2}){5}\\.${extension}$`,
+                ),
+            );
+        });
+    }
+}
 
 test('Spectral line query retries and plots a known frequency', async ({
     page,

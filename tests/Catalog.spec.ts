@@ -239,7 +239,11 @@ async function checkPlotToolbar(
         .filter({ has: page.locator('[data-icon="floppy-disk"]') })
         .click();
     const image = await imageDownload;
-    expect(image.suggestedFilename()).toMatch(/\.png$/);
+    const content =
+        type === 'histogram' ? 'histogram-Flux' : 'scatter-Flux-Size';
+    expect(image.suggestedFilename()).toMatch(
+        new RegExp(`^catalog-${content}-\\d{4}(?:-\\d{2}){5}\\.png$`),
+    );
     await image.saveAs(testInfo.outputPath(`${type}-export.png`));
     await page.mouse.move(0, 0);
     await expect(toolbar).toHaveCSS('opacity', '0');
@@ -247,13 +251,22 @@ async function checkPlotToolbar(
     await expect(toolbar).toHaveCSS('opacity', '1');
 }
 
-async function exportedPlotBins(page: Page, plot: Locator) {
+async function exportedPlotBins(
+    page: Page,
+    plot: Locator,
+    type: 'histogram' | 'scatter',
+) {
     const downloadPromise = page.waitForEvent('download');
     await plot
         .locator('.profiler-toolbar a')
         .filter({ has: page.locator('[data-icon="th"]') })
         .click();
     const download = await downloadPromise;
+    const content =
+        type === 'histogram' ? 'histogram-Flux' : 'scatter-Flux-Size';
+    expect(download.suggestedFilename()).toMatch(
+        new RegExp(`^catalog-${content}-\\d{4}(?:-\\d{2}){5}\\.tsv$`),
+    );
     const data = await readFile((await download.path())!, 'utf8');
     return data
         .trim()
@@ -502,7 +515,7 @@ test.describe('Catalog Widget', () => {
         const selector = '[data-testid="catalog-histogram-plot"] canvas';
         await expectCanvasRgb(page, selector, [33, 93, 176]);
         await checkPlotToolbar(page, plot, 'histogram', testInfo);
-        const bins = await exportedPlotBins(page, plot);
+        const bins = await exportedPlotBins(page, plot, 'histogram');
         expect(bins.map((bin) => bin[1])).toEqual([2, 1, 2]);
         for (const [index, bin] of bins.entries()) {
             expect(bin[0]).toBeCloseTo(10 + ((index + 0.5) * 40.04) / 3, 6);
@@ -568,7 +581,7 @@ test.describe('Catalog Widget', () => {
             '[data-testid="catalog-scatter-plot"] canvas[data-overlay]';
         await expectCanvasRgb(page, selector, [33, 93, 176]);
         await checkPlotToolbar(page, plot, 'scatter', testInfo);
-        expect(await exportedPlotBins(page, plot)).toEqual([
+        expect(await exportedPlotBins(page, plot, 'scatter')).toEqual([
             [10, 4],
             [20, 6],
             [30, 8],

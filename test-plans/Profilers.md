@@ -1,6 +1,6 @@
 # Profilers test plan
 
-**Source:** [`tests/Profilers.spec.ts`](../tests/Profilers.spec.ts) · **Cases:** 13
+**Source:** [`tests/Profilers.spec.ts`](../tests/Profilers.spec.ts) · **Cases:** 19
 
 Spatial and spectral profiles, formatting, smoothing, fitting and viewer connection.
 
@@ -30,6 +30,14 @@ Spatial and spectral profiles, formatting, smoothing, fitting and viewer connect
 | [Spectral profile connection](../tests/Profilers.spec.ts)                                                       | Click spectral plot and change animator channel.                                                                                     | Viewer channel/frequency and animator follow plot selection; spectral channel marker follows animator; compare viewer/plot PNGs.                           |
 | [spatial matching moves the viewer cursor and X profile with the reference](../tests/Profilers.spec.ts)         | Match the shifted cube in XY, then move the reference center and cursor.                                                             | Target WCS center/cursor follow; X profile readout changes to 3.25 K; viewer and X profile PNGs match.                                                     |
 | [spectral matching moves the viewer channel and spectral marker with the reference](../tests/Profilers.spec.ts) | Leave the shifted cube unmatched at channel 0, set reference to channel 4, then enable Z matching.                                   | Target maps to channel 2; viewer reads 11 K; spectral series is `[2.75, 5.5, 11, 22, 44]`; viewer and spectral plot PNGs match.                            |
+
+## Profiler export filenames
+
+- Six independent cases cover PNG and TSV downloads for spatial X, spatial Y and spectral Z profiles using `cube.fits` at cursor `(8,8)`.
+- Hover each plot to reveal its export buttons. Require the full source, content, `YYYY-MM-DD-HH-mm-ss` timestamp and correct extension, with no extra suffix.
+- Spatial names use `cube.fits-X-profile-...` and `cube.fits-Y-profile-...`. Spectral PNG uses `cube.fits-Z-Profile-Region_Cursor-Statistic_Sum-Coordinate_Current-...`; TSV uses `cube.fits-Z-profile-Cursor-Statistic_Sum-Coordinate_Current-...`.
+- Verify PNG signatures and TSV sample counts (16 spatial, 5 spectral) with finite values. Save exported files and rendered profiler/viewer PNGs as artifacts.
+- The spectral PNG filename assertion is an expected failure: the frontend appends a stray `}` after `Coordinate_Current`. The marker is applied only after export, content and screenshot checks succeed; TSV is tested separately. Remove the marker when the frontend is fixed.
 
 ## Run
 

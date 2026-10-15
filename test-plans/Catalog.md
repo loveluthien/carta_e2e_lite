@@ -30,6 +30,7 @@ Local catalog table, overlay, plot, coordinate and styling behavior.
 
 - For both histogram and scatter, move the pointer outside the plot and assert toolbar opacity is 0. Hover the canvas and wait for opacity 1; check every toolbar button is visible and enabled. Repeat after leaving the plot.
 - Histogram exposes Export image and Export data. Scatter also exposes Box select, Lasso select and Zoom; click each mode and verify its active state, returning to Box select before selecting a point.
+- Check the full suggested download names: `catalog-histogram-Flux-YYYY-MM-DD-HH-mm-ss.png/.tsv` and `catalog-scatter-Flux-Size-YYYY-MM-DD-HH-mm-ss.png/.tsv`, rejecting missing prefixes, malformed timestamp structure, wrong extensions and trailing suffixes.
 - Exercise PNG and TSV exports for both plots. Save exported PNGs and verify the numerical TSV contents. Capture plot, viewer and profiler PNGs after selection and check selected plot RGB `(172,47,51)`.
 
 ## Run

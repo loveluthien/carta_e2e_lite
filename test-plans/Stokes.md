@@ -1,6 +1,6 @@
 # Stokes test plan
 
-**Source:** [`tests/Stokes.spec.ts`](../tests/Stokes.spec.ts) · **Cases:** 3
+**Source:** [`tests/Stokes.spec.ts`](../tests/Stokes.spec.ts) · **Cases:** 11
 
 Stokes cube assembly and analysis widget controls.
 
@@ -21,6 +21,12 @@ Stokes cube assembly and analysis widget controls.
 | [merges IQUV inputs and renders every Stokes plane](../tests/Stokes.spec.ts#L105)         | Select four named FITS files regardless of browser order, reject duplicate polarization assignments, merge and step through all original and derived planes.                                                                 | Invalid mapping disables Load without creating a frame; each selected plane has the expected label and stable viewer PNG.                                                                                |
 | [exercises every Stokes Analysis widget control](../tests/Stokes.spec.ts#L204)            | Select image and point region; toggle fractional polarization; change spectral coordinate, both line colors and styles, scatter styling and axes; use the smoothing shortcut, both overlay modes and every smoothing method. | Source profiles give Q/I = 200–300% and U/I = 300–200%; all four plot canvases contain colored pixels, profiler readout is correct, and PNGs show the intended rendered curves after each analysis mode. |
 | [keeps fractional polarization unavailable without Q and U](../tests/Stokes.spec.ts#L468) | Switch from a full Stokes cube to an intensity-only image, then back.                                                                                                                                                        | Fractional switch turns off and disables, no Q/U curve appears, the viewer stays available, and full Stokes plots recover when reselected.                                                               |
+
+## Export filenames
+
+- Eight independent cases exercise PNG and TSV export buttons on Q/U, polarized-intensity, polarization-angle and Q-versus-U plots with the lightweight `stokes-varying.fits` fixture.
+- Require the full `stokes-varying.fits-{content}-YYYY-MM-DD-HH-mm-ss.{png|tsv}` filename. PNG content names are `quLine`, `piLine`, `paLine`, `quScatter`; Q/U data export must produce both `q` and `u` TSVs, while the other TSVs use their plot names.
+- Check loaded Q/I and U/I values and all four rendered color counts before export. Validate PNG signatures and five finite rows in each TSV; retain exported files and plot/viewer PNGs as artifacts.
 
 ## Run
 
