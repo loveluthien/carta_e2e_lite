@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises';
 import {
     expect,
     test,
@@ -204,15 +205,62 @@ async function plotChart(
 ) {
     await catalog.getByTestId('catalog-plot-button').click();
     await expect(
-        page
-            .getByTestId(`catalog-${type}-plot`)
-            .locator('svg.main-svg')
-            .first(),
+        page.getByTestId(`catalog-${type}-plot`).locator('canvas').first(),
     ).toBeVisible();
 }
 
-const plotGraph = (page: Page, type: 'histogram' | 'scatter') =>
-    page.getByTestId(`catalog-${type}-plot`).locator('.js-plotly-plot');
+async function checkPlotToolbar(
+    page: Page,
+    plot: Locator,
+    type: 'histogram' | 'scatter',
+    testInfo: TestInfo,
+) {
+    const toolbar = plot.locator('.profiler-toolbar');
+    await page.mouse.move(0, 0);
+    await expect(toolbar).toHaveCSS('opacity', '0');
+    await plot.hover();
+    await expect(toolbar).toHaveCSS('opacity', '1');
+    const buttons = toolbar.locator('a');
+    await expect(buttons).toHaveCount(type === 'histogram' ? 2 : 5);
+    for (const button of await buttons.all()) {
+        await expect(button).toBeVisible();
+        await expect(button).toBeEnabled();
+    }
+    if (type === 'scatter') {
+        for (const name of ['Lasso select', 'Zoom', 'Box select']) {
+            const button = toolbar.getByRole('button', { name, exact: true });
+            await button.click();
+            await expect(button).toHaveClass(/bp6-active/);
+        }
+    }
+    const imageDownload = page.waitForEvent('download');
+    await toolbar
+        .locator('a')
+        .filter({ has: page.locator('[data-icon="floppy-disk"]') })
+        .click();
+    const image = await imageDownload;
+    expect(image.suggestedFilename()).toMatch(/\.png$/);
+    await image.saveAs(testInfo.outputPath(`${type}-export.png`));
+    await page.mouse.move(0, 0);
+    await expect(toolbar).toHaveCSS('opacity', '0');
+    await plot.hover();
+    await expect(toolbar).toHaveCSS('opacity', '1');
+}
+
+async function exportedPlotBins(page: Page, plot: Locator) {
+    const downloadPromise = page.waitForEvent('download');
+    await plot
+        .locator('.profiler-toolbar a')
+        .filter({ has: page.locator('[data-icon="th"]') })
+        .click();
+    const download = await downloadPromise;
+    const data = await readFile((await download.path())!, 'utf8');
+    return data
+        .trim()
+        .split('\n')
+        .filter((line) => !line.startsWith('#'))
+        .map((line) => line.split('\t').map(Number));
+}
 
 async function selectedSourceIndices(page: Page) {
     return page.evaluate(() => {
@@ -262,34 +310,6 @@ async function expectSelectedSources(
                 ),
         ).toHaveClass(/intent-danger/);
     }
-}
-
-async function clickPlotPoint(
-    page: Page,
-    type: 'histogram' | 'scatter',
-    x: number,
-    y: number,
-) {
-    const graph = plotGraph(page, type);
-    const position = await graph.evaluate(
-        (element: any, point) => {
-            const bounds = element.getBoundingClientRect();
-            const scaleX = bounds.width / element.offsetWidth;
-            const scaleY = bounds.height / element.offsetHeight;
-            return {
-                x:
-                    (element._fullLayout.xaxis.d2p(point.x) +
-                        element._fullLayout.xaxis._offset) *
-                    scaleX,
-                y:
-                    (element._fullLayout.yaxis.d2p(point.y) +
-                        element._fullLayout.yaxis._offset) *
-                    scaleY,
-            };
-        },
-        { x, y },
-    );
-    await graph.click({ position });
 }
 
 async function choose(page: Page, button: Locator, option: string) {
@@ -477,17 +497,48 @@ test.describe('Catalog Widget', () => {
             'Flux',
         );
         await plotChart(page, catalog, 'histogram');
-        const graph = plotGraph(page, 'histogram');
-        const histogram = await graph.evaluate((element: any) => ({
-            values: Array.from(element.data[0].x),
-            counts: element.calcdata[0].map((bin: any) => bin.y),
-        }));
-        expect(histogram.values).toEqual([10, 20, 30, 40, 50]);
-        expect(histogram.counts).toEqual([2, 1, 2]);
-        const bars = graph.locator('.barlayer .point path');
-        await expect(bars).toHaveCount(3);
-        await clickPlotPoint(page, 'histogram', 15, 1.5);
+        const plot = page.getByTestId('catalog-histogram-plot');
+        const canvas = plot.locator('canvas');
+        const selector = '[data-testid="catalog-histogram-plot"] canvas';
+        await expectCanvasRgb(page, selector, [33, 93, 176]);
+        await checkPlotToolbar(page, plot, 'histogram', testInfo);
+        const bins = await exportedPlotBins(page, plot);
+        expect(bins.map((bin) => bin[1])).toEqual([2, 1, 2]);
+        for (const [index, bin] of bins.entries()) {
+            expect(bin[0]).toBeCloseTo(10 + ((index + 0.5) * 40.04) / 3, 6);
+        }
+        // Locate the first bar by its rendered RGB, in CSS pixels.
+        const position = await canvas.evaluate((canvas: HTMLCanvasElement) => {
+            const { width, height } = canvas;
+            const rgba = canvas
+                .getContext('2d')!
+                .getImageData(0, 0, width, height).data;
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    const offset = (y * width + x) * 4;
+                    if (
+                        rgba[offset] === 33 &&
+                        rgba[offset + 1] === 93 &&
+                        rgba[offset + 2] === 176 &&
+                        rgba[offset + 3] === 255
+                    ) {
+                        const bounds = canvas.getBoundingClientRect();
+                        return {
+                            x: ((x + 3) * bounds.width) / width,
+                            y: ((y + 3) * bounds.height) / height,
+                        };
+                    }
+                }
+            }
+            throw new Error('No blue histogram bar was rendered');
+        });
+        await canvas.click({ position });
         await expectSelectedSources(page, catalog, [0, 1]);
+        await page.mouse.move(0, 0);
+        await expectCanvasRgb(page, selector, [172, 47, 51]);
+        await plot.screenshot({
+            path: testInfo.outputPath('histogram-selection.png'),
+        });
         await checkViewerAndProfiler(page, testInfo, 'histogram-selection');
     });
 
@@ -512,24 +563,66 @@ test.describe('Catalog Widget', () => {
             'Size',
         );
         await plotChart(page, catalog, 'scatter');
-        const graph = plotGraph(page, 'scatter');
-        const scatter = await graph.evaluate((element: any) => ({
-            x: Array.from(element.data[0].x),
-            y: Array.from(element.data[0].y),
-        }));
-        expect(scatter).toEqual({
-            x: [10, 20, 30, 40, 50],
-            y: [4, 6, 8, 10, 12],
-        });
-        await clickPlotPoint(page, 'scatter', 30, 8);
+        const plot = page.getByTestId('catalog-scatter-plot');
+        const selector =
+            '[data-testid="catalog-scatter-plot"] canvas[data-overlay]';
+        await expectCanvasRgb(page, selector, [33, 93, 176]);
+        await checkPlotToolbar(page, plot, 'scatter', testInfo);
+        expect(await exportedPlotBins(page, plot)).toEqual([
+            [10, 4],
+            [20, 6],
+            [30, 8],
+            [40, 10],
+            [50, 12],
+        ]);
+        // The middle source (30, 8) is at the center of the rendered point bounds.
+        const position = await plot
+            .locator('canvas[data-overlay]')
+            .evaluate((canvas: HTMLCanvasElement) => {
+                const copy = document.createElement('canvas');
+                copy.width = canvas.width;
+                copy.height = canvas.height;
+                const context = copy.getContext('2d')!;
+                context.drawImage(canvas, 0, 0);
+                const rgba = context.getImageData(
+                    0,
+                    0,
+                    copy.width,
+                    copy.height,
+                ).data;
+                let left = copy.width,
+                    right = 0,
+                    top = copy.height,
+                    bottom = 0;
+                for (let y = 0; y < copy.height; y++) {
+                    for (let x = 0; x < copy.width; x++) {
+                        const offset = (y * copy.width + x) * 4;
+                        if (
+                            rgba[offset] === 33 &&
+                            rgba[offset + 1] === 93 &&
+                            rgba[offset + 2] === 176 &&
+                            rgba[offset + 3] === 255
+                        ) {
+                            left = Math.min(left, x);
+                            right = Math.max(right, x);
+                            top = Math.min(top, y);
+                            bottom = Math.max(bottom, y);
+                        }
+                    }
+                }
+                const bounds = canvas.getBoundingClientRect();
+                return {
+                    x: (((left + right) / 2) * bounds.width) / copy.width,
+                    y: (((top + bottom) / 2) * bounds.height) / copy.height,
+                };
+            });
+        await plot.locator('.annotation-stage canvas').click({ position });
         await expectSelectedSources(page, catalog, [2]);
-        await expect
-            .poll(() =>
-                graph.evaluate((element: any) =>
-                    Array.from(element.data[0].selectedpoints ?? []),
-                ),
-            )
-            .toEqual([2]);
+        await page.mouse.move(0, 0);
+        await expectCanvasRgb(page, selector, [172, 47, 51]);
+        await plot.screenshot({
+            path: testInfo.outputPath('scatter-selection.png'),
+        });
         await checkViewerAndProfiler(page, testInfo, 'scatter-selection');
     });
 
