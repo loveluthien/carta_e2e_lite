@@ -276,7 +276,13 @@ test.describe('Regions', () => {
             await expect(
                 list.getByTestId(`region-list-table-row-${index + 2}`),
             ).toContainText(type);
+            await expect(
+                list.getByTestId(`region-list-table-row-${index + 2}`),
+            ).toContainText(`Region ${index + 1}`);
         }
+        await expect
+            .poll(() => regionRgbCount(page, [46, 230, 214]))
+            .toBeGreaterThan(0);
         await expect(list).toHaveScreenshot('all-region-shapes-list.png');
         await expect(page.getByTestId('viewer-div')).toHaveScreenshot(
             'all-region-shapes-viewer.png',
@@ -292,16 +298,21 @@ test.describe('Regions', () => {
         await page.keyboard.press('Escape');
         await expect
             .poll(() =>
-                page.evaluate(
-                    () =>
-                        (
-                            window as any
-                        ).app.activeFrame.regionSet.regions.filter(
-                            (r: any) => r.regionId > 0 && !r.isTemporary,
-                        ).length,
+                page.evaluate(() =>
+                    (window as any).app.activeFrame.regionSet.regions
+                        .filter((r: any) => r.regionId > 0 || r.isTemporary)
+                        .map((r: any) => ({
+                            id: r.regionId,
+                            temporary: r.isTemporary,
+                        })),
                 ),
             )
-            .toBe(6);
+            .toEqual(
+                Array.from({ length: 6 }, (_, index) => ({
+                    id: index + 1,
+                    temporary: false,
+                })),
+            );
 
         await page.locator('#SpectralProfilerButton').click();
         const profiler = page.getByTestId('spectral-profiler-0-content');

@@ -143,12 +143,14 @@ test.describe('Controls and Lifecycle', () => {
 
     test('Disables generation with no selected moments', async ({ page }) => {
         await open(page);
+        const before = await getFrames(page);
         await control(page, 'clear-select-button').click();
-        test.fail(
-            true,
-            'Known defect: Generate does not validate an empty selectedMoments list.',
-        );
+        await expect(tags(page)).toHaveCount(0);
         await expect(control(page, 'generate-button')).toBeDisabled();
+        expect(await getFrames(page)).toEqual(before);
+        await selectMoments(page, ['0']);
+        await expect(tags(page)).toHaveText(['0']);
+        await expect(control(page, 'generate-button')).toBeEnabled();
     });
 
     for (const [from, to] of [

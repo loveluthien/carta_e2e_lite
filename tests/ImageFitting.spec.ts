@@ -90,21 +90,22 @@ test('Auto-fits Gaussian_triple.fits', async ({ page }) => {
     await spatial
         .getByTestId('region-dropdown')
         .selectOption({ label: 'Region 1' });
-    await expect
-        .poll(() =>
-            page.evaluate(() => {
-                const app = (window as any).app;
-                const model = app.frames.find(
-                    (f: any) => f.filename === 'Gaussian_triple.fits',
-                ).fittingModelImage;
-                return (
-                    app.spatialProfiles
-                        .get(`${model.frameInfo.fileId}-1`)
-                        ?.getProfile('x')?.values?.length ?? 0
-                );
-            }),
-        )
-        .toBeGreaterThan(0);
+    const modelProfile = () =>
+        page.evaluate(() => {
+            const app = (window as any).app;
+            const model = app.frames.find(
+                (frame: any) => frame.filename === 'Gaussian_triple.fits',
+            ).fittingModelImage;
+            return Array.from(
+                app.spatialProfiles
+                    .get(`${model.frameInfo.fileId}-1`)
+                    ?.getProfile('x')?.values ?? [],
+            ) as number[];
+        });
+    await expect.poll(modelProfile).toHaveLength(256);
+    const values = await modelProfile();
+    expect(values[128]).toBeCloseTo(0.01, 3);
+    expect(values.indexOf(Math.max(...values))).toBe(128);
     await expect(spatial.locator('.profile-plot')).toHaveScreenshot(
         'gaussian-triple-model-profile.png',
     );
