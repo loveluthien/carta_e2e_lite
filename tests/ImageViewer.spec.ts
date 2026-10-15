@@ -2323,7 +2323,12 @@ test.describe('Image Viewer', () => {
         await settingsField(beam, /^Color$/)
             .getByRole('button')
             .click();
-        await page.locator('li:nth-child(17) > .bp6-menu-item').click();
+        await page
+            .getByRole('menuitem')
+            .filter({
+                has: page.locator('.dropdown-color[style*="rgb(37, 42, 49)"]'),
+            })
+            .click();
         await settingsField(beam, /^Type$/)
             .getByRole('combobox')
             .selectOption('solid');
@@ -2331,6 +2336,45 @@ test.describe('Image Viewer', () => {
         await page.getByRole('spinbutton', { name: 'Width' }).fill('5');
         await page.getByRole('spinbutton', { name: 'Position (X)' }).fill('10');
         await page.getByRole('spinbutton', { name: 'Position (Y)' }).fill('30');
+        await page
+            .getByRole('spinbutton', { name: 'Position (Y)' })
+            .press('Tab');
+        await expect
+            .poll(() =>
+                page.evaluate(() => {
+                    const settings = (window as any).app.activeFrame
+                        .overlayBeamSettings;
+                    return {
+                        visible: settings.isVisible,
+                        type: settings.type,
+                        width: settings.width,
+                        x: settings.shiftX,
+                        y: settings.shiftY,
+                    };
+                }),
+            )
+            .toEqual({ visible: true, type: 'solid', width: 5, x: 10, y: 30 });
+        const beamPixels = () =>
+            viewerCanvas
+                .locator('.beam-profile-stage canvas')
+                .evaluate((canvas: HTMLCanvasElement) => {
+                    const pixels = canvas
+                        .getContext('2d')!
+                        .getImageData(0, 0, canvas.width, canvas.height).data;
+                    let count = 0;
+                    for (let offset = 0; offset < pixels.length; offset += 4) {
+                        if (
+                            pixels[offset] === 37 &&
+                            pixels[offset + 1] === 42 &&
+                            pixels[offset + 2] === 49 &&
+                            pixels[offset + 3] === 255
+                        )
+                            count++;
+                    }
+                    return count;
+                });
+        await expect.poll(beamPixels).toBeGreaterThan(0);
+        await settleViewer(viewerCanvas);
         await carta.screenShot(
             viewerCanvas,
             'M17_SWex_viewer_settings_beam.png',
@@ -2339,6 +2383,13 @@ test.describe('Image Viewer', () => {
         await settingsField(beam, /^Visible$/)
             .getByRole('checkbox')
             .click({ force: true });
+        await expect(
+            settingsField(beam, /^Visible$/).getByRole('checkbox'),
+        ).not.toBeChecked();
+        await expect(
+            viewerCanvas.locator('.beam-profile-stage canvas'),
+        ).toHaveCount(0);
+        await settleViewer(viewerCanvas);
         await carta.screenShot(
             viewerCanvas,
             'M17_SWex_viewer_settings_no_beam.png',
