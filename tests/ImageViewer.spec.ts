@@ -57,6 +57,32 @@ async function settleViewer(viewer: Locator) {
     );
 }
 
+async function snapshotViewer(
+    viewer: Locator,
+    name: string,
+    options: { maxDiffPixelRatio?: number } = {},
+) {
+    const page = viewer.page();
+    const settings = page.locator('.image-view-settings');
+    const restoreSettings = await settings.isVisible();
+    const selectedTab = restoreSettings
+        ? await settings.getByRole('tab', { selected: true }).innerText()
+        : undefined;
+    const carta = new PlaywrightDevPage(page);
+    if (restoreSettings) {
+        await carta.closeWidget('image-view-floating-settings');
+        await settleViewer(page.getByTestId('viewer-div'));
+    }
+    await expect(settings).toBeHidden();
+    await expect(viewer).toHaveScreenshot(name, options);
+    if (restoreSettings) {
+        await page.getByTestId('image-view-header-settings-button').click();
+        await settings
+            .getByRole('tab', { name: selectedTab!, exact: true })
+            .click();
+    }
+}
+
 async function useSinglePanel(page: Page) {
     await page.evaluate(async () => {
         const app = (window as any).app;
@@ -254,7 +280,7 @@ test.describe('Image Viewer Controls', () => {
         ).toHaveScreenshot('image-viewer-matched-spectral-profile.png');
         await carta.closeWidget('spectral-profiler');
         await settleViewer(viewerCanvas);
-        await expect(viewerCanvas).toHaveScreenshot('image-viewer-matched.png');
+        await snapshotViewer(viewerCanvas, 'image-viewer-matched.png');
         await choose('None');
         await expect.poll(state).toEqual({ spatial: null, spectral: null });
     });
@@ -302,7 +328,7 @@ test.describe('Image Viewer Controls', () => {
         expect(width).toBeGreaterThan(0);
         expect(height).toBeGreaterThan(0);
         await settleViewer(viewerCanvas);
-        await expect(viewerCanvas).toHaveScreenshot('image-viewer-ruler.png');
+        await snapshotViewer(viewerCanvas, 'image-viewer-ruler.png');
     });
 
     test('Raster RGB and invalid beam width', async ({
@@ -358,9 +384,7 @@ test.describe('Image Viewer Controls', () => {
         await expect.poll(beamWidth).toBe(2);
         await carta.closeWidget('image-view-floating-settings');
         await settleViewer(viewerCanvas);
-        await expect(viewerCanvas).toHaveScreenshot(
-            'image-viewer-beam-width.png',
-        );
+        await snapshotViewer(viewerCanvas, 'image-viewer-beam-width.png');
     });
     test('Empty viewer controls recover after loading an image', async ({
         page,
@@ -385,7 +409,7 @@ test.describe('Image Viewer Controls', () => {
             page.getByRole('tab', { name: 'Conversion', exact: true }),
         ).toBeDisabled();
         await carta.closeWidget('image-view-floating-settings');
-        await expect(viewerCanvas).toHaveScreenshot('image-viewer-empty.png');
+        await snapshotViewer(viewerCanvas, 'image-viewer-empty.png');
 
         await carta.loadImage('single.fits');
         await viewerCanvas.hover();
@@ -406,9 +430,7 @@ test.describe('Image Viewer Controls', () => {
         ).toBeDisabled();
         await carta.closeWidget('image-view-floating-settings');
         await settleViewer(viewerCanvas);
-        await expect(viewerCanvas).toHaveScreenshot(
-            'image-viewer-empty-recovered.png',
-        );
+        await snapshotViewer(viewerCanvas, 'image-viewer-empty-recovered.png');
     });
 
     test('Pan and zoom edits, invalid sizes, and offset toolbar buttons', async ({
@@ -510,9 +532,7 @@ test.describe('Image Viewer Controls', () => {
         expect(red).toBeGreaterThan(0);
         expect(red).toBeLessThan(255);
         await settleViewer(viewerCanvas);
-        await expect(viewerCanvas).toHaveScreenshot(
-            'image-viewer-pan-zoom-edited.png',
-        );
+        await snapshotViewer(viewerCanvas, 'image-viewer-pan-zoom-edited.png');
 
         await viewerCanvas.hover();
         await page.getByTestId('overlay-coordinate-button').click();
@@ -548,9 +568,7 @@ test.describe('Image Viewer Controls', () => {
             .toEqual(validGeometry.center);
         await page.keyboard.press('Escape');
         await settleViewer(viewerCanvas);
-        await expect(viewerCanvas).toHaveScreenshot(
-            'image-viewer-offset-pole.png',
-        );
+        await snapshotViewer(viewerCanvas, 'image-viewer-offset-pole.png');
         await viewerCanvas.hover();
         await page.getByTestId('overlay-coordinate-button').click();
         await offset.uncheck({ force: true });
@@ -662,7 +680,8 @@ test.describe('Image Viewer Controls', () => {
             await expect(size).toBeEnabled();
             await carta.closeWidget('image-view-floating-settings');
             await settleViewer(viewerCanvas);
-            await expect(viewerCanvas).toHaveScreenshot(
+            await snapshotViewer(
+                viewerCanvas,
                 `image-viewer-${section}-${fontProperty}.png`,
             );
         }
@@ -731,9 +750,7 @@ test.describe('Image Viewer Controls', () => {
         ).toBeDisabled();
         await carta.closeWidget('image-view-floating-settings');
         await settleViewer(viewerCanvas);
-        await expect(viewerCanvas).toHaveScreenshot(
-            'image-viewer-colorbar-hidden.png',
-        );
+        await snapshotViewer(viewerCanvas, 'image-viewer-colorbar-hidden.png');
         await page.getByTestId('image-view-header-settings-button').click();
         await page.getByRole('tab', { name: 'Colorbar', exact: true }).click();
         await settingsField(panel, /^Visible$/)
@@ -746,9 +763,7 @@ test.describe('Image Viewer Controls', () => {
         );
         await expect(page.locator('.colorbar-info')).toBeVisible();
         await settleViewer(viewerCanvas);
-        await expect(viewerCanvas).toHaveScreenshot(
-            'image-viewer-colorbar-bottom.png',
-        );
+        await snapshotViewer(viewerCanvas, 'image-viewer-colorbar-bottom.png');
         await page.getByTestId('image-view-header-settings-button').click();
         await page.getByRole('tab', { name: 'Colorbar', exact: true }).click();
         await settingsField(panel, /^Interactive$/)
@@ -812,9 +827,7 @@ test.describe('Image Viewer Controls', () => {
         ]);
         await carta.closeWidget('image-view-floating-settings');
         await settleViewer(viewerCanvas);
-        await expect(viewerCanvas).toHaveScreenshot(
-            'image-viewer-beam-per-image.png',
-        );
+        await snapshotViewer(viewerCanvas, 'image-viewer-beam-per-image.png');
     });
 
     test('Multi-panel pages preserve selection and stop at both boundaries', async ({
@@ -850,7 +863,8 @@ test.describe('Image Viewer Controls', () => {
         await expect(previous).toBeDisabled();
         await expect(next).toBeEnabled();
         await settleViewer(viewerCanvas);
-        await expect(viewerCanvas).toHaveScreenshot(
+        await snapshotViewer(
+            viewerCanvas,
             'image-viewer-first-multi-panel-page.png',
         );
         await next.click();
@@ -868,7 +882,8 @@ test.describe('Image Viewer Controls', () => {
             )
             .toBe(255);
         await settleViewer(viewerCanvas);
-        await expect(viewerCanvas).toHaveScreenshot(
+        await snapshotViewer(
+            viewerCanvas,
             'image-viewer-last-multi-panel-page.png',
         );
     });
@@ -990,7 +1005,7 @@ test.describe('Image Viewer', () => {
             - img
         `);
 
-        await carta.screenShot(
+        await snapshotViewer(
             viewerCanvas,
             'HD163296_13CO_2-1_subimage_viewer.png',
         );
@@ -1006,7 +1021,7 @@ test.describe('Image Viewer', () => {
         await expect(page.getByTestId('image-view-header-title')).toContainText(
             'M17_SWex.fits',
         );
-        await carta.screenShot(viewerCanvas, 'M17_SWex_viewer.png');
+        await snapshotViewer(viewerCanvas, 'M17_SWex_viewer.png');
         await page.getByTestId('image-view-header-next-page-button').click();
         await expect(page.getByTestId('image-view-header-title')).toContainText(
             'HD163296_13CO_2-1_subimage.fits',
@@ -1030,7 +1045,8 @@ test.describe('Image Viewer', () => {
 
         await page.getByTestId('image-view-header-maximize-button').click();
         await settleViewer(viewerCanvas);
-        await expect(viewerCanvas).toHaveScreenshot(
+        await snapshotViewer(
+            viewerCanvas,
             'M17_SWex_viewer_multipanel_maximized.png',
         );
         await carta.screenShot(
@@ -1121,7 +1137,7 @@ test.describe('Image Viewer', () => {
             sourcePosition: { x: 250, y: 200 },
             targetPosition: { x: 400, y: 300 },
         });
-        await carta.screenShot(
+        await snapshotViewer(
             viewerCanvas,
             'M17_SWex_viewer_toolbar_region_creating_ellipse.png',
         );
@@ -1138,7 +1154,7 @@ test.describe('Image Viewer', () => {
             sourcePosition: { x: 500, y: 300 },
             targetPosition: { x: 200, y: 200 },
         });
-        await carta.screenShot(
+        await snapshotViewer(
             viewerCanvas,
             'M17_SWex_viewer_toolbar_moving.png',
         );
@@ -1150,25 +1166,25 @@ test.describe('Image Viewer', () => {
         await page.getByTestId('zoom-in-button').click();
         await page.getByTestId('zoom-in-button').click();
         await expect.poll(zoomLevel).toBeCloseTo(fitZoom * 4, 6);
-        await carta.screenShot(
+        await snapshotViewer(
             viewerCanvas,
             'M17_SWex_viewer_toolbar_zoom_in.png',
         );
         await page.getByTestId('zoom-out-button').click();
         await expect.poll(zoomLevel).toBeCloseTo(fitZoom * 2, 6);
-        await carta.screenShot(
+        await snapshotViewer(
             viewerCanvas,
             'M17_SWex_viewer_toolbar_zoom_out.png',
         );
         await page.getByTestId('zoom-to-1x-fit-button').click();
         await expect.poll(zoomLevel).toBe(1);
-        await carta.screenShot(
+        await snapshotViewer(
             viewerCanvas,
             'M17_SWex_viewer_toolbar_zoom_1x.png',
         );
         await page.getByTestId('zoom-to-fit-button').click();
         await expect.poll(zoomLevel).toBeCloseTo(fitZoom, 6);
-        await carta.screenShot(
+        await snapshotViewer(
             viewerCanvas,
             'M17_SWex_viewer_toolbar_zoom_fit.png',
         );
@@ -1180,7 +1196,7 @@ test.describe('Image Viewer', () => {
                 ),
             )
             .toBe(true);
-        await carta.screenShot(
+        await snapshotViewer(
             viewerCanvas,
             'M17_SWex_viewer_toolbar_grid_on.png',
         );
@@ -1192,7 +1208,7 @@ test.describe('Image Viewer', () => {
                 ),
             )
             .toBe(true);
-        await carta.screenShot(
+        await snapshotViewer(
             viewerCanvas,
             'M17_SWex_viewer_toolbar_label_off.png',
         );
@@ -1213,7 +1229,7 @@ test.describe('Image Viewer', () => {
         `);
         await page.getByRole('menuitem', { name: 'GAL' }).click();
         await page.getByTestId('toggle-labels-button').click();
-        await carta.screenShot(
+        await snapshotViewer(
             viewerCanvas,
             'M17_SWex_viewer_toolbar_coordinate_galactic.png',
         );
@@ -1367,7 +1383,8 @@ test.describe('Image Viewer', () => {
             .toBeCloseTo(10, 6);
         await carta.closeWidget('image-view-floating-settings');
         await expect(page.locator('.image-view-settings')).toBeHidden();
-        await expect(viewerCanvas).toHaveScreenshot(
+        await snapshotViewer(
+            viewerCanvas,
             'M17_SWex_viewer_settings_offset_galactic.png',
             { maxDiffPixelRatio: 0.02 },
         );
@@ -1381,7 +1398,8 @@ test.describe('Image Viewer', () => {
         await expect(offsetY).toHaveValue(await centerY.inputValue());
         await carta.closeWidget('image-view-floating-settings');
         await expect(page.locator('.image-view-settings')).toBeHidden();
-        await expect(viewerCanvas).toHaveScreenshot(
+        await snapshotViewer(
+            viewerCanvas,
             'M17_SWex_viewer_settings_de_offset_galactic.png',
             { maxDiffPixelRatio: 0.02 },
         );
@@ -1508,7 +1526,7 @@ test.describe('Image Viewer', () => {
         await settingsField(global, /^Multi-panel mode$/)
             .getByRole('combobox')
             .selectOption('fixed');
-        await carta.screenShot(
+        await snapshotViewer(
             viewerCanvas,
             'M17_SWex_viewer_settings_fixed_multi_panel_2x2.png',
         );
@@ -1521,7 +1539,7 @@ test.describe('Image Viewer', () => {
         await expect(
             page.getByRole('spinbutton', { name: 'Columns' }),
         ).toHaveValue('3');
-        await carta.screenShot(
+        await snapshotViewer(
             viewerCanvas,
             'M17_SWex_viewer_settings_fixed_multi_panel_2x3.png',
         );
@@ -1533,7 +1551,7 @@ test.describe('Image Viewer', () => {
         await expect(
             page.getByRole('spinbutton', { name: 'Rows' }),
         ).toHaveValue('1');
-        await carta.screenShot(
+        await snapshotViewer(
             viewerCanvas,
             'M17_SWex_viewer_settings_fixed_multi_panel_1x3.png',
         );
@@ -1542,7 +1560,7 @@ test.describe('Image Viewer', () => {
             .getByRole('button')
             .click();
         await page.locator('li:nth-child(4) > .bp6-menu-item').click();
-        await carta.screenShot(
+        await snapshotViewer(
             viewerCanvas,
             'M17_SWex_viewer_settings_fixed_multi_panel_1x3_color.png',
         );
@@ -1553,7 +1571,7 @@ test.describe('Image Viewer', () => {
         await settingsField(global, /^Multi-panel mode$/)
             .getByRole('combobox')
             .selectOption('dynamic');
-        await carta.screenShot(
+        await snapshotViewer(
             viewerCanvas,
             'M17_SWex_viewer_settings_fixed_multi_panel_interior_label.png',
         );
@@ -1561,7 +1579,7 @@ test.describe('Image Viewer', () => {
         await settingsField(global, /^Coordinate system$/)
             .getByRole('combobox')
             .selectOption('ECLIPTIC');
-        await carta.screenShot(
+        await snapshotViewer(
             viewerCanvas,
             'M17_SWex_viewer_settings_fixed_multi_panel_coord_ecliptic.png',
         );
@@ -1624,7 +1642,7 @@ test.describe('Image Viewer', () => {
           - checkbox
           `);
 
-        await carta.screenShot(
+        await snapshotViewer(
             viewerCanvas,
             'M17_SWex_viewer_settings_title_on.png',
         );
@@ -1641,7 +1659,7 @@ test.describe('Image Viewer', () => {
             .getByRole('button')
             .click();
         await page.locator('li:nth-child(3) > .bp6-menu-item').click();
-        await carta.screenShot(
+        await snapshotViewer(
             viewerCanvas,
             'M17_SWex_viewer_settings_custom_title.png',
         );
@@ -1678,7 +1696,7 @@ test.describe('Image Viewer', () => {
         await settingsField(ticks, /^Draw on all edges$/)
             .getByRole('checkbox')
             .click({ force: true });
-        await carta.screenShot(
+        await snapshotViewer(
             viewerCanvas,
             'M17_SWex_viewer_settings_ticks_all_edges_off.png',
         );
@@ -1693,7 +1711,7 @@ test.describe('Image Viewer', () => {
             .getByRole('spinbutton', { name: 'Density' })
             .nth(1)
             .fill('2');
-        await carta.screenShot(
+        await snapshotViewer(
             viewerCanvas,
             'M17_SWex_viewer_settings_ticks_custom_density.png',
         );
@@ -1704,7 +1722,8 @@ test.describe('Image Viewer', () => {
             .getByRole('button')
             .click();
         await page.locator('li:nth-child(2) > .bp6-menu-item').click();
-        await expect(viewerCanvas).toHaveScreenshot(
+        await snapshotViewer(
+            viewerCanvas,
             'M17_SWex_viewer_settings_ticks_custom_color.png',
             { maxDiffPixelRatio: 0.02 },
         );
@@ -1718,7 +1737,7 @@ test.describe('Image Viewer', () => {
             .filter({ hasText: 'Major length (%)' })
             .getByRole('button', { name: 'decrement' })
             .click();
-        await carta.screenShot(
+        await snapshotViewer(
             viewerCanvas,
             'M17_SWex_viewer_settings_ticks_custom_width.png',
         );
@@ -1762,10 +1781,7 @@ test.describe('Image Viewer', () => {
         await settingsField(grids, /^WCS grid$/)
             .getByRole('checkbox')
             .click({ force: true });
-        await carta.screenShot(
-            viewerCanvas,
-            'M17_SWex_viewer_settings_grid.png',
-        );
+        await snapshotViewer(viewerCanvas, 'M17_SWex_viewer_settings_grid.png');
 
         await settingsField(grids, /^Custom color$/)
             .getByRole('checkbox')
@@ -1787,7 +1803,7 @@ test.describe('Image Viewer', () => {
         await expect(
             page.getByTestId('image-view-settings-grid-width-input'),
         ).toHaveValue('2');
-        await carta.screenShot(
+        await snapshotViewer(
             viewerCanvas,
             'M17_SWex_viewer_settings_grid_color.png',
         );
@@ -1798,7 +1814,7 @@ test.describe('Image Viewer', () => {
             .click({ force: true });
         await grids.getByRole('spinbutton', { name: 'Gap' }).nth(0).fill('100');
         await grids.getByRole('spinbutton', { name: 'Gap' }).nth(1).fill('50');
-        await carta.screenShot(
+        await snapshotViewer(
             viewerCanvas,
             'M17_SWex_viewer_settings_grid_gap.png',
         );
@@ -1818,7 +1834,7 @@ test.describe('Image Viewer', () => {
             .nth(8)
             .click();
         await carta.setZoom(0, 25);
-        await carta.screenShot(
+        await snapshotViewer(
             viewerCanvas,
             'M17_SWex_viewer_settings_pixel_grid.png',
         );
@@ -1870,7 +1886,7 @@ test.describe('Image Viewer', () => {
 
         await carta.closeWidget('image-view-floating-settings');
         await settleViewer(viewerCanvas);
-        await carta.screenShot(
+        await snapshotViewer(
             viewerCanvas,
             'M17_SWex_viewer_settings_border.png',
         );
@@ -1923,10 +1939,7 @@ test.describe('Image Viewer', () => {
 
         await carta.closeWidget('image-view-floating-settings');
         await settleViewer(viewerCanvas);
-        await carta.screenShot(
-            viewerCanvas,
-            'M17_SWex_viewer_settings_axes.png',
-        );
+        await snapshotViewer(viewerCanvas, 'M17_SWex_viewer_settings_axes.png');
     });
 
     test('Image viewer settings: numbers and labels', async ({
@@ -1997,7 +2010,8 @@ test.describe('Image Viewer', () => {
             page.getByRole('spinbutton', { name: 'Precision' }),
         ).toHaveValue('2');
 
-        await expect(viewerCanvas).toHaveScreenshot(
+        await snapshotViewer(
+            viewerCanvas,
             'M17_SWex_viewer_settings_numbers.png',
             { maxDiffPixelRatio: 0.02 },
         );
@@ -2044,7 +2058,7 @@ test.describe('Image Viewer', () => {
             .click();
         await page.locator('li:nth-child(2) > .bp6-menu-item').click();
 
-        await carta.screenShot(
+        await snapshotViewer(
             viewerCanvas,
             'M17_SWex_viewer_settings_labels.png',
         );
@@ -2197,7 +2211,8 @@ test.describe('Image Viewer', () => {
         });
         await carta.closeWidget('image-view-floating-settings');
         await settleViewer(viewerCanvas);
-        await expect(viewerCanvas).toHaveScreenshot(
+        await snapshotViewer(
+            viewerCanvas,
             'M17_SWex_viewer_settings_colorbar_position.png',
             { maxDiffPixelRatio: 0.02 },
         );
@@ -2375,10 +2390,7 @@ test.describe('Image Viewer', () => {
                 });
         await expect.poll(beamPixels).toBeGreaterThan(0);
         await settleViewer(viewerCanvas);
-        await carta.screenShot(
-            viewerCanvas,
-            'M17_SWex_viewer_settings_beam.png',
-        );
+        await snapshotViewer(viewerCanvas, 'M17_SWex_viewer_settings_beam.png');
 
         await settingsField(beam, /^Visible$/)
             .getByRole('checkbox')
@@ -2390,7 +2402,7 @@ test.describe('Image Viewer', () => {
             viewerCanvas.locator('.beam-profile-stage canvas'),
         ).toHaveCount(0);
         await settleViewer(viewerCanvas);
-        await carta.screenShot(
+        await snapshotViewer(
             viewerCanvas,
             'M17_SWex_viewer_settings_no_beam.png',
         );
@@ -2448,13 +2460,13 @@ test.describe('Image Viewer', () => {
         await page.getByRole('button', { name: 'Linear' }).click();
         await page.getByRole('menuitem', { name: 'Log' }).click();
         await page.getByTestId('clip-button-99.99').click();
-        await carta.screenShot(viewerCanvas, 'M17_SWex_channel8_log_99.99.png');
+        await snapshotViewer(viewerCanvas, 'M17_SWex_channel8_log_99.99.png');
         await page.getByTestId('clip-button-99').click();
-        await carta.screenShot(viewerCanvas, 'M17_SWex_channel8_log_99.png');
+        await snapshotViewer(viewerCanvas, 'M17_SWex_channel8_log_99.png');
         await settingsField(renderConfigContent, /^Alpha/)
             .getByRole('spinbutton')
             .fill('100');
-        await carta.screenShot(
+        await snapshotViewer(
             viewerCanvas,
             'M17_SWex_channel8_log_99_alpha100.png',
         );
@@ -2465,28 +2477,28 @@ test.describe('Image Viewer', () => {
 
         await page.getByRole('button', { name: 'Log' }).click();
         await page.getByRole('menuitem', { name: 'Square root' }).click();
-        await carta.screenShot(
+        await snapshotViewer(
             viewerCanvas,
             'M17_SWex_channel8_square_root_99.png',
         );
         await settingsField(renderConfigContent, /^Invert colormap$/)
             .getByRole('checkbox')
             .click({ force: true });
-        await carta.screenShot(
+        await snapshotViewer(
             viewerCanvas,
             'M17_SWex_channel8_square_root_99_invert.png',
         );
 
         await page.getByRole('button', { name: 'Square root' }).click();
         await page.getByRole('menuitem', { name: 'Squared' }).click();
-        await carta.screenShot(viewerCanvas, 'M17_SWex_channel8_square_99.png');
+        await snapshotViewer(viewerCanvas, 'M17_SWex_channel8_square_99.png');
         await selectColormap('cubehelix');
-        await carta.screenShot(
+        await snapshotViewer(
             viewerCanvas,
             'M17_SWex_channel8_square_99_cubehelix.png',
         );
         await selectColormap('gnuplot2');
-        await carta.screenShot(
+        await snapshotViewer(
             viewerCanvas,
             'M17_SWex_channel8_square_99_gnuplot2.png',
         );
@@ -2495,7 +2507,7 @@ test.describe('Image Viewer', () => {
             'gnuplot2_colorbar.png',
         );
         await selectColormap('custom');
-        await carta.screenShot(
+        await snapshotViewer(
             viewerCanvas,
             'M17_SWex_channel8_square_99_custom.png',
         );
@@ -2511,7 +2523,7 @@ test.describe('Image Viewer', () => {
         await gammaInput.press('Enter');
 
         await selectColormap('seismic');
-        await carta.screenShot(
+        await snapshotViewer(
             viewerCanvas,
             'M17_SWex_channel8_gamma_99_gamma_1.5_seismic.png',
         );
@@ -2534,7 +2546,7 @@ test.describe('Image Viewer', () => {
             page.locator('.bias-contrast-stage > .konvajs-content > canvas'),
             'bias.png',
         );
-        await carta.screenShot(
+        await snapshotViewer(
             viewerCanvas,
             'M17_SWex_channel8_gamma_99.99_gamma_1.5_seismic_bias.png',
         );
@@ -2568,7 +2580,7 @@ test.describe('Image Viewer', () => {
         await settingsField(renderConfigContent, /^Alpha/)
             .getByRole('spinbutton')
             .fill('10');
-        await carta.screenShot(
+        await snapshotViewer(
             viewerCanvas,
             'M17_SWex_channel8_power_99.5_alpha_10_gist_stern.png',
         );
