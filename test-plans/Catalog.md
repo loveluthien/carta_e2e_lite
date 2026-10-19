@@ -1,6 +1,6 @@
 # Catalog test plan
 
-**Source:** [`tests/Catalog.spec.ts`](../tests/Catalog.spec.ts) · **Cases:** 7
+**Source:** [`tests/Catalog.spec.ts`](../tests/Catalog.spec.ts) · **Cases:** 14
 
 Local catalog table, overlay, plot, coordinate and styling behavior.
 
@@ -10,7 +10,7 @@ Local catalog table, overlay, plot, coordinate and styling behavior.
 - Check the requested widget/dialog state, data or store values, and the effect in the image viewer and applicable profiler. Treat a visible canvas alone as insufficient for a numerical result.
 - For viewer or profile changes, compare a stable PNG with a reviewed baseline; inspect overlay text and numeric readouts as well.
 - For rejected input or a failed operation, verify no unwanted image is created and the user can recover. Exercise every button relevant to the scenario.
-- Referenced FITS fixtures: `catalog-image.fits`, `catalog-image-shifted.fits`, `catalog-angular-size-image.fits`.
+- Referenced FITS fixtures: `catalog-image.fits`, `catalog-image-shifted.fits`, `catalog-angular-size-image.fits`, `catalog-format-image.fits`.
 - Referenced catalog fixtures: `catalog-sky.vot`, `catalog-pixel.vot`, `catalog-invalid.vot`, `catalog-angular-size.vot`.
 - The toolbar case compares the viewer against a named PNG baseline. The other cases capture viewer and spatial-profile PNG artifacts in the Playwright output directory as diagnostic captures.
 
@@ -38,3 +38,19 @@ Local catalog table, overlay, plot, coordinate and styling behavior.
 ```sh
 npm test -- --project=test-group1 tests/Catalog.spec.ts
 ```
+
+## String coordinate regression coverage (PR #2956)
+
+Use `catalog-format-image.fits`, a deterministic 16 × 16 image centred on RA 150.01°, Dec 2.52° with 0.01° pixels. All 20 reference sources fit inside this image; the manual suite's original mosaic has a smaller footprint.
+
+| Test                        | Action and expected result                                                                                                                                                                                                                                                                                                        |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| String coordinate formats   | Compare all 20 rendered positions with `00_baseline_decimal_deg.vot` for colon coordinates with/without units, letters, spaces, compact coordinates with units, decimal hours, radians, Unicode DMS, CASA dot declination and numeric hours/radians. Each axis agrees within 0.01 image pixels.                                   |
+| Coordinate systems          | Galactic/ecliptic sexagesimal coordinates, implicit FK4 B1950 and explicit FK4 B1900 transform to the decimal control positions.                                                                                                                                                                                                  |
+| Column discovery            | Unitless string coordinates beyond the default display cutoff are fetched and selected; error/proper-motion decoys do not replace the real axes. All 20 sources render at their control positions.                                                                                                                                |
+| Invalid rows                | Out-of-range latitudes reject rows 2, 9, 17; malformed strings reject rows 1, 9, 18 (one-based). The other 17 markers keep their control positions and row identities.                                                                                                                                                            |
+| Numeric plot transitions    | Switching from string overlay axes to histogram or scatter clears unsupported axes and disables Plot. String coordinates are absent from the numeric menu; selecting Jmag (and Hmag for scatter) produces a blue plot. Exported histogram counts sum to 20; scatter exports all 20 pairs with the expected first and last values. |
+| Manual coordinate selection | Correct swapped names through the axis menus. Anonymous columns initially disable Plot; selecting col_a/col_b restores all 20 control positions.                                                                                                                                                                                  |
+| Late streamed recognition   | Import 1200 rows with the first 60 coordinate pairs blank. Plot fetches subsequent chunks and renders 1140 valid sources, excluding the initial blank rows.                                                                                                                                                                       |
+
+Coordinate overlay cases compare PNG baselines and exact marker RGB `(0,163,150)`. Every case captures the image viewer and spatial profiler, and numeric transitions capture both plots. Coordinate parsing edge-case matrices remain in frontend unit tests; these cases verify file loading, axis selection, streaming, WCS conversion and rendering together.

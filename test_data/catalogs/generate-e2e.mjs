@@ -68,6 +68,19 @@ for (const [name, ra] of [
 ])
     writeFits(name, { ...header, CRVAL1: ra }, pixels);
 
+// Covers all 20 sources in the coordinate-format catalog fixtures (PR #2956).
+writeFits(
+    'catalog-format-image.fits',
+    {
+        ...header,
+        CRVAL1: 150.01,
+        CRVAL2: 2.52,
+        CDELT1: -0.01,
+        CDELT2: 0.01,
+    },
+    pixels,
+);
+
 // One arcsecond per pixel makes angular source sizes easy to verify visually.
 const angularImageSize = 24;
 const angularPixels = Buffer.alloc(4 * 2880);

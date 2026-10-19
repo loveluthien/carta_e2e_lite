@@ -255,6 +255,7 @@ async function exportedPlotBins(
     page: Page,
     plot: Locator,
     type: 'histogram' | 'scatter',
+    columns = type === 'histogram' ? 'Flux' : 'Flux-Size',
 ) {
     const downloadPromise = page.waitForEvent('download');
     await plot
@@ -262,8 +263,7 @@ async function exportedPlotBins(
         .filter({ has: page.locator('[data-icon="th"]') })
         .click();
     const download = await downloadPromise;
-    const content =
-        type === 'histogram' ? 'histogram-Flux' : 'scatter-Flux-Size';
+    const content = `${type}-${columns}`;
     expect(download.suggestedFilename()).toMatch(
         new RegExp(`^catalog-${content}-\\d{4}(?:-\\d{2}){5}\\.tsv$`),
     );
@@ -815,5 +815,288 @@ test.describe('Catalog Widget', () => {
         await openCatalog(page, 'catalog-pixel.vot');
         await plotOverlay(page, catalog, 4);
         await checkViewerAndProfiler(page, testInfo, 'shifted-image');
+    });
+});
+
+// Compare the rendered WCS positions with a decimal-degree control, not a second parser.
+async function coordinatePoints(page: Page) {
+    return page.evaluate(() => {
+        const store = (window as any).app.catalogStore;
+        const ids = store.activeCatalogFiles;
+        const points = store.catalogGLData.get(ids[ids.length - 1]);
+        return Array.from(points.x as Float32Array, (x, index) => ({
+            index,
+            x,
+            y: points.y[index] as number,
+        })).filter(({ x, y }) => x >= 0 && x < 16 && y >= 0 && y < 16);
+    });
+}
+
+test.describe('Catalog coordinate formats', () => {
+    test.setTimeout(180_000);
+
+    for (const scenario of [
+        {
+            name: 'Renders string coordinate formats at the decimal control positions',
+            files: [
+                '01_sexagesimal_colon_units.vot',
+                '02_sexagesimal_colon_nounits.vot',
+                '03_sexagesimal_letters.vot',
+                '04_sexagesimal_space.vot',
+                '05_compact_hhmmss.vot',
+                '06_decimal_hours.vot',
+                '07_radians.vot',
+                '08_unicode_dms.vot',
+                '09_casa_dot_dec.vot',
+                '10_numeric_hours.vot',
+                '11_numeric_radians.vot',
+            ],
+        },
+        {
+            name: 'Transforms galactic and ecliptic string coordinates and FK4 equinoxes',
+            files: [
+                '41_galactic_sexagesimal.vot',
+                '43_ecliptic_sexagesimal.vot',
+                '44_ecliptic_fk4.vot',
+                '45_fk4_b1900.vot',
+            ],
+        },
+        {
+            name: 'Finds hidden string coordinates and ignores error column decoys',
+            files: [
+                '31_coords_past_display_cut_string_nounits.vot',
+                '32_decoy_error_columns.vot',
+            ],
+        },
+        {
+            name: 'Rejects malformed and out of range rows without moving valid sources',
+            files: [
+                '21_PARTIAL_out_of_range_lat.vot',
+                '22_PARTIAL_unparseable_rows.vot',
+            ],
+        },
+    ]) {
+        test(scenario.name, async ({ page }, testInfo) => {
+            page.setDefaultTimeout(10_000);
+            const carta = await openImage(page, 'catalog-format-image.fits');
+            let catalog = await openCatalog(
+                page,
+                '00_baseline_decimal_deg.vot',
+                20,
+            );
+            await plotOverlay(page, catalog, 20);
+            const reference = await coordinatePoints(page);
+            await catalog.getByTestId('catalog-close-button').click();
+            for (const file of scenario.files) {
+                await test.step(file, async () => {
+                    catalog = await openCatalog(page, file, 20);
+                    const rejected = file.startsWith('21_')
+                        ? [1, 8, 16]
+                        : file.startsWith('22_')
+                          ? [0, 8, 17]
+                          : [];
+                    await plotOverlay(page, catalog, 20 - rejected.length);
+                    const actual = await coordinatePoints(page);
+                    expect(actual.map((point) => point.index)).toEqual(
+                        reference
+                            .filter((point) => !rejected.includes(point.index))
+                            .map((point) => point.index),
+                    );
+                    for (const point of actual) {
+                        expect(
+                            Math.abs(point.x - reference[point.index].x),
+                            `${file} row ${point.index} X`,
+                        ).toBeLessThan(0.01);
+                        expect(
+                            Math.abs(point.y - reference[point.index].y),
+                            `${file} row ${point.index} Y`,
+                        ).toBeLessThan(0.01);
+                    }
+                });
+                if (file !== scenario.files.at(-1))
+                    await catalog.getByTestId('catalog-close-button').click();
+            }
+            await carta.closeWidget('catalog-overlay');
+            await checkViewerAndProfiler(page, testInfo, 'coordinate-formats');
+            await expect(page.locator('#catalog-canvas')).toHaveScreenshot(
+                `coordinate-overlay-${scenario.files[0].split('_')[0]}.png`,
+            );
+        });
+    }
+
+    test('Clears string axes when switching to numeric histogram and scatter plots', async ({
+        page,
+    }, testInfo) => {
+        page.setDefaultTimeout(10_000);
+        const carta = await openImage(page, 'catalog-format-image.fits');
+        const catalog = await openCatalog(
+            page,
+            '01_sexagesimal_colon_units.vot',
+            20,
+        );
+        await plotOverlay(page, catalog, 20);
+        for (const [type, plot] of [
+            ['Histogram', 'histogram'],
+            ['2D scatter', 'scatter'],
+        ] as const) {
+            if (plot === 'scatter') {
+                await choose(
+                    page,
+                    catalog.getByTestId('catalog-rendering-type-dropdown'),
+                    'Image overlay',
+                );
+                await choose(
+                    page,
+                    catalog.getByTestId('catalog-rendering-column-x-dropdown'),
+                    'RAJ2000',
+                );
+                await choose(
+                    page,
+                    catalog.getByTestId('catalog-rendering-column-y-dropdown'),
+                    'DEJ2000',
+                );
+            }
+            await choose(
+                page,
+                catalog.getByTestId('catalog-rendering-type-dropdown'),
+                type,
+            );
+            const x = catalog.getByTestId(
+                'catalog-rendering-column-x-dropdown',
+            );
+            await expect(x).toContainText('None');
+            await expect(
+                catalog.getByTestId('catalog-plot-button'),
+            ).toBeDisabled();
+            await x.click();
+            await expect(
+                page.getByRole('menuitem', { name: 'RAJ2000', exact: true }),
+            ).toHaveCount(0);
+            await expect(
+                page.getByRole('menuitem', { name: 'DEJ2000', exact: true }),
+            ).toHaveCount(0);
+            await page
+                .getByRole('menuitem', { name: 'Jmag', exact: true })
+                .last()
+                .click();
+            if (plot === 'scatter')
+                await choose(
+                    page,
+                    catalog.getByTestId('catalog-rendering-column-y-dropdown'),
+                    'Hmag',
+                );
+            await plotChart(page, catalog, plot);
+            const canvas = page
+                .getByTestId(`catalog-${plot}-plot`)
+                .locator('canvas')
+                .first();
+            await expectCanvasInk(
+                page,
+                `[data-testid="catalog-${plot}-plot"] canvas`,
+            );
+            await expectCanvasRgb(
+                page,
+                `[data-testid="catalog-${plot}-plot"] canvas${plot === 'scatter' ? '[data-overlay]' : ''}`,
+                [33, 93, 176],
+            );
+            await page.getByTestId(`catalog-${plot}-plot`).hover();
+            const values = await exportedPlotBins(
+                page,
+                page.getByTestId(`catalog-${plot}-plot`),
+                plot,
+                plot === 'histogram' ? 'Jmag' : 'Jmag-Hmag',
+            );
+            if (plot === 'histogram') {
+                expect(values.reduce((total, bin) => total + bin[1], 0)).toBe(
+                    20,
+                );
+            } else {
+                expect(values).toHaveLength(20);
+                expect(values[0]).toEqual([14.517, 13.824]);
+                expect(values[19]).toEqual([17.385, 16.271]);
+            }
+            await canvas.screenshot({
+                path: testInfo.outputPath(`${plot}-numeric.png`),
+            });
+        }
+        await carta.closeWidget('catalog-overlay');
+        await checkViewerAndProfiler(page, testInfo, 'numeric-plot-transition');
+    });
+    test('Allows manual correction of swapped and anonymous coordinate columns', async ({
+        page,
+    }, testInfo) => {
+        const carta = await openImage(page, 'catalog-format-image.fits');
+        let catalog = await openCatalog(
+            page,
+            '00_baseline_decimal_deg.vot',
+            20,
+        );
+        await plotOverlay(page, catalog, 20);
+        const reference = await coordinatePoints(page);
+        await catalog.getByTestId('catalog-close-button').click();
+        for (const [file, x, y] of [
+            ['33_swapped_names.vot', 'DEJ2000', 'RAJ2000'],
+            ['34_no_coordinate_names.vot', 'col_a', 'col_b'],
+        ]) {
+            catalog = await openCatalog(page, file, 20);
+            if (file.startsWith('34_'))
+                await expect(
+                    catalog.getByTestId('catalog-plot-button'),
+                ).toBeDisabled();
+            await choose(
+                page,
+                catalog.getByTestId('catalog-rendering-column-x-dropdown'),
+                x,
+            );
+            await choose(
+                page,
+                catalog.getByTestId('catalog-rendering-column-y-dropdown'),
+                y,
+            );
+            await plotOverlay(page, catalog, 20);
+            expect(await coordinatePoints(page)).toEqual(reference);
+            if (file.startsWith('33_'))
+                await catalog.getByTestId('catalog-close-button').click();
+        }
+        await carta.closeWidget('catalog-overlay');
+        await checkViewerAndProfiler(
+            page,
+            testInfo,
+            'manual-coordinate-columns',
+        );
+    });
+
+    test('Recognizes unitless string coordinates after an initially blank streamed chunk', async ({
+        page,
+    }, testInfo) => {
+        const carta = await openImage(page, 'catalog-format-image.fits');
+        const control = await openCatalog(
+            page,
+            '00_baseline_decimal_deg.vot',
+            20,
+        );
+        await plotOverlay(page, control, 20);
+        const reference = await coordinatePoints(page);
+        await control.getByTestId('catalog-close-button').click();
+        const catalog = await openCatalog(
+            page,
+            '60_stream_late_string_format.vot',
+            1200,
+        );
+        await plotOverlay(page, catalog, 1140);
+        const points = await coordinatePoints(page);
+        expect(points.every((point) => point.index >= 60)).toBe(true);
+        for (const point of points) {
+            expect(
+                reference.some(
+                    (control) =>
+                        Math.abs(control.x - point.x) < 0.01 &&
+                        Math.abs(control.y - point.y) < 0.01,
+                ),
+            ).toBe(true);
+        }
+        await expectCatalogInfo(catalog, 'total 1200 entries');
+        await carta.closeWidget('catalog-overlay');
+        await checkViewerAndProfiler(page, testInfo, 'streamed-coordinates');
     });
 });
