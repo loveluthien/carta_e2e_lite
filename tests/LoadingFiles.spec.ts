@@ -1,6 +1,10 @@
 import { expect, test } from '@playwright/test';
 import {
     existsSync,
+    mkdirSync,
+    mkdtempSync,
+    utimesSync,
+    writeFileSync,
     readFileSync,
     readdirSync,
     rmSync,
@@ -671,6 +675,278 @@ for (const kind of ['cube', 'yx', 'swapped', 'pv'] as const) {
                     )
                     .locator('.profile-plot'),
             ).toHaveScreenshot(`wcs-${kind}-blank-profile.png`);
+        }
+    });
+}
+
+// Real backend file lists encode sizes/dates as protobuf Longs, even for tiny files.
+function makeSortingFiles(catalog: boolean) {
+    const root = mkdtempSync(path.join(path.dirname(fixtureFolder), 'sort-'));
+    const names = ['middle-small', 'zeta-medium', 'alpha-large'].map(
+        (name) => `${name}.${catalog ? 'vot' : 'fits'}`,
+    );
+    const dates = [900_000_000, 1_500_000_000, 1_000_000_000];
+    for (const [index, name] of names.entries()) {
+        let data: Buffer;
+        if (catalog) {
+            const table = readFileSync(
+                path.join(fixtureFolder, 'catalogs/catalog-sky.vot'),
+            );
+            data = Buffer.alloc([9000, 75000, 1800000][index], ' ');
+            table.copy(data);
+        } else {
+            const cube = readFileSync(path.join(fixtureFolder, 'cube.fits'));
+            const channels = [5, 65, 1750][index];
+            data = Buffer.alloc(
+                2880 + Math.ceil((channels * 1024) / 2880) * 2880,
+            );
+            cube.copy(data, 0, 0, 2880);
+            const offset = data.indexOf('NAXIS3  ');
+            data.write(
+                `NAXIS3  = ${String(channels).padStart(20)}`.padEnd(80),
+                offset,
+                'ascii',
+            );
+            for (let z = 0; z < channels; z++)
+                cube.copy(
+                    data,
+                    2880 + z * 1024,
+                    2880 + (z % 5) * 1024,
+                    2880 + ((z % 5) + 1) * 1024,
+                );
+        }
+        writeFileSync(path.join(root, name), data);
+        utimesSync(path.join(root, name), dates[index], dates[index]);
+    }
+    const folders = ['dir-c-one', 'dir-a-two', 'dir-b-ten'];
+    for (const [index, folder] of folders.entries()) {
+        const dir = path.join(root, folder);
+        mkdirSync(dir);
+        for (let item = 0; item < [1, 2, 10][index]; item++)
+            writeFileSync(path.join(dir, `item-${item}.txt`), 'fixture');
+        utimesSync(dir, dates[index], dates[index]);
+    }
+    return { root, names, folders };
+}
+
+for (const catalog of [false, true]) {
+    test(`${catalog ? 'Catalog' : 'Image'} browser sorts numeric sizes and dates and loads the selected row`, async ({
+        page,
+    }, testInfo) => {
+        test.setTimeout(90_000);
+        page.setDefaultTimeout(10_000);
+        const files = makeSortingFiles(catalog);
+        try {
+            const carta = new PlaywrightDevPage(page);
+            await carta.goto();
+            await carta.setTestPreferences();
+            if (catalog) {
+                await carta.loadImage('cube.fits');
+                await carta.selectMenuItem('File', 'Import Catalog');
+            }
+            const browser = page.getByTestId('file-browser-dialog');
+            await browser.locator('.edit-path-button').click();
+            const directory = browser.getByPlaceholder(
+                'Input directory path with respect to the top level folder',
+            );
+            await directory.fill(
+                `${path.posix.dirname(fixtureBrowserPath)}/${path.basename(files.root)}`,
+            );
+            await directory.press('Enter');
+            const entries = browser.locator(
+                '.filename-cell .cell-text, .folder-cell .cell-text',
+            );
+            await expect(entries).toHaveCount(6);
+            await expect(
+                browser.getByText('1.8 MB', { exact: true }),
+            ).toBeVisible();
+            const size = browser
+                .locator('.bp6-table-quadrant-top .sort-label')
+                .filter({ hasText: /^Size$/ });
+            await size.click();
+            await expect(entries).toHaveText([
+                ...files.folders,
+                ...files.names,
+            ]);
+            await expect(
+                browser
+                    .locator('.bp6-table-quadrant-top .sort-label')
+                    .filter({ hasText: /^Size$/ })
+                    .locator('[data-icon="sort-asc"]'),
+            ).toBeVisible();
+            await size.click();
+            await expect(entries).toHaveText(
+                [...files.folders].reverse().concat([...files.names].reverse()),
+            );
+            await expect(size.locator('[data-icon="sort-desc"]')).toBeVisible();
+
+            const date = browser
+                .locator('.bp6-table-quadrant-top .sort-label')
+                .filter({ hasText: /^Date$/ });
+            await date.click();
+            await expect(entries).toHaveText([
+                files.folders[0],
+                files.folders[2],
+                files.folders[1],
+                files.names[0],
+                files.names[2],
+                files.names[1],
+            ]);
+            await date.click();
+            await expect(entries).toHaveText([
+                files.folders[1],
+                files.folders[2],
+                files.folders[0],
+                files.names[1],
+                files.names[2],
+                files.names[0],
+            ]);
+            await size.click();
+            await expect(entries).toHaveText([
+                ...files.folders,
+                ...files.names,
+            ]);
+            const filter = browser.getByRole('textbox', {
+                name: 'Filter by filename with fuzzy',
+            });
+            await filter.fill('no-matching-sort-file');
+            await filter.press('Enter');
+            await expect(
+                browser.getByText('No results', { exact: true }),
+            ).toBeVisible();
+            await expect(
+                browser.getByRole('button', {
+                    name: catalog ? 'Load catalog' : 'Load',
+                    exact: true,
+                }),
+            ).toBeDisabled();
+            await filter.fill('');
+            await filter.press('Enter');
+            await expect(entries).toHaveText([
+                ...files.folders,
+                ...files.names,
+            ]);
+            await browser.screenshot({
+                path: testInfo.outputPath('sorted-file-browser.png'),
+            });
+            await browser.getByText(files.names[0], { exact: true }).click();
+            await browser
+                .getByRole('button', {
+                    name: catalog ? 'Load catalog' : 'Load',
+                    exact: true,
+                })
+                .click();
+            await expect(browser).toBeHidden();
+            if (catalog) {
+                const widget = page
+                    .locator('.catalog-overlay')
+                    .filter({ has: page.getByTestId('catalog-file-dropdown') });
+                await widget.getByTestId('catalog-file-dropdown').click();
+                await expect(
+                    page.getByRole('menuitem', { name: /middle-small\.vot/ }),
+                ).toBeVisible();
+                await page.keyboard.press('Escape');
+                await expect(
+                    widget.getByTestId('catalog-table-filtering-info'),
+                ).toContainText('total 5 entries');
+                await widget.getByTestId('catalog-plot-button').click();
+                await expect
+                    .poll(() =>
+                        page.evaluate(() => {
+                            const store = (window as any).app.catalogStore;
+                            const points = store.catalogGLData.get(
+                                store.activeCatalogFiles.at(-1),
+                            );
+                            return Array.from(points?.x ?? []).filter(
+                                (x: number, index) =>
+                                    x >= 0 &&
+                                    x < 16 &&
+                                    points.y[index] >= 0 &&
+                                    points.y[index] < 16,
+                            ).length;
+                        }),
+                    )
+                    .toBe(4);
+                await expect
+                    .poll(() =>
+                        page
+                            .locator('#catalog-canvas')
+                            .evaluate((canvas: HTMLCanvasElement) => {
+                                const copy = document.createElement('canvas');
+                                copy.width = canvas.width;
+                                copy.height = canvas.height;
+                                const ctx = copy.getContext('2d')!;
+                                ctx.drawImage(canvas, 0, 0);
+                                const pixels = ctx.getImageData(
+                                    0,
+                                    0,
+                                    copy.width,
+                                    copy.height,
+                                ).data;
+                                let count = 0;
+                                for (let i = 0; i < pixels.length; i += 4)
+                                    if (
+                                        pixels[i] === 0 &&
+                                        pixels[i + 1] === 163 &&
+                                        pixels[i + 2] === 150 &&
+                                        pixels[i + 3]
+                                    )
+                                        count++;
+                                return count;
+                            }),
+                    )
+                    .toBeGreaterThan(0);
+                await carta.closeWidget('catalog-overlay');
+            } else {
+                await expect
+                    .poll(() => getFrames(page))
+                    .toMatchObject([
+                        {
+                            filename: files.names[0],
+                            width: 16,
+                            height: 16,
+                            channels: 5,
+                        },
+                    ]);
+            }
+            await page.evaluate(() => {
+                const frame = (window as any).app.activeFrame;
+                frame.setCursorPosition({ x: 8, y: 8 });
+                frame.updateCursorRegion({ x: 8, y: 8 });
+            });
+            await expect
+                .poll(() =>
+                    page.evaluate(() => {
+                        const app = (window as any).app;
+                        const profile = app.spatialProfiles.get(
+                            `${app.activeFrame.frameInfo.fileId}-0`,
+                        );
+                        return profile?.x === 8 && profile?.y === 8
+                            ? Array.from(profile.getProfile('x')?.values ?? [])
+                            : [];
+                    }),
+                )
+                .toEqual(
+                    Array.from({ length: 16 }, (_, x) => (x === 2 ? -3 : 1.5)),
+                );
+            await page.mouse.move(0, 0);
+            await expect(page.locator('.image-ratio-popup')).toHaveCSS(
+                'opacity',
+                '0',
+            );
+            await expect
+                .poll(async () => (await renderedRgb(page))[3])
+                .toBe(255);
+            await expect(page.getByTestId('viewer-div')).toHaveScreenshot(
+                `sorted-${catalog ? 'catalog' : 'image'}-viewer.png`,
+            );
+            await expect(
+                page.locator('.spatial-profiler-widget .profile-plot').first(),
+            ).toHaveScreenshot(
+                `sorted-${catalog ? 'catalog' : 'image'}-spatial-profile.png`,
+            );
+        } finally {
+            rmSync(files.root, { recursive: true, force: true });
         }
     });
 }

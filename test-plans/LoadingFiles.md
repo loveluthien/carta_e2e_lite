@@ -1,6 +1,6 @@
 # LoadingFiles test plan
 
-**Source:** [`tests/LoadingFiles.spec.ts`](../tests/LoadingFiles.spec.ts) · **Cases:** 13
+**Source:** [`tests/LoadingFiles.spec.ts`](../tests/LoadingFiles.spec.ts) · **Cases:** 15
 
 Fixture size, open/append, invalid-file recovery, and FITS/HDF5/CASA file metadata and rendering, including FITS images with minimal headers.
 
@@ -44,3 +44,14 @@ npm test -- --project=test-group2 tests/LoadingFiles.spec.ts
 ## Coverage additions
 
 Save channels 1–3 to a UUID FITS in test_data. Empty filename disables Save. Use a path relative to the top-level folder, wait for export completion, inspect NAXIS3=3, reload and verify 3/12 K first/last pixels. Attach viewer PNG and remove only this export in finally.
+
+## File browser numeric sorting regression (PR #2915)
+
+Two cases exercise the image and catalog browsers using real backend file-list responses. Each creates a unique temporary directory beside `test_data` (outside the recursive fixture-size scan) and removes only that directory in `finally`.
+
+- Generate three valid FITS cubes (8,640, 72,000 and 1,797,120 bytes) or three padded VOTables (9,000, 75,000 and 1,800,000 bytes). These raw byte counts sort differently as decimal strings, and filenames deliberately disagree with size order. All files stay below 2 MB; the frontend unit tests cover GB/TB magnitudes.
+- Click Size twice and verify ascending/descending rendered row order and sort icons. Directories stay ahead of files and sort by item counts 1, 2 and 10.
+- Set modification times to Unix seconds 900,000,000, 1,000,000,000 and 1,500,000,000. Click Date in both directions and verify the corresponding directory/file row orders, catching comparison across nine/ten-digit timestamps.
+- Restore ascending Size, filter to no matches, require No results and disabled Load, then clear the filter and require the sorted rows to return.
+- Select the smallest row after all sorts and filters. The image case must load the intended 16×16×5 cube; the catalog case must load the intended five-row table and render four in-frame sources on `cube.fits`.
+- Check opaque raster RGB and exact catalog marker RGB `(0,163,150)`, wait for the 16-value X profile and the temporary image-size popup to disappear, compare viewer/profile PNG baselines, and retain the sorted browser PNG as an artifact.
