@@ -71,9 +71,7 @@ for (const [axis, widget] of [
             const content =
                 axis !== 'Z'
                     ? `${axis}-profile`
-                    : extension === 'png'
-                      ? 'Z-Profile-Region_Cursor-Statistic_Sum-Coordinate_Current'
-                      : 'Z-profile-Cursor-Statistic_Sum-Coordinate_Current';
+                    : 'Z-profile-Cursor-Statistic_Sum-Coordinate_Current';
             const output = testInfo.outputPath(`${axis}-profile.${extension}`);
             await download.saveAs(output);
             const data = await readFile(output);
@@ -100,10 +98,6 @@ for (const [axis, widget] of [
             await page.getByTestId('viewer-div').screenshot({
                 path: testInfo.outputPath(`${axis}-profile-viewer.png`),
             });
-            test.fail(
-                axis === 'Z' && extension === 'png',
-                'Known frontend defect: spectral PNG names append an extra } after Coordinate_Current.',
-            );
             expect(download.suggestedFilename()).toMatch(
                 new RegExp(
                     `^cube\\.fits-${content}-\\d{4}(?:-\\d{2}){5}\\.${extension}$`,
@@ -2004,6 +1998,283 @@ test.describe('Profiler Matching', () => {
         await carta.closeWidget('layer-list');
         await expect(page.locator('#raster-canvas').first()).toHaveScreenshot(
             'spectral-matched-viewer.png',
+        );
+    });
+});
+
+async function fluxProfile(page: Page) {
+    return page.evaluate(() => {
+        const store = (
+            window as any
+        ).app.widgetsStore.spectralProfileWidgets.get('spectral-profiler-0');
+        return {
+            values:
+                store?.plotData?.data?.[0]?.map((point: any) => point.y) ?? [],
+            label: store?.yAxisLabel,
+            derived:
+                store?.profileSelectionStore.profiles[0]
+                    ?.isFluxDensityDerivedFromSum,
+            progress: store?.profileSelectionStore.profiles[0]?.data?.progress,
+            unavailable:
+                store?.profileSelectionStore.profiles[0]?.data?.values === null,
+        };
+    });
+}
+
+async function openFluxProfile(page: Page, file: string) {
+    const carta = new PlaywrightDevPage(page);
+    await carta.goto();
+    await carta.setTestPreferences();
+    await carta.loadImage(file);
+    await carta.applyLayout(LayoutName.CubeAnalysis);
+    const regionId = await page.evaluate(async () => {
+        const frame = (window as any).app.activeFrame;
+        const region = await frame.regionSet.addRegionAsync(3, [
+            { x: 8, y: 8 },
+            { x: 4, y: 4 },
+        ]);
+        frame.regionSet.setFocusedRegion(region);
+        return region.regionId;
+    });
+    const widget = page.getByTestId('spectral-profiler-0-content');
+    await widget.getByTestId('spectral-profiler-region-dropdown').click();
+    await page
+        .getByTestId(`spectral-profiler-region-dropdown-region-${regionId}`)
+        .click();
+    return { carta, widget };
+}
+
+test.describe('Spectral flux density unit conversion', () => {
+    for (const source of ['pixel', 'beam', 'k']) {
+        test(`Integrates ${source} intensities once after unit conversion`, async ({
+            page,
+        }, testInfo) => {
+            test.setTimeout(90_000);
+            page.setDefaultTimeout(10_000);
+            const { widget } = await openFluxProfile(
+                page,
+                `flux-${source}.fits`,
+            );
+            const statistic = widget.getByTestId(
+                'spectral-profiler-statistic-dropdown',
+            );
+            await statistic.click();
+            await page
+                .getByRole('menuitem', { name: 'Sum', exact: true })
+                .press('Enter');
+            await expect
+                .poll(async () => (await fluxProfile(page)).values.length)
+                .toBe(5);
+            const summed = (await fluxProfile(page)).values as number[];
+            expect(
+                summed.every((value) => Number.isFinite(value) && value > 0),
+            ).toBe(true);
+            await statistic.click();
+            await page
+                .getByRole('menuitem', { name: 'FluxDensity', exact: true })
+                .press('Enter');
+            const pixelArea = 3.6 * 7.2;
+            const beamArea = (Math.PI / (4 * Math.log(2))) * 10.8 * 7.2;
+            const nativeUnit =
+                source === 'pixel'
+                    ? 'Jy/pixel'
+                    : source === 'beam'
+                      ? 'Jy/beam'
+                      : 'K';
+            const targets =
+                source === 'pixel'
+                    ? ['Jy/arcsec^2', 'MJy/sr', nativeUnit]
+                    : source === 'beam'
+                      ? ['Jy/arcsec^2', 'MJy/sr', 'K', nativeUnit]
+                      : ['mK', 'Jy/beam', nativeUnit];
+            for (const unit of targets) {
+                await page
+                    .getByTestId('spectral-profiler-0-header-settings-button')
+                    .click();
+                await page
+                    .getByTestId(
+                        'spectral-profiler-settings-intensity-unit-dropdown',
+                    )
+                    .selectOption(unit);
+                await page
+                    .locator(
+                        '[data-testid^="spectral-profiler-0-floating-settings-"][data-testid$="-header-close-button"]',
+                    )
+                    .click();
+                const expected = summed.map((sum, index) => {
+                    const frequency = 1e9 * (1 - index / 299792.458);
+                    const jyPerKPerSteradian =
+                        ((2 * 1.380649e-23 * frequency ** 2) / 299792458 ** 2) *
+                        1e26;
+                    const pixelSteradians =
+                        pixelArea * (Math.PI / (180 * 3600)) ** 2;
+                    if (source === 'k')
+                        return (
+                            sum *
+                            (unit === 'Jy/beam'
+                                ? jyPerKPerSteradian * pixelSteradians
+                                : pixelArea * (unit === 'mK' ? 1000 : 1))
+                        );
+                    if (source === 'pixel')
+                        return sum * (unit === 'MJy/sr' ? 1e-6 : 1);
+                    if (unit === 'K')
+                        return (
+                            (sum /
+                                jyPerKPerSteradian /
+                                (beamArea * (Math.PI / (180 * 3600)) ** 2)) *
+                            pixelArea
+                        );
+                    return (
+                        ((sum * pixelArea) / beamArea) *
+                        (unit === 'MJy/sr' ? 1e-6 : 1)
+                    );
+                });
+                // CARTA uses the rounded 1.222e6 Rayleigh–Jeans coefficient.
+                const tolerance =
+                    (source === 'beam' && unit === 'K') ||
+                    (source === 'k' && unit === 'Jy/beam')
+                        ? 2e-4
+                        : 1e-5;
+                await expect
+                    .poll(
+                        async () => {
+                            const { values } = await fluxProfile(page);
+                            return (
+                                values.length === 5 &&
+                                values.every(
+                                    (value: number, index: number) =>
+                                        Math.abs(value / expected[index] - 1) <
+                                        tolerance,
+                                )
+                            );
+                        },
+                        { message: `${nativeUnit} to ${unit} integrated flux` },
+                    )
+                    .toBe(true);
+                expect((await fluxProfile(page)).derived).toBe(
+                    unit !== nativeUnit && unit !== 'mK',
+                );
+                if (unit === 'mK')
+                    expect((await fluxProfile(page)).label).toContain(
+                        'mK*arcsec^2',
+                    );
+                await page.mouse.move(0, 0);
+                await expect(
+                    widget.locator('.line-plot-component'),
+                ).toHaveScreenshot(
+                    `flux-${source}-${unit.replaceAll('/', '-').replaceAll('^', '')}.png`,
+                );
+            }
+            const plot = widget.locator('.line-plot-component');
+            await plot.hover();
+            const pending = page.waitForEvent('download');
+            await plot
+                .locator('.profiler-toolbar a')
+                .filter({ has: page.locator('[data-icon="th"]') })
+                .click();
+            const download = await pending;
+            const rows = (await readFile((await download.path())!, 'utf8'))
+                .trim()
+                .split('\n')
+                .filter((line) => !line.startsWith('#'))
+                .map((line) => Number(line.split('\t')[1]));
+            const displayed = (await fluxProfile(page)).values;
+            expect(rows).toHaveLength(5);
+            rows.forEach((value, index) =>
+                expect(value).toBeCloseTo(displayed[index], 4),
+            );
+            await page.getByTestId('viewer-div').screenshot({
+                path: testInfo.outputPath('flux-density-viewer.png'),
+            });
+        });
+    }
+
+    test('Does not substitute backend flux when converted flux lacks pixel metadata', async ({
+        page,
+    }, testInfo) => {
+        test.setTimeout(60_000);
+        page.setDefaultTimeout(10_000);
+        const { carta, widget } = await openFluxProfile(
+            page,
+            'flux-no-pixels.fits',
+        );
+        expect(
+            await page.evaluate(
+                () => (window as any).app.activeFrame.pixelUnitSizeArcsec,
+            ),
+        ).toBeNull();
+        await widget
+            .getByTestId('spectral-profiler-statistic-dropdown')
+            .click();
+        await page
+            .getByRole('menuitem', { name: 'FluxDensity', exact: true })
+            .press('Enter');
+        await page
+            .getByTestId('spectral-profiler-0-header-settings-button')
+            .click();
+        const units = page.getByTestId(
+            'spectral-profiler-settings-intensity-unit-dropdown',
+        );
+        await units.selectOption('K');
+        await page
+            .locator(
+                '[data-testid^="spectral-profiler-0-floating-settings-"][data-testid$="-header-close-button"]',
+            )
+            .click();
+        await expect
+            .poll(() =>
+                page.evaluate(() => {
+                    const store = (
+                        window as any
+                    ).app.widgetsStore.spectralProfileWidgets.get(
+                        'spectral-profiler-0',
+                    );
+                    return (
+                        store.profileSelectionStore.profiles[0]?.data?.values ??
+                        null
+                    );
+                }),
+            )
+            .toBeNull();
+        await expect
+            .poll(async () => (await fluxProfile(page)).derived)
+            .toBe(true);
+        await expect
+            .poll(async () => (await fluxProfile(page)).progress)
+            .toBe(1);
+        expect((await fluxProfile(page)).unavailable).toBe(true);
+        await expect
+            .poll(async () => (await fluxProfile(page)).values.length)
+            .toBe(0);
+        await expect(widget.locator('.line-plot-component')).toHaveScreenshot(
+            'flux-missing-pixels.png',
+        );
+        await page.getByTestId('viewer-div').screenshot({
+            path: testInfo.outputPath('flux-missing-pixels-viewer.png'),
+        });
+        // Loading a calibrated image restores the same profiler after the failure.
+        await carta.loadImage('flux-beam.fits', true);
+        await widget.getByTestId('spectral-profiler-image-dropdown').click();
+        await page
+            .getByRole('menuitem', { name: '1: flux-beam.fits', exact: true })
+            .press('Enter');
+        await page.evaluate(() => {
+            const frame = (window as any).app.activeFrame;
+            frame.setCursorPosition({ x: 8, y: 8 });
+            frame.updateCursorRegion({ x: 8, y: 8 });
+        });
+        await widget.getByTestId('spectral-profiler-region-dropdown').click();
+        await page
+            .getByRole('menuitem', { name: 'Cursor', exact: true })
+            .press('Enter');
+        await expect(
+            widget.getByTestId('spectral-profiler-statistic-dropdown'),
+        ).toBeDisabled();
+        await expect
+            .poll(async () => (await fluxProfile(page)).values.length)
+            .toBe(5);
+        expect((await fluxProfile(page)).values.every(Number.isFinite)).toBe(
+            true,
         );
     });
 });

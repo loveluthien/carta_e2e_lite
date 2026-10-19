@@ -1,6 +1,6 @@
 # Profilers test plan
 
-**Source:** [`tests/Profilers.spec.ts`](../tests/Profilers.spec.ts) · **Cases:** 19
+**Source:** [`tests/Profilers.spec.ts`](../tests/Profilers.spec.ts) · **Cases:** 23
 
 Spatial and spectral profiles, formatting, smoothing, fitting and viewer connection.
 
@@ -35,9 +35,8 @@ Spatial and spectral profiles, formatting, smoothing, fitting and viewer connect
 
 - Six independent cases cover PNG and TSV downloads for spatial X, spatial Y and spectral Z profiles using `cube.fits` at cursor `(8,8)`.
 - Hover each plot to reveal its export buttons. Require the full source, content, `YYYY-MM-DD-HH-mm-ss` timestamp and correct extension, with no extra suffix.
-- Spatial names use `cube.fits-X-profile-...` and `cube.fits-Y-profile-...`. Spectral PNG uses `cube.fits-Z-Profile-Region_Cursor-Statistic_Sum-Coordinate_Current-...`; TSV uses `cube.fits-Z-profile-Cursor-Statistic_Sum-Coordinate_Current-...`.
+- Spatial names use `cube.fits-X-profile-...` and `cube.fits-Y-profile-...`. Spectral PNG and TSV both use `cube.fits-Z-profile-Cursor-Statistic_Sum-Coordinate_Current-...`, following the unified export naming in PR #3025.
 - Verify PNG signatures and TSV sample counts (16 spatial, 5 spectral) with finite values. Save exported files and rendered profiler/viewer PNGs as artifacts.
-- The spectral PNG filename assertion is an expected failure: the frontend appends a stray `}` after `Coordinate_Current`. The marker is applied only after export, content and screenshot checks succeed; TSV is tested separately. Remove the marker when the frontend is fixed.
 
 ## Run
 
@@ -48,3 +47,16 @@ npm test -- --project=test-group5 tests/Profilers.spec.ts
 ## Coverage additions
 
 Create the spectral profiler through Widgets/Profiles and select radio velocity in its Conversion settings. Mock Splatalogue, fail first query, retry with one known molecular line at 999.993328718096 MHz. Apply a species filter with no matches, then reset it and restore the result. Select/Plot into the profiler, assert 2 km/s and expected green RGB, capture PNG, Clear plot and verify no remaining markers or green pixels.
+
+## Converted flux density regression (PR #2925)
+
+Four cases reuse the generated five-channel cube pixels with new headers. Run `node test_data/create-flux-density.mjs` to regenerate `flux-k.fits`, `flux-pixel.fits`, `flux-beam.fits`, and `flux-no-pixels.fits`. Pixels are 3.6 × 7.2 arcsec and the Gaussian beam is 10.8 × 7.2 arcsec. The missing-pixel variant omits CRPIX1/2, which CARTA requires to calculate angular pixel sizes through WCS. Its spectral and beam metadata remain available.
+
+- Select a rectangular region and record its native Sum spectrum. Check all five plotted FluxDensity channels against independently calculated pixel/beam integration factors and the Rayleigh–Jeans conversion at each channel frequency, with relative tolerance 1e-5 (2e-4 for the rounded Rayleigh–Jeans coefficient).
+- Jy/pixel → Jy/arcsec² must preserve integrated Jy; MJy/sr gives the corresponding integrated MJy. Return to the native unit to catch stale conversion state.
+- Jy/beam → Jy/arcsec² or MJy/sr uses pixel area divided by Gaussian beam area. Conversion to K must yield K·arcsec², without applying the intensity conversion twice.
+- K → mK scales integrated values by 1000 and retains `mK*arcsec^2` in the plotted axis label. K → Jy/beam uses frequency-dependent conversion; returning to K restores the native integrated spectrum.
+- Without pixel metadata, a converted Jy/beam → K flux profile must remain unavailable rather than use backend flux in the wrong unit. Wait for completed Sum data, require unavailable plotted values, then append a calibrated image and recover a finite Sum spectrum in the same profiler.
+- Compare profile PNG baselines after each conversion and capture the viewer with settings closed. Export the recovered native spectrum and verify all five TSV values match the plotted values.
+
+The frontend unit tests retain the conversion coefficient matrix. These E2E cases exercise real FITS metadata, backend statistics, region selection, unit menus, plotted series and exports together.
