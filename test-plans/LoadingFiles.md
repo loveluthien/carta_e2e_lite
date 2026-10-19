@@ -1,6 +1,6 @@
 # LoadingFiles test plan
 
-**Source:** [`tests/LoadingFiles.spec.ts`](../tests/LoadingFiles.spec.ts) · **Cases:** 9
+**Source:** [`tests/LoadingFiles.spec.ts`](../tests/LoadingFiles.spec.ts) · **Cases:** 13
 
 Fixture size, open/append, invalid-file recovery, and FITS/HDF5/CASA file metadata and rendering, including FITS images with minimal headers.
 
@@ -26,6 +26,14 @@ Fixture size, open/append, invalid-file recovery, and FITS/HDF5/CASA file metada
 | [CASA file information, header, image, and profile](../tests/LoadingFiles.spec.ts#L159)         | Inspect File Information and Header tabs, then load the matching CASA `.image` directory.             | Same dimensions, unit and rendered colors; header identifies an `IMAGE` extension.                                  |
 | [minimal_header1.fits loads with minimal headers](../tests/LoadingFiles.spec.ts#L337)           | Inspect the 8-bit 1024×1024 image's sparse header, then load and inspect the viewer and X profile.    | Pixel-coordinate fallback works without WCS or unit cards; viewer/profile PNGs and raster RGB samples match.        |
 | [minimal_header2.fits loads with minimal headers](../tests/LoadingFiles.spec.ts#L337)           | Inspect the 32-bit 10×10×10 cube's sparse header, then load and inspect the viewer and X profile.     | Ten channels load without spectral metadata; pixel-coordinate profile, PNGs, and raster RGB samples match.          |
+
+## Blank FITS keyword regression (frontend PR #3027)
+
+- Four cases cover ordinary sky cubes (`initFrame`), DEC/RA cubes (`initFrame2D`), spectral-versus-direction cubes (`initSpectralVsDirectionFrame`), and offset/frequency PV images (`initPVFrame`).
+- `test_data/create-wcs-blank-headers.mjs` derives eight tiny clean/blank FITS fixtures from the existing cube fixtures; `node test_data/create.mjs` regenerates them with the other mocks. Each pair differs only by an eight-space keyword card with value 42 and a `PR3027 blank-keyword` comment.
+- Load the clean control, then its blank-keyword counterpart. Both must retain a WCS handle, finite distinct world coordinates at two pixels, the expected axis classification, equal raster RGB, equal sampled intensity and equal finite spatial-profile data (16 samples). Use the Y direction for the swapped cube so its spatial profiler follows the sky axis.
+- Open View → File Header and confirm the blank-keyword comment is still displayed and the backend header entries still contain a blank keyword. Close the dialog before viewer capture.
+- Compare eight reviewed PNG baselines: a viewer with the WCS grid enabled and a spatial profile for each blank-keyword fixture. No pixel-coordinate fallback is accepted.
 
 ## Run
 

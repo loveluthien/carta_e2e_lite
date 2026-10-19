@@ -15,6 +15,7 @@ import {
     LayoutName,
     PlaywrightDevPage,
     pixel,
+    renderedRgb,
 } from '../utilities';
 
 const directory = fixtureBrowserPath;
@@ -549,5 +550,127 @@ for (const { name, width, height, depth, bitpix, dataType, cursor, rgb } of [
             );
         });
         expect(samples).toEqual(rgb);
+    });
+}
+
+// PR #3027: blank keyword cards must remain visible without poisoning AST WCS.
+for (const kind of ['cube', 'yx', 'swapped', 'pv'] as const) {
+    test(`Blank FITS keywords preserve ${kind} WCS and rendered profiles`, async ({
+        page,
+    }) => {
+        test.setTimeout(60_000);
+        const carta = new PlaywrightDevPage(page);
+        await carta.goto();
+        await carta.setTestPreferences();
+        const coordinates = () =>
+            page.evaluate(() => {
+                const frame = (window as any).app.activeFrame;
+                return {
+                    pv: frame.isPVImage,
+                    yx: frame.isYX,
+                    swapped: frame.isSwappedZ,
+                    hasWcs: Boolean(frame.wcsInfo),
+                    points: [
+                        { x: 1, y: 2 },
+                        { x: 3, y: 4 },
+                    ].map((point) => frame.getCursorInfo(point).posWCS),
+                };
+            });
+        let expectedCoordinates: Awaited<ReturnType<typeof coordinates>>;
+        let expectedRgb: number[];
+        let expectedPixel: number;
+        let expectedProfile: number[];
+        const profileAxis = kind === 'swapped' ? 'y' : 'x';
+        const profile = () =>
+            page.evaluate((axis) => {
+                const app = (window as any).app;
+                const frame = app.activeFrame;
+                return Array.from(
+                    app.spatialProfiles
+                        .get(`${frame.frameInfo.fileId}-0`)
+                        ?.getProfile(axis)?.values ?? [],
+                ) as number[];
+            }, profileAxis);
+        for (const variant of ['clean', 'blank']) {
+            await carta.loadImage(`wcs-${kind}-${variant}.fits`);
+            await carta.applyLayout(LayoutName.Default);
+            await page.mouse.move(0, 0);
+            await page.evaluate(() => {
+                const app = (window as any).app;
+                app.overlaySettings.grid.setVisible(true);
+                app.activeFrame.setCursorPosition({ x: 3, y: 4 });
+                app.activeFrame.updateCursorRegion({ x: 3, y: 4 });
+            });
+            const state = await coordinates();
+            expect(state).toMatchObject({
+                pv: kind === 'pv',
+                yx: kind === 'yx',
+                swapped: kind === 'swapped' || kind === 'pv',
+                hasWcs: true,
+            });
+            for (const point of state.points) {
+                expect(point).toBeTruthy();
+                expect(Number.isFinite(point?.x)).toBe(true);
+                expect(Number.isFinite(point?.y)).toBe(true);
+            }
+            expect(state.points[0]).not.toEqual(state.points[1]);
+            await expect
+                .poll(async () => (await renderedRgb(page))[3])
+                .toBe(255);
+            await expect
+                .poll(() =>
+                    page.evaluate(() => {
+                        const app = (window as any).app;
+                        const profile = app.spatialProfiles.get(
+                            `${app.activeFrame.frameInfo.fileId}-0`,
+                        );
+                        return { x: profile?.x, y: profile?.y };
+                    }),
+                )
+                .toEqual({ x: 3, y: 4 });
+            await expect.poll(profile).toHaveLength(16);
+            const value = await pixel(page, 3, 4);
+            expect(Number.isFinite(value)).toBe(true);
+            if (variant === 'clean') {
+                expectedCoordinates = state;
+                expectedRgb = await renderedRgb(page);
+                expectedPixel = value;
+                expectedProfile = await profile();
+                expect(expectedProfile.some(Number.isFinite)).toBe(true);
+                continue;
+            }
+            expect(state).toEqual(expectedCoordinates!);
+            await expect.poll(() => renderedRgb(page)).toEqual(expectedRgb!);
+            expect(value).toBeCloseTo(expectedPixel!, 5);
+            await expect.poll(profile).toEqual(expectedProfile!);
+            expect(
+                await page.evaluate(() =>
+                    (
+                        window as any
+                    ).app.activeFrame.frameInfo.fileInfoExtended.headerEntries.some(
+                        (entry: any) => !entry.name?.trim(),
+                    ),
+                ),
+            ).toBe(true);
+            await carta.selectMenuItem('View', 'File Header');
+            const header = page.locator('.file-info-dialog');
+            await expect(header).toContainText('PR3027 blank-keyword');
+            await carta.closeDialog('file-info-dialog');
+            await expect(header).toBeHidden();
+            await page.mouse.move(0, 0);
+            await expect(
+                page.getByTestId('viewer-div').locator('.image-ratio-popup'),
+            ).toHaveCSS('opacity', '0');
+            await expect(page.getByTestId('viewer-div')).toHaveScreenshot(
+                `wcs-${kind}-blank-viewer.png`,
+            );
+            await expect(
+                page
+                    .getByTestId(
+                        `spatial-profiler-${profileAxis === 'x' ? 0 : 1}-content`,
+                    )
+                    .locator('.profile-plot'),
+            ).toHaveScreenshot(`wcs-${kind}-blank-profile.png`);
+        }
     });
 }

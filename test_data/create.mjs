@@ -155,3 +155,6 @@ write(
     (channel) => 1 + 6 * Math.exp(-0.5 * ((channel - 15) / 3) ** 2),
     -1e6,
 );
+
+// Regression fixtures for blank FITS keywords (frontend PR #3027).
+await import('./create-wcs-blank-headers.mjs');
