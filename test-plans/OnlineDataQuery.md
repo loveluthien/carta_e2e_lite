@@ -1,8 +1,8 @@
 # OnlineDataQuery test plan
 
-**Source:** [`tests/OnlineDataQuery.spec.ts`](../tests/OnlineDataQuery.spec.ts) · **Cases:** 1
+**Source:** [`tests/OnlineDataQuery.spec.ts`](../tests/OnlineDataQuery.spec.ts) · **Cases:** 2
 
-Query failure/retry and catalog overlay rendering.
+SIMBAD and VizieR query failure/retry and catalog overlay rendering.
 
 ## Setup and checks
 
@@ -15,9 +15,10 @@ Query failure/retry and catalog overlay rendering.
 
 ## Cases
 
-| Test (source line)                                                                                          | Action                                                                                                                            | Expected result                                                                                                                          |
-| ----------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| [online catalog query recovers from a failed mirror and plots sources](../tests/OnlineDataQuery.spec.ts#L4) | Load the catalog image and issue a SIMBAD TAP query with first response injected as HTTP 503 and second as a two-row JSON result. | Failure leaves query retryable and creates no catalog; retry closes dialog, shows two rows and a nonempty overlay beside viewer/profile. |
+| Test                                                                        | Action                                                                                                                            | Expected result                                                                                                                                                                                                                                                                                                      |
+| --------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| SIMBAD online catalog query recovers from a failed mirror and plots sources | Inject HTTP 503, then retry with a two-row TAP JSON response.                                                                     | Failure leaves query retryable without a catalog; retry loads Alpha and Beta, validates axes, projected positions and teal RGB, and attaches a viewer PNG with profiler visible.                                                                                                                                     |
+| VizieR online catalog query recovers from a failed mirror and plots sources | Discover a mock VOTable by keyword, select a table, clear selection and reselect; fail the first Load selected request and retry. | Discovery creates no overlay. Clearing selection removes Load selected. Requests preserve J2000, keyword, selected table and object limit. Failed load remains retryable without a catalog; retry loads two rows and validates axes, projected positions and teal RGB, attaching a viewer PNG with profiler visible. |
 
 ## Run
 
@@ -27,4 +28,4 @@ npm test -- --project=test-group2 tests/OnlineDataQuery.spec.ts
 
 ## Exact overlay checks
 
-Independently project both returned sky coordinates using the fixture's SIN WCS and compare the catalog GPU position buffers. Require the expected teal RGB (0, 163, 150), not merely an arbitrary non-transparent pixel. Attach the rendered viewer PNG.
+Independently project both returned sky coordinates using the fixture's SIN WCS and compare the catalog GPU position buffers (0.0005 pixel tolerance for SIMBAD; 0.05 pixel for the VizieR FK5-to-ICRS reference-frame bias). Require the expected teal RGB (0, 163, 150), not merely an arbitrary non-transparent pixel. Attach the rendered viewer PNG.
