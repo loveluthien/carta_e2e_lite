@@ -1,6 +1,9 @@
 import { expect, test } from '@playwright/test';
 import {
     fixtureBrowserPath,
+    getFrames,
+    pixel,
+    renderedPixelRgb,
     LayoutName,
     PlaywrightDevPage,
 } from '../utilities';
@@ -256,5 +259,209 @@ for (const database of ['SIMBAD', 'VizieR']) {
                 .locator('.spatial-profiler-widget .profile-plot canvas')
                 .first(),
         ).toBeVisible();
+    });
+}
+
+for (const mode of ['object', 'center'] as const) {
+    test(`HiPS query by ${mode} retries a failed download and renders the image`, async ({
+        page,
+    }, testInfo) => {
+        await page.route('**/MocServer/query?**', (route) =>
+            route.fulfill({
+                contentType: 'application/json',
+                body: JSON.stringify(['E2E/HiPS']),
+            }),
+        );
+        const carta = new PlaywrightDevPage(page);
+        await carta.goto();
+        await carta.loadImage('cube.fits');
+        await carta.applyLayout(LayoutName.Default);
+        const original = await getFrames(page);
+        // Mock only the remote download boundary. The success response opens a
+        // real 16x16 FITS ramp through the backend and uses CARTA's addFrame path.
+        await page.evaluate((directory) => {
+            const backend = (window as any).app.backendService;
+            (window as any).hipsRequests = [];
+            backend.requestRemoteFile = async (request: any) => {
+                const requests = (window as any).hipsRequests;
+                requests.push({ ...request });
+                if (requests.length === 1) {
+                    return {
+                        success: false,
+                        message: 'Injected HiPS download failure',
+                    };
+                }
+                const openFileAck = await backend.loadFile(
+                    directory,
+                    'hips-image.fits',
+                    '',
+                    request.fileId,
+                    false,
+                );
+                return { success: true, openFileAck };
+            };
+        }, fixtureBrowserPath);
+
+        await carta.selectMenuItem('View', 'Online Data Query');
+        const dialog = page.getByRole('dialog', { name: 'Online Data Query' });
+        await dialog.getByRole('tab', { name: 'HiPS Survey' }).click();
+        const panel = dialog.locator('.hips-query-panel');
+        const field = (label: string) =>
+            panel
+                .locator('.bp6-form-group')
+                .filter({
+                    has: page.locator('.bp6-label', {
+                        hasText: new RegExp(`^${label}`),
+                    }),
+                })
+                .locator('input');
+        const query = panel.getByRole('button', { name: 'Query', exact: true });
+        const survey = panel.locator('.survey-input input');
+        await expect(query).toBeDisabled();
+        await survey.fill('E2E');
+        await page
+            .getByRole('option', { name: /E2E\/HiPS/ })
+            .first()
+            .click();
+        await field('Object').fill('M 31');
+        await panel.getByPlaceholder('Width').fill('16');
+        await panel.getByPlaceholder('Height').fill('16');
+        await field('Field of view').fill('0.016');
+        await panel
+            .getByRole('radio', { name: 'Galactic', exact: true })
+            .locator('..')
+            .click();
+        await panel.locator('select').selectOption('SIN');
+        await field('Rotation angle').fill('45');
+        await panel.getByRole('button', { name: 'Clear', exact: true }).click();
+        await expect(survey).toHaveValue('');
+        await expect(field('Object')).toHaveValue('');
+        await expect(panel.getByPlaceholder('Width')).toHaveValue('');
+        await expect(panel.getByPlaceholder('Height')).toHaveValue('');
+        await expect(field('Field of view')).toHaveValue('');
+        await expect(
+            panel.getByRole('radio', { name: 'ICRS', exact: true }),
+        ).toBeChecked();
+        await expect(panel.locator('select')).toHaveValue('TAN');
+        await expect(field('Rotation angle')).toHaveValue('0');
+        await expect(query).toBeDisabled();
+        await survey.fill('E2E/HiPS');
+        await page
+            .getByRole('option', { name: /E2E\/HiPS/ })
+            .first()
+            .click();
+        if (mode === 'object') {
+            await field('Object').fill('M 31');
+        } else {
+            await panel
+                .getByRole('radio', { name: 'Query by center' })
+                .locator('..')
+                .click();
+            await panel.getByPlaceholder('X WCS coordinate').fill('180');
+            await panel.getByPlaceholder('Y WCS coordinate').fill('-30');
+        }
+        await panel.getByPlaceholder('Width').fill('16');
+        await panel.getByPlaceholder('Height').fill('16');
+        await field('Field of view').fill('0.016');
+        await field('Rotation angle').click();
+        await expect(query).toBeEnabled();
+        await panel.getByPlaceholder('Width').fill('4');
+        await field('Rotation angle').click();
+        await expect(query).toBeDisabled();
+        await panel.getByPlaceholder('Width').fill('16');
+        await field('Rotation angle').click();
+        await expect(query).toBeEnabled();
+        await query.click();
+        await expect(
+            page.getByText(
+                'HiPS data query failed: Injected HiPS download failure',
+                { exact: true },
+            ),
+        ).toBeVisible();
+        await expect(dialog).toBeHidden();
+        expect(await getFrames(page)).toEqual(original);
+
+        await carta.selectMenuItem('View', 'Online Data Query');
+        await dialog.getByRole('tab', { name: 'HiPS Survey' }).click();
+        // Tab remounting resets the query-mode radio, but retains the inputs.
+        if (mode === 'center')
+            await panel
+                .getByRole('radio', { name: 'Query by center' })
+                .locator('..')
+                .click();
+        await expect(query).toBeEnabled();
+        await query.click();
+        await expect(dialog).toBeHidden();
+        await expect
+            .poll(() => getFrames(page))
+            .toHaveLength(original.length + 1);
+        expect((await getFrames(page)).at(-1)).toMatchObject({
+            filename: 'hips-image.fits',
+            width: 16,
+            height: 16,
+            channels: 1,
+        });
+        const requests = await page.evaluate(
+            () => (window as any).hipsRequests,
+        );
+        expect(requests).toHaveLength(2);
+        for (const request of requests) {
+            expect(request).toMatchObject({
+                hips: 'E2E/HiPS',
+                width: 16,
+                height: 16,
+                fov: 0.016,
+                coordsys: 'icrs',
+                projection: 'TAN',
+                rotationAngle: 0,
+                ...(mode === 'object'
+                    ? { object: 'M 31' }
+                    : { ra: 180, dec: -30 }),
+            });
+            expect(request).not.toHaveProperty(
+                mode === 'object' ? 'ra' : 'object',
+            );
+        }
+        await expect(page.getByTestId('image-view-header-title')).toContainText(
+            'hips-image.fits',
+        );
+        await page.evaluate(() => {
+            const config = (window as any).app.activeFrame.renderConfig;
+            config.setColorMap('gray');
+            config.setScaling(0);
+            config.setCustomScale(1, 256);
+        });
+        expect(await pixel(page, 8, 8)).toBe(137);
+        await expect
+            .poll(() => renderedPixelRgb(page, 0, 0))
+            .toEqual([0, 0, 0, 255]);
+        await expect
+            .poll(() => renderedPixelRgb(page, 15, 15))
+            .toEqual([255, 255, 255, 255]);
+        await expect
+            .poll(() =>
+                page.evaluate(() => {
+                    const app = (window as any).app;
+                    const profile = app.spatialProfiles.get(
+                        `${app.activeFrame.frameInfo.fileId}-0`,
+                    );
+                    return profile?.y === 8
+                        ? Array.from(profile.profiles.get('x')?.values ?? [])
+                        : [];
+                }),
+            )
+            .toEqual(Array.from({ length: 16 }, (_, i) => 129 + i));
+        await expect(page.getByTestId('x-profiler-info')).toBeVisible();
+        await testInfo.attach(`hips-${mode}-viewer.png`, {
+            body: await page.getByTestId('viewer-div').screenshot(),
+            contentType: 'image/png',
+        });
+        await testInfo.attach(`hips-${mode}-profile.png`, {
+            body: await page
+                .locator('.spatial-profiler-widget .profile-plot')
+                .first()
+                .screenshot(),
+            contentType: 'image/png',
+        });
     });
 }

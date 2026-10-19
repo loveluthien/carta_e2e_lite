@@ -46,7 +46,7 @@ Use concise Title Case names for `test.describe()` groups. Write individual test
 | [Layout](./Layout.md)                   |     6 | Preset layouts, docking, dynamic layout mappings and context-aware menus.                                                       |
 | [LoadingFiles](./LoadingFiles.md)       |     9 | Fixture size, open/append, invalid-file recovery, and FITS/HDF5/CASA metadata and rendering.                                    |
 | [MomentMap](./MomentMap.md)             |    41 | Moment generator data, controls, lifecycle and failure recovery.                                                                |
-| [OnlineDataQuery](./OnlineDataQuery.md) |     2 | SIMBAD and VizieR query failure/retry and catalog overlay rendering.                                                            |
+| [OnlineDataQuery](./OnlineDataQuery.md) |     4 | SIMBAD/VizieR catalog and HiPS image queries, failure/retry, rendered RGB and profile checks.                                   |
 | [Profilers](./Profilers.md)             |    13 | Spatial and spectral profiles, formatting, smoothing, matching and viewer connection.                                           |
 | [PVImage](./PVImage.md)                 |    22 | PV generator validation, output, preview and cancellation.                                                                      |
 | [Regions](./Regions.md)                 |     5 | All region shapes, CRTF/DS9 load/save, spatial matching, styling and title edits, Region List actions, and profiler connection. |
