@@ -2002,6 +2002,354 @@ test.describe('Profiler Matching', () => {
     });
 });
 
+async function spectralOverlay(page: Page) {
+    return page.evaluate(() => {
+        const widget = (
+            window as any
+        ).app.widgetsStore.spectralProfileWidgets.get('spectral-profiler-0');
+        return {
+            series: widget.plotData?.data?.map((curve: any[]) =>
+                curve.map((point: any) => point.y),
+            ),
+            coordinates: widget.plotData?.data?.map((curve: any[]) =>
+                curve.map((point: any) => point.x),
+            ),
+            labels: widget.plotData?.labels,
+        };
+    });
+}
+
+async function expectOverlayRgb(page: Page, hasOrange: boolean) {
+    await expect
+        .poll(() =>
+            page
+                .getByTestId('spectral-profiler-0-content')
+                .evaluate((element) => {
+                    const colors = (window as any).app.isDarkTheme
+                        ? [
+                              [76, 144, 240],
+                              [236, 154, 60],
+                          ]
+                        : [
+                              [33, 93, 176],
+                              [147, 86, 16],
+                          ];
+                    const counts = [0, 0];
+                    for (const canvas of element.querySelectorAll('canvas')) {
+                        const context = canvas.getContext('2d');
+                        if (!context || !canvas.width || !canvas.height)
+                            continue;
+                        const rgba = context.getImageData(
+                            0,
+                            0,
+                            canvas.width,
+                            canvas.height,
+                        ).data;
+                        for (let i = 0; i < rgba.length; i += 4) {
+                            colors.forEach((rgb, index) => {
+                                if (
+                                    rgb.every(
+                                        (value, j) =>
+                                            Math.abs(rgba[i + j] - value) <= 2,
+                                    ) &&
+                                    rgba[i + 3] > 0
+                                )
+                                    counts[index]++;
+                            });
+                        }
+                    }
+                    return counts.map((count) => count > 10);
+                }),
+        )
+        .toEqual([true, hasOrange]);
+}
+
+test.describe('Spectral profile overlays', () => {
+    test('Overlays spectrally matched images and removes an unmatched image', async ({
+        page,
+    }, testInfo) => {
+        const carta = new PlaywrightDevPage(page);
+        const imageList = await openMatchingCubes(page, carta);
+        await imageList.getByTestId('image-list-0-matching-xy').click();
+        await imageList.getByTestId('image-list-0-matching-z').click();
+        await page.evaluate(() => {
+            const frame = (window as any).app.frames[0];
+            frame.setCursorPosition({ x: 8, y: 8 });
+            frame.updateCursorRegion({ x: 8, y: 8 });
+        });
+        await page.locator('#SpectralProfilerButton').click();
+        // Keep Image List's matching controls accessible beside the profiler.
+        await page
+            .getByTestId('spectral-profiler-0-header-title')
+            .hover({ position: { x: 20, y: 10 } });
+        await page.mouse.down();
+        await page.mouse.move(120, 600, { steps: 8 });
+        await page.mouse.up();
+        const profiler = page.getByTestId('spectral-profiler-0-content');
+        await profiler.getByTestId('spectral-profiler-image-dropdown').click();
+        await page
+            .getByRole('menuitem', { name: '0: cube.fits', exact: true })
+            .click();
+        await page.keyboard.press('Escape');
+        const imageMode = profiler.getByRole('checkbox', {
+            name: 'Image',
+            exact: true,
+        });
+        await imageMode.locator('..').click();
+        await expect(imageMode).toBeChecked();
+        await profiler.getByTestId('spectral-profiler-image-dropdown').click();
+        await page
+            .getByRole('menuitem', {
+                name: '1: matching-cube.fits (matched)',
+                exact: true,
+            })
+            .click();
+        await page.keyboard.press('Escape');
+        await page.mouse.move(0, 0);
+        await expect
+            .poll(async () => (await spectralOverlay(page)).series)
+            .toEqual([
+                [1.5, 3, 6, 12, 24],
+                [3, 6, 12, 24, 48],
+            ]);
+        await expect(
+            profiler.getByTestId('spectral-profiler-image-dropdown'),
+        ).toContainText(
+            '0: cube.fits (matched),1: matching-cube.fits (matched)',
+        );
+        const overlay = await spectralOverlay(page);
+        expect(overlay.labels.map((label: any) => label.image)).toEqual([
+            'cube.fits',
+            'matching-cube.fits',
+        ]);
+        for (let image = 0; image < 2; image++) {
+            for (let channel = 0; channel < 5; channel++)
+                expect(overlay.coordinates[image][channel]).toBeCloseTo(
+                    channel + 2 * image,
+                    5,
+                );
+        }
+        await expectOverlayRgb(page, true);
+        const plot = profiler.locator('.line-plot-component');
+        await expect(plot).toHaveScreenshot('spectral-multi-image-overlay.png');
+
+        // Removing spectral matching must not leave a stale second curve.
+        await imageList.getByTestId('image-list-0-matching-z').click();
+        await page.mouse.move(0, 0);
+        await expect
+            .poll(async () => (await spectralOverlay(page)).series)
+            .toEqual([[1.5, 3, 6, 12, 24]]);
+        await expectOverlayRgb(page, false);
+        await expect(plot).toHaveScreenshot(
+            'spectral-multi-image-unmatched.png',
+        );
+        await carta.closeWidget('spectral-profiler');
+        await carta.closeWidget('layer-list');
+        await page.getByTestId('viewer-div').screenshot({
+            path: testInfo.outputPath('spectral-multi-image-viewer.png'),
+        });
+    });
+
+    test('Overlays multiple statistics and handles an unsupported cursor profile', async ({
+        page,
+    }, testInfo) => {
+        const carta = new PlaywrightDevPage(page);
+        await carta.goto();
+        await carta.loadImage('cube.fits');
+        await page.evaluate(async () => {
+            const frame = (window as any).app.activeFrame;
+            // Include integer pixels x=6..10, y=4..12, away from blank pixels.
+            const region = await frame.regionSet.addRegionAsync(3, [
+                { x: 8, y: 8 },
+                { x: 4.5, y: 8.5 },
+            ]);
+            frame.setCursorPosition({ x: 8, y: 8 });
+            frame.updateCursorRegion({ x: 8, y: 8 });
+            frame.regionSet.setFocusedRegion(region);
+        });
+        await page.locator('#SpectralProfilerButton').click();
+        const profiler = page.getByTestId('spectral-profiler-0-content');
+        const statistic = profiler.getByTestId(
+            'spectral-profiler-statistic-dropdown',
+        );
+        const statisticMode = profiler.getByRole('checkbox', {
+            name: 'Statistic',
+            exact: true,
+        });
+        await statisticMode.locator('..').click();
+        await expect(statisticMode).toBeChecked();
+        await statistic.click();
+        await page
+            .getByRole('menuitem', { name: 'Max', exact: true })
+            .press('Enter');
+        await page.keyboard.press('Escape');
+        await page.mouse.move(0, 0);
+        // The cube is spectrum[channel] * (1 + y/16): mean y=8, max y=12.
+        await expect
+            .poll(async () => (await spectralOverlay(page)).series)
+            .toEqual([
+                [1.5, 3, 6, 12, 24],
+                [1.75, 3.5, 7, 14, 28],
+            ]);
+        await expect(statistic).toContainText('Mean,Max');
+        expect(
+            (await spectralOverlay(page)).labels.map(
+                (label: any) => label.plot,
+            ),
+        ).toEqual([
+            expect.stringContaining('Statistic Mean'),
+            expect.stringContaining('Statistic Max'),
+        ]);
+        await expectOverlayRgb(page, true);
+        const plot = profiler.locator('.line-plot-component');
+        await expect(plot).toHaveScreenshot(
+            'spectral-multi-statistic-overlay.png',
+        );
+
+        await statistic.click();
+        await page
+            .getByRole('menuitem', { name: 'Max', exact: true })
+            .press('Enter');
+        await page
+            .getByRole('menuitem', { name: 'Mean', exact: true })
+            .press('Enter');
+        await page.keyboard.press('Escape');
+        await page.mouse.move(0, 0);
+        await expect(statistic).toHaveText('Mean');
+        await expect
+            .poll(async () => (await spectralOverlay(page)).series)
+            .toEqual([[1.5, 3, 6, 12, 24]]);
+        await expectOverlayRgb(page, false);
+        await expect(plot).toHaveScreenshot(
+            'spectral-multi-statistic-removed.png',
+        );
+
+        // Cursor profiles cannot provide region statistics; return to the rectangle to recover.
+        const region = profiler.getByTestId(
+            'spectral-profiler-region-dropdown',
+        );
+        await region.click();
+        await page
+            .getByRole('menuitem', { name: 'Cursor', exact: true })
+            .press('Enter');
+        await page.keyboard.press('Escape');
+        await expect(statistic).toBeDisabled();
+        await expect
+            .poll(async () => (await spectralOverlay(page)).labels)
+            .toEqual([
+                {
+                    image: 'cube.fits',
+                    plot: 'Cursor, Statistic Sum, Coordinate Current',
+                },
+            ]);
+        await region.click();
+        await page
+            .getByRole('menuitem', { name: 'Region 1', exact: true })
+            .press('Enter');
+        await page.keyboard.press('Escape');
+        await page.mouse.move(0, 0);
+        await expect(statistic).toBeEnabled();
+        await expect(statistic).toHaveText('Mean');
+        await expect
+            .poll(async () => (await spectralOverlay(page)).series)
+            .toEqual([[1.5, 3, 6, 12, 24]]);
+        expect((await spectralOverlay(page)).labels[0].plot).toContain(
+            'Region 1, Statistic Mean',
+        );
+        await expect(plot).toHaveScreenshot(
+            'spectral-multi-statistic-removed.png',
+        );
+        await carta.closeWidget('spectral-profiler');
+        await page.getByTestId('viewer-div').screenshot({
+            path: testInfo.outputPath('spectral-multi-statistic-viewer.png'),
+        });
+    });
+
+    test('Overlays multiple regions and removes a selected region', async ({
+        page,
+    }, testInfo) => {
+        const carta = new PlaywrightDevPage(page);
+        await carta.goto();
+        await carta.loadImage('cube.fits');
+        await page.evaluate(async () => {
+            const frame = (window as any).app.activeFrame;
+            const firstRegion = await frame.regionSet.addRegionAsync(0, [
+                { x: 8, y: 4 },
+            ]);
+            await frame.regionSet.addRegionAsync(0, [{ x: 8, y: 12 }]);
+            frame.setCursorPosition({ x: 8, y: 8 });
+            frame.updateCursorRegion({ x: 8, y: 8 });
+            frame.regionSet.setFocusedRegion(firstRegion);
+        });
+        await page.locator('#SpectralProfilerButton').click();
+        const profiler = page.getByTestId('spectral-profiler-0-content');
+        await profiler.getByTestId('spectral-profiler-region-dropdown').click();
+        await page
+            .getByRole('menuitem', { name: 'Region 1', exact: true })
+            .press('Enter');
+        await page.keyboard.press('Escape');
+        await expect(
+            profiler.getByTestId('spectral-profiler-region-dropdown'),
+        ).toContainText('Region 1');
+        const regionMode = profiler.getByRole('checkbox', {
+            name: 'Region',
+            exact: true,
+        });
+        await regionMode.locator('..').click();
+        await expect(regionMode).toBeChecked();
+        await profiler.getByTestId('spectral-profiler-region-dropdown').click();
+        await page
+            .getByRole('menuitem', { name: 'Region 2', exact: true })
+            .click();
+        await page.keyboard.press('Escape');
+        await page.mouse.move(0, 0);
+        await expect
+            .poll(async () => (await spectralOverlay(page)).series)
+            .toEqual([
+                [1.25, 2.5, 5, 10, 20],
+                [1.75, 3.5, 7, 14, 28],
+            ]);
+        await expect(
+            profiler.getByTestId('spectral-profiler-region-dropdown'),
+        ).toContainText('Region 1,Region 2');
+        const overlay = await spectralOverlay(page);
+        expect(overlay.labels.map((label: any) => label.plot)).toEqual([
+            expect.stringContaining('Region 1'),
+            expect.stringContaining('Region 2'),
+        ]);
+        await expectOverlayRgb(page, true);
+        const plot = profiler.locator('.line-plot-component');
+        await expect(plot).toHaveScreenshot(
+            'spectral-multi-region-overlay.png',
+        );
+
+        await profiler.getByTestId('spectral-profiler-region-dropdown').click();
+        await page
+            .getByRole('menuitem', { name: 'Region 2', exact: true })
+            .click();
+        // The final selected region cannot be deselected to create an empty plot.
+        await page
+            .getByRole('menuitem', { name: 'Region 1', exact: true })
+            .click();
+        await page.keyboard.press('Escape');
+        await page.mouse.move(0, 0);
+        await expect
+            .poll(async () => (await spectralOverlay(page)).series)
+            .toEqual([[1.25, 2.5, 5, 10, 20]]);
+        expect((await spectralOverlay(page)).labels[0].plot).toContain(
+            'Region 1',
+        );
+        await expectOverlayRgb(page, false);
+        await expect(plot).toHaveScreenshot(
+            'spectral-multi-region-removed.png',
+        );
+        await carta.closeWidget('spectral-profiler');
+        await page.getByTestId('viewer-div').screenshot({
+            path: testInfo.outputPath('spectral-multi-region-viewer.png'),
+        });
+    });
+});
+
 async function fluxProfile(page: Page) {
     return page.evaluate(() => {
         const store = (

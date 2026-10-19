@@ -1,6 +1,6 @@
 # Profilers test plan
 
-**Source:** [`tests/Profilers.spec.ts`](../tests/Profilers.spec.ts) · **Cases:** 23
+**Source:** [`tests/Profilers.spec.ts`](../tests/Profilers.spec.ts) · **Cases:** 26
 
 Spatial and spectral profiles, formatting, smoothing, fitting and viewer connection.
 
@@ -30,6 +30,13 @@ Spatial and spectral profiles, formatting, smoothing, fitting and viewer connect
 | [Spectral profile connection](../tests/Profilers.spec.ts)                                                       | Click spectral plot and change animator channel.                                                                                     | Viewer channel/frequency and animator follow plot selection; spectral channel marker follows animator; compare viewer/plot PNGs.                           |
 | [spatial matching moves the viewer cursor and X profile with the reference](../tests/Profilers.spec.ts)         | Match the shifted cube in XY, then move the reference center and cursor.                                                             | Target WCS center/cursor follow; X profile readout changes to 3.25 K; viewer and X profile PNGs match.                                                     |
 | [spectral matching moves the viewer channel and spectral marker with the reference](../tests/Profilers.spec.ts) | Leave the shifted cube unmatched at channel 0, set reference to channel 4, then enable Z matching.                                   | Target maps to channel 2; viewer reads 11 K; spectral series is `[2.75, 5.5, 11, 22, 44]`; viewer and spectral plot PNGs match.                            |
+
+## Simultaneous spectral profiles
+
+- **Overlays spectrally matched images and removes an unmatched image:** use `cube.fits` and `matching-cube.fits`, enable XY and Z matching in Image List, then enable Image mode and select both files. At cursor `(8,8)`, require two backend spectra `[1.5, 3, 6, 12, 24]` and `[3, 6, 12, 24, 48]`, with radio velocity axes `[0,1,2,3,4]` and `[2,3,4,5,6]` km/s and correct source labels. Disable Z matching and require only the reference spectrum to remain. Compare overlay and unmatched plot PNGs and save the viewer PNG.
+- **Overlays multiple regions and removes a selected region:** create point regions `(8,4)` and `(8,12)` in `cube.fits`; enable Region mode and select both. Require separate labeled spectra `[1.25, 2.5, 5, 10, 20]` and `[1.75, 3.5, 7, 14, 28]`. Deselect Region 2 and attempt to deselect the final Region 1; its spectrum must remain. Compare overlay and remaining-region plot PNGs and save the viewer PNG.
+- **Overlays multiple statistics and handles an unsupported cursor profile:** use a rectangle covering pixels x=6..10 and y=4..12 in `cube.fits`. Enable Statistic mode and select Mean and Max together. Require labeled spectra `[1.5, 3, 6, 12, 24]` and `[1.75, 3.5, 7, 14, 28]`. Remove Max and attempt to remove the final Mean; Mean must remain. Switching to Cursor disables the statistic menu and yields a single Sum spectrum; returning to Region 1 restores Mean and its rendered plot. Compare overlay and remaining-statistic PNGs and save the viewer PNG.
+- All three cases inspect the actual rendered canvas RGB values: blue and orange curves must be present together, then orange must disappear when its series is removed. These tests cover UI selection, backend profiles and rendering together; frontend unit tests retain profile naming rules.
 
 ## Profiler export filenames
 
