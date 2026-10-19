@@ -787,6 +787,92 @@ test.describe('PV Image Generation', () => {
         );
         await expect(viewer).toHaveScreenshot('image-viewer-pv-rest-frame.png');
     });
+
+    test('rest-frame velocity conventions, error reset and toggle off', async ({
+        page,
+    }) => {
+        test.setTimeout(90_000);
+        page.setDefaultTimeout(10_000);
+        const effectiveZ = () =>
+            page.evaluate(
+                () => (window as any).app.activeFrame.effectiveRestFrameRedshift,
+            );
+        await generateButton(page).click();
+        await expect(page.getByTestId('image-view-header-title')).toContainText(
+            'HD163296_13CO_2-1_subimage_pv.fits',
+            { timeout: 30_000 },
+        );
+        await expect(page.locator('.task-progress-dialog')).toBeHidden({
+            timeout: 30_000,
+        });
+
+        await page.getByTestId('image-view-header-settings-button').click();
+        await page
+            .locator('.image-view-settings')
+            .getByRole('tab', { name: 'Conversion' })
+            .click();
+        const toggle = page.getByTestId('image-view-settings-rest-frame-toggle');
+        const modeDropdown = page.getByTestId(
+            'image-view-settings-rest-frame-shift-mode-dropdown',
+        );
+        const convention = page.getByTestId(
+            'image-view-settings-rest-frame-velocity-convention-dropdown',
+        );
+        const redshift = page.getByTestId(
+            'image-view-settings-rest-frame-redshift-input',
+        );
+        const velocity = page.getByTestId(
+            'image-view-settings-rest-frame-radial-velocity-input',
+        );
+        const effective = page.getByTestId(
+            'image-view-settings-rest-frame-effective-redshift',
+        );
+
+        // Disabled by default: no shift controls rendered
+        await expect(toggle).not.toBeChecked();
+        await expect(modeDropdown).toBeHidden();
+        expect(await effectiveZ()).toBe(0);
+
+        await toggle.locator('..').click();
+        await expect(toggle).toBeChecked();
+
+        // Invalid redshift shows an error, switching mode clears it
+        await modeDropdown.selectOption({ label: 'Redshift (z)' });
+        await redshift.fill('-2');
+        await redshift.press('Tab');
+        const error = page.getByText(/Correction is temporarily using z = 0/);
+        await expect(error).toBeVisible();
+        await modeDropdown.selectOption({ label: 'Radial velocity (km/s)' });
+        await expect(error).toBeHidden();
+
+        // Effective redshift for 1000 km/s differs per convention
+        const c = 299792.458;
+        const expected: Record<string, number> = {
+            Radio: 1000 / (c - 1000),
+            Optical: 1000 / c,
+            Relativistic:
+                Math.sqrt((1 + 1000 / c) / (1 - 1000 / c)) - 1,
+        };
+        for (const [label, z] of Object.entries(expected)) {
+            await convention.selectOption({ label });
+            await velocity.fill('1000');
+            await velocity.press('Tab');
+            await expect.poll(effectiveZ).toBeCloseTo(z, 5);
+            await expect(effective).toContainText(/^0\.003/);
+        }
+
+        // Invalid velocity (>= c) is rejected and falls back to z = 0
+        await velocity.fill('400000');
+        await velocity.press('Tab');
+        await expect(error).toBeVisible();
+        await expect.poll(effectiveZ).toBe(0);
+
+        // Toggling off removes the correction and hides the controls
+        await toggle.locator('..').click();
+        await expect(toggle).not.toBeChecked();
+        await expect(modeDropdown).toBeHidden();
+        await expect.poll(effectiveZ).toBe(0);
+    });
 });
 
 test.describe('PV Preview', () => {
