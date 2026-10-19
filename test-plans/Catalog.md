@@ -1,6 +1,6 @@
 # Catalog test plan
 
-**Source:** [`tests/Catalog.spec.ts`](../tests/Catalog.spec.ts) · **Cases:** 14
+**Source:** [`tests/Catalog.spec.ts`](../tests/Catalog.spec.ts) · **Cases:** 16
 
 Local catalog table, overlay, plot, coordinate and styling behavior.
 
@@ -11,7 +11,7 @@ Local catalog table, overlay, plot, coordinate and styling behavior.
 - For viewer or profile changes, compare a stable PNG with a reviewed baseline; inspect overlay text and numeric readouts as well.
 - For rejected input or a failed operation, verify no unwanted image is created and the user can recover. Exercise every button relevant to the scenario.
 - Referenced FITS fixtures: `catalog-image.fits`, `catalog-image-shifted.fits`, `catalog-angular-size-image.fits`, `catalog-format-image.fits`.
-- Referenced catalog fixtures: `catalog-sky.vot`, `catalog-pixel.vot`, `catalog-invalid.vot`, `catalog-angular-size.vot`.
+- Referenced catalog fixtures: `catalog-sky.vot`, `catalog-pixel.vot`, `catalog-invalid.vot`, `catalog-angular-size.vot`, `catalog-sky.xml`, `catalog-missing-tabledata.xml`.
 - The toolbar case compares the viewer against a named PNG baseline. The other cases capture viewer and spatial-profile PNG artifacts in the Playwright output directory as diagnostic captures.
 
 ## Cases
@@ -25,6 +25,8 @@ Local catalog table, overlay, plot, coordinate and styling behavior.
 | [renders angular major and minor axes with position angles and missing values](../tests/Catalog.spec.ts) | Load the 1 arcsec/pixel image and ten-row angular catalog; select Angular size and ellipse mode; map MajorAxis, MinorAxis and PositionAngle; toggle Radius. | All ten coordinates are in frame; mapped columns retain the expected values and missing entries; major and minor axes increase for the first four sources, position angles differ, Radius doubles both axes, and Diameter restores them.  |
 | [handles pixel and invalid coordinates, closes and switches catalogs](../tests/Catalog.spec.ts)          | Load sky, pixel and invalid-coordinate catalogs; plot each; close the active catalog and switch back to the sky catalog.                                    | Four pixel sources and three valid-coordinate sources render; closing restores the prior five-row catalog and its RA/Dec selections.                                                                                                      |
 | [keeps sky sources off a shifted image while pixel sources remain visible](../tests/Catalog.spec.ts)     | Load the WCS-shifted image, plot sky coordinates, then plot pixel coordinates.                                                                              | No sky source lands within the shifted field; four pixel sources remain visible and the viewer and profiler continue rendering.                                                                                                           |
+| [imports a VOTable with an XML extension and renders its sources](../tests/Catalog.spec.ts)              | Import the same sky catalog as `.vot` and `.xml`, plot both, and compare the overlay coordinates.                                                           | The `.xml` file is listed and imported as a catalog, its table rows load, and its four rendered sources match the `.vot` control positions. Capture viewer and profiler PNGs.                                                             |
+| [rejects XML without table data and recovers by loading a valid catalog](../tests/Catalog.spec.ts)       | Import a well-formed VOTable header with no `TABLEDATA`, dismiss the error, then import a valid `.xml` catalog.                                             | The invalid file reports an error without adding a catalog; the browser stays usable, and the valid catalog subsequently plots four turquoise sources with viewer and profiler PNG captures.                                              |
 
 ## Plot hover toolbars
 

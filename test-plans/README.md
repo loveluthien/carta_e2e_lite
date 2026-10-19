@@ -35,7 +35,7 @@ Use concise Title Case names for `test.describe()` groups. Write individual test
 | Plan                                    | Cases | Focus                                                                                                                           |
 | --------------------------------------- | ----: | ------------------------------------------------------------------------------------------------------------------------------- |
 | [Animator](./Animator.md)               |     5 | Channel and polarization navigation, spectral matching, playback modes and viewer/profile synchronization.                      |
-| [Catalog](./Catalog.md)                 |     7 | Local catalog table, overlay, plot, coordinate and styling behavior.                                                            |
+| [Catalog](./Catalog.md)                 |    16 | Local catalog table, overlay, plot, coordinate and styling behavior.                                                            |
 | [ChannelMap](./ChannelMap.md)           |     4 | Channel-map empty state, controls, image panels and selection synchronization.                                                  |
 | [Contours](./Contours.md)               |     8 | Generators, scaling, Apply/Clear recovery, styling, spatial and spectral matching together, histogram and smoothing.            |
 | [CursorInfo](./CursorInfo.md)           |     1 | Cursor values and coordinates across viewer, widget and profilers.                                                              |

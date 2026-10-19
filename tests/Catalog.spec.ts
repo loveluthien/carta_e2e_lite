@@ -27,6 +27,7 @@ async function pickFile(
     directory: string,
     list: 'fileList' | 'catalogFileList',
     action: string,
+    closesDialog = true,
 ) {
     const dialog = fileBrowser(page);
     await expect(dialog).toBeVisible();
@@ -57,7 +58,7 @@ async function pickFile(
     await filter.press('Enter');
     await dialog.getByText(name, { exact: true }).first().click();
     await dialog.getByRole('button', { name: action, exact: true }).click();
-    await expect(dialog).toBeHidden();
+    if (closesDialog) await expect(dialog).toBeHidden();
 }
 
 async function openImage(page: Page, name = 'catalog-image.fits') {
@@ -815,6 +816,73 @@ test.describe('Catalog Widget', () => {
         await openCatalog(page, 'catalog-pixel.vot');
         await plotOverlay(page, catalog, 4);
         await checkViewerAndProfiler(page, testInfo, 'shifted-image');
+    });
+
+    test('Imports a VOTable with an XML extension and renders its sources', async ({
+        page,
+    }, testInfo) => {
+        const carta = await openImage(page);
+        const control = await openCatalog(page, 'catalog-sky.vot');
+        await plotOverlay(page, control, 4);
+        const reference = await coordinatePoints(page);
+        await control.getByTestId('catalog-close-button').click();
+
+        const catalog = await openCatalog(page, 'catalog-sky.xml');
+        await catalog.getByTestId('catalog-file-dropdown').click();
+        await expect(
+            page.getByRole('menuitem', { name: /catalog-sky\.xml/ }),
+        ).toBeVisible();
+        await page.keyboard.press('Escape');
+        await expect(catalog.getByTestId('filterable-table-0-0')).toHaveText(
+            'Alpha',
+        );
+        await plotOverlay(page, catalog, 4);
+        expect(await coordinatePoints(page)).toEqual(reference);
+        await carta.closeWidget('catalog-overlay');
+        await checkViewerAndProfiler(page, testInfo, 'xml-catalog');
+    });
+
+    test('Rejects XML without table data and recovers by loading a valid catalog', async ({
+        page,
+    }, testInfo) => {
+        await openImage(page);
+        await new PlaywrightDevPage(page).selectMenuItem(
+            'File',
+            'Import Catalog',
+        );
+        await pickFile(
+            page,
+            'catalog-missing-tabledata.xml',
+            catalogDirectory,
+            'catalogFileList',
+            'Load catalog',
+            false,
+        );
+        const alert = page.getByRole('alertdialog');
+        await expect(alert).toContainText('Cannot parse table data!');
+        await alert.getByRole('button', { name: 'OK' }).click();
+        await expect(fileBrowser(page)).toBeVisible();
+        expect(
+            await page.evaluate(
+                () =>
+                    (window as any).app.catalogStore.activeCatalogFiles.length,
+            ),
+        ).toBe(0);
+        expect(
+            await rgbPixelCount(page, '#catalog-canvas', [0, 163, 150]),
+        ).toBe(0);
+
+        await pickFile(
+            page,
+            'catalog-sky.xml',
+            catalogDirectory,
+            'catalogFileList',
+            'Load catalog',
+        );
+        const catalog = catalogWidget(page);
+        await expectCatalogInfo(catalog, 'total 5 entries');
+        await plotOverlay(page, catalog, 4);
+        await checkViewerAndProfiler(page, testInfo, 'xml-recovery');
     });
 });
 

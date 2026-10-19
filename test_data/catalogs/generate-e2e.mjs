@@ -140,7 +140,13 @@ const skyRows = sources.map(([name, x, y, flux, size]) => [
     flux,
     size,
 ]);
-writeFileSync(output('catalog-sky.vot'), vot('eq_FK5', numeric, skyRows));
+const skyCatalog = vot('eq_FK5', numeric, skyRows);
+writeFileSync(output('catalog-sky.vot'), skyCatalog);
+writeFileSync(output('catalog-sky.xml'), skyCatalog);
+writeFileSync(
+    output('catalog-missing-tabledata.xml'),
+    skyCatalog.replace('<TABLEDATA>', '').replace('</TABLEDATA>', ''),
+);
 const angularSources = [
     ['Compact', 4, 5, 4, 2, 0, 10],
     ['Tilted', 9, 8, 8, 3, 30, 20],
