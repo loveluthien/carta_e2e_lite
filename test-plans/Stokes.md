@@ -25,7 +25,7 @@ Stokes cube assembly and analysis widget controls.
 ## Export filenames
 
 - Eight independent cases exercise PNG and TSV export buttons on Q/U, polarized-intensity, polarization-angle and Q-versus-U plots with the lightweight `stokes-varying.fits` fixture.
-- Require the full `stokes-varying.fits-{content}-YYYY-MM-DD-HH-mm-ss.{png|tsv}` filename. PNG content names are `quLine`, `piLine`, `paLine`, `quScatter`; Q/U data export must produce both `q` and `u` TSVs, while the other TSVs use their plot names.
+- Require the full `stokes-varying.fits-{content}-YYYY-MM-DD-HH-mm-ss.{png|tsv}` filename. These cases enable fractional polarization. PNG content names are `quLine`, `fractional-PI-profile`, `fractional-PA-profile`, `fractional-QU-scatter`; Q/U data export must produce both `fractional-Q-profile` and `fractional-U-profile` TSVs, while the other TSVs use the same content names as their PNGs. The filename matcher accepts only the expected content names for each export.
 - Check loaded Q/I and U/I values and all four rendered color counts before export. Validate PNG signatures and five finite rows in each TSV; retain exported files and plot/viewer PNGs as artifacts.
 
 ## Run

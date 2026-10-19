@@ -109,11 +109,31 @@ async function stokesPlotColorCounts(page: Page) {
 }
 
 test.describe('Stokes Analysis exports', () => {
-    for (const [plotName, selector, tsvNames] of [
-        ['quLine', '.profile-plot-qu', ['q', 'u']],
-        ['piLine', '.profile-plot-pi', ['piLine']],
-        ['paLine', '.profile-plot-pa', ['paLine']],
-        ['quScatter', '.profile-plot-qvsu', ['quScatter']],
+    for (const [plotName, selector, pngName, tsvNames] of [
+        [
+            'quLine',
+            '.profile-plot-qu',
+            'quLine',
+            ['fractional-Q-profile', 'fractional-U-profile'],
+        ],
+        [
+            'piLine',
+            '.profile-plot-pi',
+            'fractional-PI-profile',
+            ['fractional-PI-profile'],
+        ],
+        [
+            'paLine',
+            '.profile-plot-pa',
+            'fractional-PA-profile',
+            ['fractional-PA-profile'],
+        ],
+        [
+            'quScatter',
+            '.profile-plot-qvsu',
+            'fractional-QU-scatter',
+            ['fractional-QU-scatter'],
+        ],
     ] as const) {
         for (const [extension, icon] of [
             ['png', 'floppy-disk'],
@@ -170,7 +190,7 @@ test.describe('Stokes Analysis exports', () => {
                     downloads.push(download);
                 page.on('download', collect);
                 const names: readonly string[] =
-                    extension === 'png' ? [plotName] : tsvNames;
+                    extension === 'png' ? [pngName] : tsvNames;
                 try {
                     await toolbar
                         .locator('a')
@@ -185,7 +205,7 @@ test.describe('Stokes Analysis exports', () => {
                             .suggestedFilename()
                             .match(
                                 new RegExp(
-                                    `^stokes-varying\\.fits-([A-Za-z]+)-\\d{4}(?:-\\d{2}){5}\\.${extension}$`,
+                                    `^stokes-varying\\.fits-(${names.join('|')})-\\d{4}(?:-\\d{2}){5}\\.${extension}$`,
                                 ),
                             );
                         expect(
