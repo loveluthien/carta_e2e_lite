@@ -1,6 +1,6 @@
 # Stokes test plan
 
-**Source:** [`tests/Stokes.spec.ts`](../tests/Stokes.spec.ts) · **Cases:** 11
+**Source:** [`tests/Stokes.spec.ts`](../tests/Stokes.spec.ts) · **Cases:** 13
 
 Stokes cube assembly and analysis widget controls.
 
@@ -33,3 +33,15 @@ Stokes cube assembly and analysis widget controls.
 ```sh
 npm test -- --project=test-group3 tests/Stokes.spec.ts
 ```
+
+## Smoothing color regression (PR #2935)
+
+Two focused cases use `stokes-varying.fits` with Boxcar width 3 and Binning width 2. Select Channel coordinates and disable the unsmoothed overlay. Enlarge scatter symbols to allow exact RGB checks.
+
+- Boxcar retains spectral coordinates 0–4 and gives the central smoothed Q/U pair `(18.25, 16.75)`; missing edge values do not require a rendered marker.
+- Binning gives spectral coordinates `[0.5, 2.5, 4]`, Q/U pairs `[(4.875, 6.375), (24, 21), (72, 48)]`, and retains the incomplete final bin.
+- The first and last scatter colors use the full colormap endpoints in the correct order for the fixture's frequency axis. Every finite marker's exact RGB must appear on the scatter canvas.
+- Navigate channels through the animator. Channels 1, 2, 3 and 4 map to their containing bins (including the partial last bin), rather than falling back to the first scatter point. Hover channels 1 and 3 in the Q/U line profile and verify the same mapping in the scatter hover indicator.
+- Compare reviewed PNG baselines for all four plots after smoothing and channel changes. Capture the image viewer with settings closed.
+
+These cases inspect the props of the mounted scatter component to check the plotted data and channel indicators; RGB assertions and PNG comparisons independently check rendering. Existing control tests continue covering every smoothing method, overlay controls and scatter styling.

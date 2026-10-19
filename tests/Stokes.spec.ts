@@ -674,3 +674,245 @@ test.describe('Stokes Hypercube', () => {
         );
     });
 });
+
+// Inspect the data passed to the rendered scatter, including its actual canvas RGB.
+async function smoothedScatter(page: Page) {
+    return page
+        .locator('.profile-plot-qvsu canvas[role="img"]')
+        .evaluate((canvas: HTMLCanvasElement) => {
+            let fiber = (canvas as any)[
+                Object.keys(canvas).find((key) =>
+                    key.startsWith('__reactFiber$'),
+                )!
+            ];
+            while (fiber && !fiber.stateNode?.props?.dataBackgroundColor)
+                fiber = fiber.return;
+            const props = fiber?.stateNode?.props;
+            if (!props) return null;
+            const pixels = canvas
+                .getContext('2d')!
+                .getImageData(0, 0, canvas.width, canvas.height).data;
+            const colors = props.dataBackgroundColor as string[];
+            const rgbCounts = colors.map((color) => {
+                const rgb = color
+                    .match(/[\d.]+/g)!
+                    .slice(0, 3)
+                    .map(Number);
+                let count = 0;
+                for (let i = 0; i < pixels.length; i += 4) {
+                    if (
+                        pixels[i] === rgb[0] &&
+                        pixels[i + 1] === rgb[1] &&
+                        pixels[i + 2] === rgb[2] &&
+                        pixels[i + 3]
+                    )
+                        count++;
+                }
+                return count;
+            });
+            return {
+                data: props.data,
+                colors,
+                rgbCounts,
+                indicator: props.indicatorInteractionChannel,
+            };
+        });
+}
+
+test.describe('Stokes smoothing channel colors', () => {
+    for (const method of ['Boxcar', 'Binning']) {
+        test(`${method} preserves scatter colors and source channel mapping`, async ({
+            page,
+        }, testInfo) => {
+            test.setTimeout(90_000);
+            page.setDefaultTimeout(10_000);
+            const carta = new PlaywrightDevPage(page);
+            await carta.goto();
+            await carta.setTestPreferences();
+            await carta.loadImage('stokes-varying.fits');
+            await carta.selectMenuItem('Widgets', 'Stokes Analysis Widget');
+            const widget = page.getByTestId('stokes-0-content');
+            await widget
+                .getByTestId('image-dropdown')
+                .selectOption({ index: 0 });
+            const regionId = await page.evaluate(async () => {
+                const frame = (window as any).app.activeFrame;
+                const region = await frame.regionSet.addRegionAsync(0, [
+                    { x: 8, y: 8 },
+                ]);
+                frame.regionSet.setFocusedRegion(region);
+                return region.regionId;
+            });
+            await widget
+                .getByTestId('region-dropdown')
+                .selectOption(String(regionId));
+            await widget
+                .locator('.stokes-analysis-toolbar input[type="checkbox"]')
+                .check({ force: true });
+            await expect
+                .poll(() => stokesPlotState(page))
+                .toEqual({
+                    qOverI: [200, 225, 250, 275, 300],
+                    uOverI: [300, 275, 250, 225, 200],
+                });
+            await widget
+                .locator('.stokes-analysis-toolbar input[type="checkbox"]')
+                .uncheck({ force: true });
+            await page.getByTestId('stokes-0-header-settings-button').click();
+            const settings = page.getByTestId(
+                'stokes-0-floating-settings-0-content',
+            );
+            await settings
+                .getByTestId('spectral-profiler-coordinate-dropdown')
+                .selectOption('Channel');
+            await settings
+                .getByRole('tab', { name: 'Scatter Plot Styling' })
+                .click();
+            await settings.getByPlaceholder('Symbol size').fill('6');
+            await settings.getByRole('tab', { name: 'Smoothing' }).click();
+            await settings
+                .getByTestId('smoothing-settings-method-dropdown')
+                .selectOption(method);
+            await settings
+                .getByTestId(
+                    method === 'Binning'
+                        ? 'smoothing-settings-binning-width-input'
+                        : 'smoothing-settings-kernel-input',
+                )
+                .fill(method === 'Binning' ? '2' : '3');
+            await settings
+                .getByTestId('smoothing-settings-overlay-toggle')
+                .uncheck({ force: true });
+            await page
+                .locator(
+                    '[data-testid^="stokes-0-floating-settings-"][data-testid$="-header-close-button"]',
+                )
+                .click();
+            await expect
+                .poll(async () =>
+                    (await smoothedScatter(page))?.data.map(
+                        (point: any) => point.z,
+                    ),
+                )
+                .toEqual(
+                    method === 'Binning' ? [0.5, 2.5, 4] : [0, 1, 2, 3, 4],
+                );
+            const state = (await smoothedScatter(page))!;
+            if (method === 'Binning') {
+                expect(
+                    state.data.map((point: any) => [point.x, point.y]),
+                ).toEqual([
+                    [4.875, 6.375],
+                    [24, 21],
+                    [72, 48],
+                ]);
+            } else {
+                expect(state.data[2].x).toBeCloseTo(18.25, 5);
+                expect(state.data[2].y).toBeCloseTo(16.75, 5);
+            }
+            const endpoints = await page.evaluate(() => {
+                const store = Array.from(
+                    (
+                        window as any
+                    ).app.widgetsStore.stokesAnalysisWidgets.values(),
+                )[0] as any;
+                const { color, size } = store.colorPixel;
+                return [size - 1, 0].map(
+                    (index) =>
+                        `rgba(${color[index * 4]}, ${color[index * 4 + 1]}, ${color[index * 4 + 2]}, 1)`,
+                );
+            });
+            expect([state.colors[0], state.colors.at(-1)]).toEqual(endpoints);
+            await expect
+                .poll(async () =>
+                    (await smoothedScatter(page))?.rgbCounts.every(
+                        (count, index) =>
+                            !Number.isFinite(state.data[index].x) || count > 0,
+                    ),
+                )
+                .toBe(true);
+
+            // A source channel within a bin must highlight that bin, not the first point.
+            await page
+                .getByTestId('animator-0-header-title')
+                .getByText('Animator')
+                .click();
+            const channel = page
+                .getByTestId('animator-slider')
+                .getByRole('slider');
+            for (
+                let index = 1;
+                index <= (method === 'Binning' ? 4 : 3);
+                index++
+            ) {
+                await channel.press('ArrowRight');
+                await expect
+                    .poll(() =>
+                        page.evaluate(
+                            () => (window as any).app.activeFrame.channel,
+                        ),
+                    )
+                    .toBe(index);
+                const expected =
+                    method === 'Binning'
+                        ? state.data[Math.floor(index / 2)]
+                        : state.data[index];
+                await expect
+                    .poll(
+                        async () =>
+                            (await smoothedScatter(page))?.indicator
+                                ?.currentChannel,
+                    )
+                    .toEqual(expected);
+            }
+            // Hovering a line profile must identify the same source bin in Q/U.
+            for (const channelValue of [1, 3]) {
+                const position = await widget
+                    .locator('.profile-plot-qu canvas[role="img"]')
+                    .evaluate((canvas: HTMLCanvasElement, channelValue) => {
+                        let fiber = (canvas as any)[
+                            Object.keys(canvas).find((key) =>
+                                key.startsWith('__reactFiber$'),
+                            )!
+                        ];
+                        while (fiber && !fiber.stateNode?.chartArea)
+                            fiber = fiber.return;
+                        const { chartArea, props } = fiber.stateNode;
+                        const rect = canvas.getBoundingClientRect();
+                        return {
+                            x:
+                                rect.left +
+                                chartArea.left +
+                                ((channelValue - props.xMin) /
+                                    (props.xMax - props.xMin)) *
+                                    (chartArea.right - chartArea.left),
+                            y:
+                                rect.top +
+                                (chartArea.top + chartArea.bottom) / 2,
+                        };
+                    }, channelValue);
+                await page.mouse.move(position.x, position.y);
+                const expected =
+                    state.data[
+                        method === 'Binning'
+                            ? Math.floor(channelValue / 2)
+                            : channelValue
+                    ];
+                await expect
+                    .poll(
+                        async () =>
+                            (await smoothedScatter(page))?.indicator
+                                ?.hoveredChannel,
+                    )
+                    .toEqual(expected);
+            }
+            await page.mouse.move(0, 0);
+            await expect(widget.locator('.stokes-widget')).toHaveScreenshot(
+                `stokes-${method.toLowerCase()}-channel-colors.png`,
+            );
+            await page.getByTestId('viewer-div').screenshot({
+                path: testInfo.outputPath('smoothed-stokes-viewer.png'),
+            });
+        });
+    }
+});
