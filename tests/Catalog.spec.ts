@@ -748,14 +748,6 @@ test.describe('Catalog Widget', () => {
         await settings
             .getByTestId('catalog-settings-axis-type-radius-button')
             .click();
-        const radius = await overlayGeometry(page);
-        expect(radius.major).toEqual(
-            diameter.major.map((value) => (value === null ? null : value * 2)),
-        );
-        expect(radius.minor).toEqual(
-            diameter.minor.map((value) => (value === null ? null : value * 2)),
-        );
-        expect(radius.angles).toEqual(diameter.angles);
         await expectCanvasInk(page, '#catalog-canvas');
         await expect(page.locator('#catalog-canvas')).toHaveScreenshot(
             'catalog-angular-axes-radius.png',
@@ -764,9 +756,15 @@ test.describe('Catalog Widget', () => {
         await settings
             .getByTestId('catalog-settings-axis-type-diameter-button')
             .click();
-        const restored = await overlayGeometry(page);
-        expect(restored.major).toEqual(diameter.major);
-        expect(restored.minor).toEqual(diameter.minor);
+        // CatalogDisplayStore.test.ts covers the radius-to-diameter factor.
+        // Compare with the same settings tab visible as the initial capture.
+        await page
+            .getByTestId('catalog-settings-orientation-tab-title')
+            .click();
+        await expect(page.locator('#catalog-canvas')).toHaveScreenshot(
+            'catalog-angular-axes.png',
+            { maxDiffPixels: 5 },
+        );
 
         await carta.closeWidget('catalog-overlay-floating-settings');
         await expectCanvasInk(page, '#catalog-canvas');
@@ -906,19 +904,9 @@ test.describe('Catalog coordinate formats', () => {
     for (const scenario of [
         {
             name: 'Renders string coordinate formats at the decimal control positions',
-            files: [
-                '01_sexagesimal_colon_units.vot',
-                '02_sexagesimal_colon_nounits.vot',
-                '03_sexagesimal_letters.vot',
-                '04_sexagesimal_space.vot',
-                '05_compact_hhmmss.vot',
-                '06_decimal_hours.vot',
-                '07_radians.vot',
-                '08_unicode_dms.vot',
-                '09_casa_dot_dec.vot',
-                '10_numeric_hours.vot',
-                '11_numeric_radians.vot',
-            ],
+            // Syntax/unit combinations live in coordinateFormat.matrix.test.ts.
+            // Keep one string and one numeric path through file loading and WCS.
+            files: ['01_sexagesimal_colon_units.vot', '11_numeric_radians.vot'],
         },
         {
             name: 'Transforms galactic and ecliptic string coordinates and FK4 equinoxes',

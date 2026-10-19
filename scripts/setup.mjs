@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createInterface } from 'node:readline/promises';
 import { stdin, stdout } from 'node:process';
+import dotenv from 'dotenv';
 
 const projectRoot = path.resolve(
     path.dirname(fileURLToPath(import.meta.url)),
@@ -12,19 +13,7 @@ const projectRoot = path.resolve(
 const settingsPath = path.join(projectRoot, 'setting.env');
 let currentSettings = {};
 try {
-    currentSettings = Object.fromEntries(
-        (await readFile(settingsPath, 'utf8'))
-            .split(/\r?\n/)
-            .flatMap((line) => {
-                const match = line.match(/^(backend_dir|frontend_dir)=(.*)$/);
-                if (!match) return [];
-                try {
-                    return [[match[1], JSON.parse(match[2])]];
-                } catch {
-                    return [[match[1], match[2]]];
-                }
-            }),
-    );
+    currentSettings = dotenv.parse(await readFile(settingsPath, 'utf8'));
 } catch (error) {
     if (error.code !== 'ENOENT') throw error;
 }
@@ -84,16 +73,27 @@ try {
         currentSettings.frontend_dir,
         '',
     );
+    let workers;
+    while (!Number.isSafeInteger(workers) || workers < 1) {
+        const answer = await prompt.question(
+            `Playwright workers [${currentSettings.workers ?? 6}]: `,
+        );
+        workers = Number(answer.trim() || currentSettings.workers || 6);
+        if (!Number.isSafeInteger(workers) || workers < 1) {
+            console.error('Please enter a positive integer.');
+        }
+    }
 
     await writeFile(
         settingsPath,
         [
             `backend_dir=${JSON.stringify(backendDirectory)}`,
             `frontend_dir=${JSON.stringify(frontendDirectory)}`,
+            `workers=${workers}`,
             '',
         ].join('\n'),
     );
-    console.log(`Wrote CARTA paths to ${settingsPath}`);
+    console.log(`Wrote CARTA settings to ${settingsPath}`);
 
     run('npm', ['ci']);
     run('npx', ['playwright', 'install', 'chromium']);

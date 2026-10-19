@@ -90,13 +90,6 @@ test.describe('Channel Map Widget', () => {
 
         await setNumber(startChannel(page), 99);
         await expect(labels(page)).toHaveText(['1', '2']);
-        await expect
-            .poll(() =>
-                page.evaluate(
-                    () => (window as any).app.channelMapStore.startChannel,
-                ),
-            )
-            .toBe(1);
         await setNumber(startChannel(page), 0);
         await spinButtons(page, 'Start channel').first().click();
         await expect(labels(page)).toHaveText(['1', '2']);

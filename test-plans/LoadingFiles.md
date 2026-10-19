@@ -50,8 +50,8 @@ Save channels 1–3 to a UUID FITS in test_data. Empty filename disables Save. U
 Two cases exercise the image and catalog browsers using real backend file-list responses. Each creates a unique temporary directory beside `test_data` (outside the recursive fixture-size scan) and removes only that directory in `finally`.
 
 - Generate three valid FITS cubes (8,640, 72,000 and 1,797,120 bytes) or three padded VOTables (9,000, 75,000 and 1,800,000 bytes). These raw byte counts sort differently as decimal strings, and filenames deliberately disagree with size order. All files stay below 2 MB; the frontend unit tests cover GB/TB magnitudes.
-- Click Size twice and verify ascending/descending rendered row order and sort icons. Directories stay ahead of files and sort by item counts 1, 2 and 10.
-- Set modification times to Unix seconds 900,000,000, 1,000,000,000 and 1,500,000,000. Click Date in both directions and verify the corresponding directory/file row orders, catching comparison across nine/ten-digit timestamps.
+- Click Size twice and verify the ascending rendered row order and both sort icons. Keep one row-order assertion to check header wiring; numeric comparison, directory ordering and descending permutations belong to frontend `src/components/Dialogs/FileBrowser/FileListTable/FileListTableComponent.test.ts`.
+- Click Date in both directions and verify the sort icons. Timestamp comparison and directory/file permutations belong to the same frontend unit suite.
 - Restore ascending Size, filter to no matches, require No results and disabled Load, then clear the filter and require the sorted rows to return.
 - Select the smallest row after all sorts and filters. The image case must load the intended 16×16×5 cube; the catalog case must load the intended five-row table and render four in-frame sources on `cube.fits`.
 - Check opaque raster RGB and exact catalog marker RGB `(0,163,150)`, wait for the 16-value X profile and the temporary image-size popup to disappear, compare viewer/profile PNG baselines, and retain the sorted browser PNG as an artifact.

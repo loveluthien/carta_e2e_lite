@@ -1,3 +1,11 @@
+import dotenv from 'dotenv';
+import { fileURLToPath } from 'node:url';
+
+dotenv.config({
+    path: fileURLToPath(new URL('../setting.env', import.meta.url)),
+    quiet: true,
+});
+
 const testGroups = [
     {
         name: 'test-group1',
@@ -40,7 +48,10 @@ const testGroups = [
         testMatch: ['**/ChannelMap.spec.ts', '**/Profilers.spec.ts'],
     },
 ];
-const defaultWorkers = 6;
+const defaultWorkers = Number(process.env.workers ?? 6);
+if (!Number.isSafeInteger(defaultWorkers) || defaultWorkers < 1) {
+    throw new Error('workers in setting.env must be a positive integer');
+}
 const projectNames = testGroups.map(({ name }) => name);
 
 export { defaultWorkers, projectNames, testGroups };

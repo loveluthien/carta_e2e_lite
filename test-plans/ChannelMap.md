@@ -25,3 +25,7 @@ Channel-map empty state, navigation and bounds, rendered panels and labels, spec
 ```sh
 npm test -- --project=test-group5 tests/ChannelMap.spec.ts
 ```
+
+## Unit-test boundary
+
+Frontend `src/stores/ChannelMapStore/ChannelMapStore.test.ts` owns start-channel bounds and channel-array arithmetic. The invalid-input E2E case checks the visible labels remain unchanged and navigation recovers, without repeating the internal `startChannel` assertion. Keep every navigation button, slider, rendered grid and viewer/profile check.

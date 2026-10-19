@@ -20,7 +20,7 @@ npm test
 npm run report
 ```
 
-`npm test` starts or reuses one CARTA backend, then runs the selected projects sequentially with up to six workers each. It writes a separate HTML report to `playwright-report/<project>/` for each project.
+`npm test` starts or reuses one CARTA backend, then runs the selected projects sequentially with the worker count from `workers` in `setting.env` (default 6; `--workers` overrides it). It writes a separate HTML report to `playwright-report/<project>/` for each project.
 
 Failed project runs make `npm test` exit with an error. Review the failed project's report for details.
 
@@ -63,3 +63,7 @@ Use concise Title Case names for `test.describe()` groups. Write individual test
 - Three Moment Map cases are annotated with `test.fail()` to track known defects: generation with no selected moments, the rest-frequency reset control remaining enabled, and a missing warning for malformed generated-image acknowledgments. Check the Playwright report to see how those cases behave in a given run.
 - The Regions spec has one executed expected failure for text annotations appearing in the spectral profiler region menu despite the backend rejecting annotations as data regions.
 - Each plan records the checks present in the current spec; neither the plans nor test collection indicate that a suite has passed.
+
+## Frontend unit-test boundary
+
+Reviewed against the frontend configured in `setting.env`, `carta-frontend/src`. Unit tests own numeric sorting permutations (`components/Dialogs/FileBrowser/FileListTable/FileListTableComponent.test.ts`), coordinate syntax/unit combinations (`utilities/catalog/coordinateFormat.matrix.test.ts`), radius/diameter arithmetic (`stores/Catalog/CatalogDisplayStore.test.ts`) and channel bounds (`stores/ChannelMapStore/ChannelMapStore.test.ts`). The corresponding E2E cases retain representative UI wiring, file/backend integration, failure recovery, rendered RGB and PNG checks. Actual downloads, widget interactions and WCS/rendering checks remain E2E responsibilities even when unit tests cover their underlying helpers. Recheck this boundary when changing the configured frontend.

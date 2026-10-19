@@ -10,7 +10,7 @@ Install dependencies and configure the local CARTA builds:
 npm run setup
 ```
 
-The setup command asks for the backend build directory (containing `carta_backend`) and the frontend build directory. It writes those paths to the ignored `setting.env`, installs npm dependencies, and installs the Chromium browser.
+The setup command asks for the backend build directory (containing `carta_backend`), frontend build directory and Playwright worker count. It writes those settings to the ignored `setting.env`, installs npm dependencies, and installs the Chromium browser.
 
 The CARTA file browser uses the directory two levels above this checkout as its top-level folder by default. Set `CARTA_TOP_LEVEL_FOLDER` to use a different data root.
 
@@ -22,7 +22,7 @@ Run all tests:
 npm test
 ```
 
-The runner starts or reuses one CARTA backend and runs five test groups in sequence, with up to six workers per group. To run one group, for example:
+The runner starts or reuses one CARTA backend and runs five test groups in sequence. Set `workers=6` in `setting.env` to control concurrency per group (defaults to 6). A command-line `--workers` overrides this setting. To run one group, for example:
 
 ```sh
 npm test -- --project=test-group5
