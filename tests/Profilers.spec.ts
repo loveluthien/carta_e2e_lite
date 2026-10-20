@@ -2015,6 +2015,8 @@ async function spectralOverlay(page: Page) {
                 curve.map((point: any) => point.x),
             ),
             labels: widget.plotData?.labels,
+            xLabel: widget.xAxisLabel,
+            yLabel: widget.yAxisLabel,
         };
     });
 }
@@ -2391,6 +2393,140 @@ async function openFluxProfile(page: Page, file: string) {
         .click();
     return { carta, widget };
 }
+
+test('Spectral rest-frame controls correct coordinates and flux density and restore the observed profile', async ({
+    page,
+}, testInfo) => {
+    const carta = new PlaywrightDevPage(page);
+    await carta.goto(LayoutName.CubeAnalysis);
+    await carta.loadImage('flux-beam.fits');
+    await page.evaluate(() => {
+        const frame = (window as any).app.activeFrame;
+        frame.setCursorPosition({ x: 8, y: 8 });
+        frame.updateCursorRegion({ x: 8, y: 8 });
+    });
+    const profiler = page.getByTestId('spectral-profiler-0-content');
+    const plot = profiler.locator('.line-plot-component');
+    const nativeValues = [1.5, 3, 6, 12, 24];
+    await expect
+        .poll(async () => (await spectralOverlay(page)).series)
+        .toEqual([nativeValues]);
+    const observed = await spectralOverlay(page);
+    expect(observed.coordinates[0][0]).toBeCloseTo(1, 6);
+    expect(observed.xLabel).toBe('[LSRK] Frequency (GHz)');
+    expect(observed.yLabel).toBe('Value (Jy/beam)');
+    await page.mouse.move(0, 0);
+    await expect(plot).toHaveScreenshot('spectral-rest-frame-observed.png');
+
+    await page
+        .getByTestId('spectral-profiler-0-header-settings-button')
+        .click();
+    await page.getByRole('tab', { name: 'Conversion', exact: true }).click();
+    const xToggle = page.getByTestId(
+        'spectral-profiler-x-axis-rest-frame-toggle',
+    );
+    const yToggle = page.getByTestId(
+        'spectral-profiler-y-axis-rest-frame-toggle',
+    );
+    await xToggle.locator('..').click();
+    await expect(xToggle).toBeChecked();
+    await page
+        .getByTestId('spectral-profiler-shift-mode-dropdown')
+        .selectOption({ label: 'Redshift (z)' });
+    const redshift = page.getByTestId('spectral-profiler-redshift-input');
+    await redshift.fill('1');
+    await redshift.press('Tab');
+    const correctedCoordinates = observed.coordinates[0].map((value: number) =>
+        expect.closeTo(value * 2, 6),
+    );
+    await expect
+        .poll(async () => (await spectralOverlay(page)).coordinates)
+        .toEqual([correctedCoordinates]);
+    expect((await spectralOverlay(page)).series).toEqual([nativeValues]);
+    await expect(yToggle).not.toBeChecked();
+    await yToggle.locator('..').click();
+    await expect(yToggle).toBeChecked();
+    const correctedValues = nativeValues.map((value) => value / 2);
+    await expect
+        .poll(async () => (await spectralOverlay(page)).series)
+        .toEqual([correctedValues]);
+
+    // Invalid input must fall back to the observed profile and allow recovery.
+    await redshift.fill('-2');
+    await redshift.press('Tab');
+    await expect(
+        page.getByText(/Correction is temporarily using z = 0/),
+    ).toBeVisible();
+    await expect
+        .poll(async () => (await spectralOverlay(page)).series)
+        .toEqual([nativeValues]);
+    expect((await spectralOverlay(page)).coordinates).toEqual(
+        observed.coordinates,
+    );
+    await redshift.fill('1');
+    await redshift.press('Tab');
+    await expect(
+        page.getByText(/Correction is temporarily using z = 0/),
+    ).toBeHidden();
+    await expect
+        .poll(async () => (await spectralOverlay(page)).series)
+        .toEqual([correctedValues]);
+    const corrected = await spectralOverlay(page);
+    expect(corrected.coordinates).toEqual([correctedCoordinates]);
+    expect(corrected.xLabel).toBe('[LSRK] Frequency (GHz) (rest frame)');
+    expect(corrected.yLabel).toBe('Value (Jy/beam) (rest frame)');
+    await carta.closeWidget('spectral-profiler-0-floating-settings');
+    await page.mouse.move(0, 0);
+    await expectOverlayRgb(page, false);
+    await expect(plot).toHaveScreenshot('spectral-rest-frame-corrected.png');
+
+    await plot.hover();
+    const pending = page.waitForEvent('download');
+    await plot
+        .locator('.profiler-toolbar a')
+        .filter({ has: page.locator('[data-icon="th"]') })
+        .click();
+    const download = await pending;
+    const tsv = await readFile((await download.path())!, 'utf8');
+    expect(tsv).toContain('x-axis spectral coordinate: rest frame');
+    expect(tsv).toContain('F_nu,rest = F_nu,observed / (1 + z)');
+    const rows = tsv
+        .trim()
+        .split('\n')
+        .filter((line) => !line.startsWith('#'))
+        .map((line) => line.split('\t').map(Number));
+    expect(rows).toHaveLength(5);
+    rows.forEach(([x, y], index) => {
+        expect(x).toBeCloseTo(observed.coordinates[0][index] * 2, 6);
+        expect(y).toBeCloseTo(correctedValues[index], 6);
+    });
+
+    await page.mouse.move(0, 0);
+    await page
+        .getByTestId('spectral-profiler-0-header-settings-button')
+        .click();
+    await xToggle.locator('..').click();
+    await expect(xToggle).not.toBeChecked();
+    await expect(yToggle).toBeChecked();
+    await expect
+        .poll(async () => (await spectralOverlay(page)).coordinates)
+        .toEqual(observed.coordinates);
+    expect((await spectralOverlay(page)).series).toEqual([correctedValues]);
+    await yToggle.locator('..').click();
+    await expect(yToggle).not.toBeChecked();
+    await expect
+        .poll(async () => (await spectralOverlay(page)).series)
+        .toEqual([nativeValues]);
+    expect((await spectralOverlay(page)).xLabel).toBe(observed.xLabel);
+    expect((await spectralOverlay(page)).yLabel).toBe(observed.yLabel);
+    await expect(redshift).toBeHidden();
+    await carta.closeWidget('spectral-profiler-0-floating-settings');
+    await page.mouse.move(0, 0);
+    await expect(plot).toHaveScreenshot('spectral-rest-frame-observed.png');
+    await page.getByTestId('viewer-div').screenshot({
+        path: testInfo.outputPath('spectral-rest-frame-viewer.png'),
+    });
+});
 
 test.describe('Spectral flux density unit conversion', () => {
     for (const source of ['pixel', 'beam', 'k']) {

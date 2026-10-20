@@ -1,6 +1,6 @@
 # Profilers test plan
 
-**Source:** [`tests/Profilers.spec.ts`](../tests/Profilers.spec.ts) · **Cases:** 26
+**Source:** [`tests/Profilers.spec.ts`](../tests/Profilers.spec.ts) · **Cases:** 27
 
 Spatial and spectral profiles, formatting, smoothing, fitting and viewer connection.
 
@@ -54,6 +54,13 @@ npm test -- --project=test-group5 tests/Profilers.spec.ts
 ## Coverage additions
 
 Create the spectral profiler through Widgets/Profiles and select radio velocity in its Conversion settings. Mock Splatalogue, fail first query, retry with one known molecular line at 999.993328718096 MHz. Apply a species filter with no matches, then reset it and restore the result. Select/Plot into the profiler, assert 2 km/s and expected green RGB, capture PNG, Clear plot and verify no remaining markers or green pixels.
+
+## Rest-frame coordinate and flux-density corrections
+
+- **Spectral rest-frame controls correct coordinates and flux density and restore the observed profile:** load `flux-beam.fits` at cursor `(8,8)` and record the five-channel observed frequency spectrum `[1.5, 3, 6, 12, 24]` Jy/beam. Use the Conversion controls to enable X-axis correction and enter z=1; frequencies double while intensities stay unchanged. Enable Y-axis correction and require intensities to halve, with rest-frame labels on both axes.
+- Enter invalid z=-2 and require a visible validation message plus the original observed coordinates and intensities. Restore z=1 and require the corrected plot to recover. Compare observed and corrected PNG baselines and inspect blue curve RGB values.
+- Export TSV and check all five corrected frequency/intensity pairs and the rest-frame coordinate and F_nu scaling metadata. Disable X while retaining Y to verify independent controls, then disable Y; axis labels, plotted values and the observed PNG must return to their original state. Save a viewer PNG.
+- The frontend unit tests retain the coordinate-convention and Jacobian matrix. This E2E case exercises controls, backend FITS values, rendering, validation recovery and actual downloaded data together.
 
 ## Converted flux density regression (PR #2925)
 
