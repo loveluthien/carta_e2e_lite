@@ -5,7 +5,7 @@ import {
     type Locator,
     type Page,
 } from '@playwright/test';
-import { PlaywrightDevPage } from '../utilities';
+import { PlaywrightDevPage, pixel } from '../utilities';
 
 const test = base.extend<{
     carta: PlaywrightDevPage;
@@ -2585,4 +2585,447 @@ test.describe('Image Viewer', () => {
             'M17_SWex_channel8_power_99.5_alpha_10_gist_stern.png',
         );
     });
+});
+
+async function axisPixelRgb(page: Page, x: number, y: number) {
+    return page
+        .locator('#raster-canvas')
+        .first()
+        .evaluate(
+            (canvas: HTMLCanvasElement, point) => {
+                const view = (window as any).app.activeFrame.requiredFrameView;
+                const px = Math.floor(
+                    ((point.x - view.xMin) / (view.xMax - view.xMin)) *
+                        canvas.width,
+                );
+                const py = Math.floor(
+                    ((view.yMax - point.y) / (view.yMax - view.yMin)) *
+                        canvas.height,
+                );
+                return Array.from(
+                    canvas.getContext('2d')!.getImageData(px, py, 1, 1).data,
+                );
+            },
+            { x, y },
+        );
+}
+
+// PR #2853: exercise DOM events and canvas rendering beyond the zoom unit tests.
+test.describe('Independent axis zoom', () => {
+    for (const kind of ['pv', 'swapped'] as const) {
+        test(`${kind}: axis controls, wheel, size edits and resets`, async ({
+            page,
+            carta,
+            viewerCanvas,
+        }) => {
+            await carta.loadImage(`wcs-${kind}-clean.fits`);
+            await useSinglePanel(page);
+            const geometry = () =>
+                page.evaluate(() => {
+                    const frame = (window as any).app.activeFrame;
+                    return {
+                        zoom: { ...frame.effectiveZoomLevel },
+                        axis: frame.zoomAxis,
+                        center: { ...frame.center },
+                        size: { ...frame.fovSize },
+                    };
+                });
+            await viewerCanvas.hover();
+            const selector = page.getByTestId('pv-zoom-axis-button');
+            await expect(selector).toBeVisible();
+            expect((await geometry()).axis).toBe(kind === 'pv' ? 'y' : 'x');
+            const fit = await geometry();
+            const sampleX = kind === 'swapped' ? 2 : 8;
+            const expectedValue = await pixel(page, sampleX, 8);
+            expect(Number.isFinite(expectedValue)).toBe(true);
+            for (const axis of ['x', 'y'] as const) {
+                await selector.click();
+                await page.getByTestId(`pv-zoom-axis-${axis}`).click();
+                await expect
+                    .poll(() => geometry().then((g) => g.axis))
+                    .toBe(axis);
+                const before = await geometry();
+                await page.getByTestId('zoom-in-button').click();
+                await expect
+                    .poll(() => geometry().then((g) => g.zoom))
+                    .toEqual({
+                        x: before.zoom.x * (axis === 'x' ? 2 : 1),
+                        y: before.zoom.y * (axis === 'y' ? 2 : 1),
+                    });
+                await page.getByTestId('zoom-out-button').click();
+                await expect
+                    .poll(() => geometry().then((g) => g.zoom))
+                    .toEqual(before.zoom);
+            }
+            const stage = viewerCanvas.locator('.region-stage canvas').first();
+            await stage.hover({ position: { x: 200, y: 200 } });
+            await page.mouse.wheel(0, -100);
+            await expect
+                .poll(() => geometry().then((g) => g.zoom.y))
+                .toBeGreaterThan(fit.zoom.y);
+            expect((await geometry()).zoom.x).toBe(fit.zoom.x);
+            expect((await geometry()).center.x).toBeCloseTo(fit.center.x, 8);
+            const wheel = await geometry();
+            await page.keyboard.down('Shift');
+            try {
+                await page.mouse.wheel(0, -200);
+            } finally {
+                await page.keyboard.up('Shift');
+            }
+            await expect
+                .poll(() => geometry().then((g) => g.zoom.x))
+                .toBeGreaterThan(wheel.zoom.x);
+            expect((await geometry()).zoom.y).toBe(wheel.zoom.y);
+            expect((await geometry()).center.y).toBeCloseTo(wheel.center.y, 8);
+            const beforePan = await geometry();
+            await stage.hover({ position: { x: 200, y: 200 } });
+            const bounds = (await stage.boundingBox())!;
+            await page.mouse.down({ button: 'middle' });
+            try {
+                await page.mouse.move(bounds.x + 220, bounds.y + 210, {
+                    steps: 5,
+                });
+            } finally {
+                await page.mouse.up({ button: 'middle' });
+            }
+            await expect
+                .poll(() => geometry().then((g) => g.center.x))
+                .not.toBe(beforePan.center.x);
+            await expect
+                .poll(() => geometry().then((g) => g.center.y))
+                .not.toBe(beforePan.center.y);
+            expect((await geometry()).zoom).toEqual(beforePan.zoom);
+            expect(await pixel(page, sampleX, 8)).toBeCloseTo(expectedValue, 5);
+
+            // Clip the known positive fixture data to white, then invert to black.
+            // Sample an image coordinate after stretching to check canvas mapping.
+            await page.evaluate(() => {
+                const config = (window as any).app.activeFrame.renderConfig;
+                config.setColorMap('gray');
+                config.setScaling(0);
+                config.setCustomScale(-2, -1);
+                config.setInverted(false);
+            });
+            await expect
+                .poll(() => axisPixelRgb(page, kind === 'swapped' ? 2 : 8, 8))
+                .toEqual([255, 255, 255, 255]);
+            await page.evaluate(() =>
+                (window as any).app.activeFrame.renderConfig.setInverted(true),
+            );
+            await expect
+                .poll(() => axisPixelRgb(page, kind === 'swapped' ? 2 : 8, 8))
+                .toEqual([0, 0, 0, 255]);
+            await page.evaluate(async (kind) => {
+                const frame = (window as any).app.activeFrame;
+                frame.renderConfig.setInverted(false);
+                frame.renderConfig.setCustomScale(0, 2);
+                const region = await frame.regionSet.addRegionAsync(3, [
+                    { x: kind === 'swapped' ? 2 : 8, y: 8 },
+                    { x: kind === 'swapped' ? 1 : 4, y: 4 },
+                ]);
+                region.setColor('#FF0000');
+                region.setLineWidth(3);
+                region.setDashLength(0);
+                frame.contourConfig.setContourConfiguration(
+                    [kind === 'swapped' ? 1.1 : 1.3],
+                    0,
+                    1,
+                );
+                frame.contourConfig.setColor('#00FF00');
+                frame.contourConfig.setColormapEnabled(false);
+                frame.applyContours();
+            }, kind);
+            await expect
+                .poll(() =>
+                    page
+                        .locator('#contour-canvas')
+                        .first()
+                        .evaluate((canvas: HTMLCanvasElement) => {
+                            const pixels = canvas
+                                .getContext('2d')!
+                                .getImageData(
+                                    0,
+                                    0,
+                                    canvas.width,
+                                    canvas.height,
+                                ).data;
+                            let green = 0;
+                            for (let i = 0; i < pixels.length; i += 4)
+                                if (
+                                    pixels[i] === 0 &&
+                                    pixels[i + 1] === 255 &&
+                                    pixels[i + 2] === 0 &&
+                                    pixels[i + 3] > 0
+                                )
+                                    green++;
+                            return green;
+                        }),
+                )
+                .toBeGreaterThan(20);
+            // Check the four rectangle sides at their projected image coordinates.
+            await expect
+                .poll(() =>
+                    stage.evaluate((canvas: HTMLCanvasElement, kind) => {
+                        const view = (window as any).app.activeFrame
+                            .requiredFrameView;
+                        return [
+                            { x: kind === 'swapped' ? 1.5 : 6, y: 8 },
+                            { x: kind === 'swapped' ? 2.5 : 10, y: 8 },
+                            { x: kind === 'swapped' ? 2 : 8, y: 6 },
+                            { x: kind === 'swapped' ? 2 : 8, y: 10 },
+                        ].map((point) => {
+                            const x = Math.round(
+                                ((point.x - view.xMin) /
+                                    (view.xMax - view.xMin)) *
+                                    canvas.width,
+                            );
+                            const y = Math.round(
+                                ((view.yMax - point.y) /
+                                    (view.yMax - view.yMin)) *
+                                    canvas.height,
+                            );
+                            const pixels = canvas
+                                .getContext('2d')!
+                                .getImageData(x - 4, y - 4, 9, 9).data;
+                            for (let i = 0; i < pixels.length; i += 4)
+                                if (
+                                    pixels[i] > 240 &&
+                                    pixels[i + 1] < 20 &&
+                                    pixels[i + 2] < 20 &&
+                                    pixels[i + 3] > 0
+                                )
+                                    return true;
+                            return false;
+                        });
+                    }, kind),
+                )
+                .toEqual([true, true, true, true]);
+            await settleViewer(viewerCanvas);
+            await snapshotViewer(
+                viewerCanvas,
+                `${kind}-independent-axis-zoom.png`,
+            );
+
+            await viewerCanvas.hover();
+            await page.getByTestId('toolbar-region-moving-button').dblclick();
+            const pan = page.locator('.panel-pan-and-zoom');
+            await pan
+                .getByRole('radiogroup')
+                .getByText('Image', { exact: true })
+                .click();
+            for (const axis of ['x', 'y'] as const) {
+                const before = await geometry();
+                const input = settingsField(
+                    pan,
+                    new RegExp(`^Size \\(${axis.toUpperCase()}\\)`),
+                ).getByRole('spinbutton');
+                await input.fill('12');
+                await input.press('Enter');
+                await expect
+                    .poll(() => geometry().then((g) => g.size[axis]))
+                    .toBeCloseTo(12, 4);
+                const other = axis === 'x' ? 'y' : 'x';
+                expect((await geometry()).zoom[other]).toBeCloseTo(
+                    before.zoom[other],
+                    8,
+                );
+                const valid = await geometry();
+                for (const invalid of ['0', '-1', '']) {
+                    await input.fill(invalid);
+                    await input.press('Enter');
+                    await expect.poll(geometry).toEqual(valid);
+                }
+            }
+            await carta.closeWidget('image-view-floating-settings');
+            await viewerCanvas.hover();
+            await page.getByTestId('zoom-to-1x-fit-button').click();
+            await expect
+                .poll(() => geometry().then((g) => g.zoom))
+                .toEqual({ x: 1, y: 1 });
+            await page.getByTestId('zoom-to-fit-button').click();
+            await expect
+                .poll(() => geometry().then((g) => g.zoom))
+                .toEqual(fit.zoom);
+            await settleViewer(viewerCanvas);
+            await snapshotViewer(viewerCanvas, `${kind}-axis-zoom-reset.png`);
+        });
+    }
+
+    test('Regular images keep both axes coupled for wheel and Shift-wheel', async ({
+        page,
+        carta,
+        viewerCanvas,
+    }) => {
+        await carta.loadImage('cube.fits');
+        await useSinglePanel(page);
+        await viewerCanvas.hover();
+        await expect(page.getByTestId('pv-zoom-axis-button')).toHaveCount(0);
+        const zoom = () =>
+            page.evaluate(() => ({
+                ...(window as any).app.activeFrame.effectiveZoomLevel,
+            }));
+        const fittedZoom = await zoom();
+        await page.getByTestId('zoom-in-button').click();
+        await expect
+            .poll(zoom)
+            .toEqual({ x: fittedZoom.x * 2, y: fittedZoom.y * 2 });
+        await page.getByTestId('zoom-out-button').click();
+        await expect.poll(zoom).toEqual(fittedZoom);
+
+        await page.getByTestId('toolbar-region-moving-button').dblclick();
+        const pan = page.locator('.panel-pan-and-zoom');
+        await pan
+            .getByRole('radiogroup')
+            .getByText('Image', { exact: true })
+            .click();
+        for (const axis of ['X', 'Y']) {
+            const before = await zoom();
+            const size = settingsField(
+                pan,
+                new RegExp(`^Size \\(${axis}\\)`),
+            ).getByRole('spinbutton');
+            await size.fill(axis === 'X' ? '8' : '12');
+            await size.press('Enter');
+            await expect
+                .poll(() => zoom().then((value) => value.x))
+                .not.toBe(before.x);
+            const after = await zoom();
+            expect(after.x).toBe(after.y);
+        }
+        await carta.closeWidget('image-view-floating-settings');
+        await viewerCanvas.hover();
+        await page.getByTestId('zoom-to-fit-button').click();
+        await expect.poll(zoom).toEqual(fittedZoom);
+        await expect(page.getByTestId('pv-zoom-axis-button')).toHaveCount(0);
+        for (const shift of [false, true]) {
+            const before = await zoom();
+            await viewerCanvas.locator('.region-stage canvas').first().hover();
+            if (shift) await page.keyboard.down('Shift');
+            try {
+                await page.mouse.wheel(0, -100);
+            } finally {
+                if (shift) await page.keyboard.up('Shift');
+            }
+            await expect
+                .poll(() => zoom().then((g) => g.x))
+                .toBeGreaterThan(before.x);
+            const after = await zoom();
+            expect(after.x).toBe(after.y);
+        }
+        await page.evaluate(() => {
+            const config = (window as any).app.activeFrame.renderConfig;
+            config.setColorMap('gray');
+            config.setCustomScale(-2, -1);
+        });
+        await expect
+            .poll(() => axisPixelRgb(page, 8, 8))
+            .toEqual([255, 255, 255, 255]);
+        await page.evaluate(() =>
+            (window as any).app.activeFrame.renderConfig.setCustomScale(0, 2),
+        );
+        await settleViewer(viewerCanvas);
+        await snapshotViewer(viewerCanvas, 'regular-image-wheel-zoom.png');
+    });
+});
+
+test('Independent axis zoom: PNG export and workspace round trip', async ({
+    page,
+    carta,
+    viewerCanvas,
+}, testInfo) => {
+    // Isolate database writes while using the real workspace serializer/loader.
+    let saved: any;
+    const name = 'e2e-pv-axis-zoom';
+    await page.route('**/database/list/workspaces', (route) =>
+        route.fulfill({
+            json: {
+                success: true,
+                workspaces: saved ? [{ name, date: saved.date }] : [],
+            },
+        }),
+    );
+    await page.route(/\/database\/workspace(?:\/.*)?$/, async (route) => {
+        if (route.request().method() === 'PUT')
+            saved = route.request().postDataJSON().workspace;
+        await route.fulfill({ json: { success: true, workspace: saved } });
+    });
+    await carta.loadImage('wcs-pv-clean.fits');
+    await useSinglePanel(page);
+    await viewerCanvas.hover();
+    await page.getByTestId('zoom-in-button').click();
+    await page.getByTestId('pv-zoom-axis-button').click();
+    await page.getByTestId('pv-zoom-axis-x').click();
+    const state = () =>
+        page.evaluate(() => {
+            const f = (window as any).app.activeFrame;
+            return {
+                zoom: {
+                    x: f.effectiveZoomLevel.x / (window as any).app.imageRatio,
+                    y: f.effectiveZoomLevel.y / (window as any).app.imageRatio,
+                },
+                axis: f.zoomAxis,
+            };
+        });
+    const expected = await state();
+    expect(expected.zoom.x).not.toBe(expected.zoom.y);
+    const sizes: number[][] = [];
+    for (const [index, label] of ['High (200%)', 'Normal (100%)'].entries()) {
+        await viewerCanvas.hover();
+        await page.getByTestId('export-image-view-button').click();
+        const pending = page.waitForEvent('download');
+        await page.getByRole('menuitem', { name: label }).click();
+        const download = await pending;
+        const target = testInfo.outputPath(`pv-axis-export-${index}.png`);
+        await download.saveAs(target);
+        const png = await readFile(target);
+        expect(png.subarray(0, 8)).toEqual(
+            Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+        );
+        sizes.push([png.readUInt32BE(16), png.readUInt32BE(20)]);
+        await viewerCanvas.hover();
+        await page.mouse.move(0, 0);
+        await expect.poll(state).toEqual(expected);
+        expect(png).toMatchSnapshot(`pv-axis-export-${index}.png`);
+    }
+    for (const dimension of [0, 1])
+        expect(
+            Math.abs(sizes[0][dimension] - 2 * sizes[1][dimension]),
+        ).toBeLessThanOrEqual(2);
+    await carta.selectMenuItem('File', 'Save Workspace');
+    const save = page.getByRole('dialog', {
+        name: 'Save Workspace',
+        exact: true,
+    });
+    await save.getByPlaceholder('Enter workspace name').fill(name);
+    await save.getByRole('button', { name: 'Save', exact: true }).click();
+    await expect(save).toBeHidden();
+    expect(saved.files[0]).toMatchObject({
+        axisZoomLevel: expected.zoom,
+        zoomAxis: expected.axis,
+    });
+    for (const variant of ['current', 'legacy', 'invalid']) {
+        if (variant === 'legacy') delete saved.files[0].axisZoomLevel;
+        if (variant === 'invalid')
+            saved.files[0].axisZoomLevel = { x: -1, y: 0 };
+        await viewerCanvas.hover();
+        await page.getByTestId('zoom-to-1x-fit-button').click();
+        await carta.selectMenuItem('File', 'Open Workspace');
+        const open = page.getByRole('dialog', {
+            name: 'Open Workspace',
+            exact: true,
+        });
+        await open.getByText(name, { exact: true }).first().click();
+        await open.getByRole('button', { name: 'Open', exact: true }).click();
+        await expect(open).toBeHidden();
+        const zoom =
+            variant === 'current'
+                ? expected.zoom
+                : { x: saved.files[0].zoomLevel, y: saved.files[0].zoomLevel };
+        await expect.poll(state).toEqual({ axis: expected.axis, zoom });
+        await expect
+            .poll(() => axisPixelRgb(page, 8, 8).then((rgb) => rgb[3]))
+            .toBe(255);
+        await settleViewer(viewerCanvas);
+        await snapshotViewer(viewerCanvas, `pv-axis-workspace-${variant}.png`);
+    }
 });

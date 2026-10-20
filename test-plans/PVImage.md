@@ -50,3 +50,7 @@ npm test -- --project=test-group3 tests/PVImage.spec.ts
 ## Coverage additions
 
 Reuse gaussian-emission-line.fits: compare widths 1/5 against the independent peak and five-pixel Gaussian average. Retain and activate each product before sampling; each has 31 channels. Simulate oversized frontend metadata without a large file, reject preview, restore eligibility with XY=3/Z=2, restore actual dimensions and generate a complete finite 64-channel preview. Rectangle preview must use Region 2 and contain complete 128-channel data with a finite center. Inject one backend rejection/disconnect, verify no added output and retry/reconnect; assert five spectral samples and a 1.5 K center pixel. Attach PNGs.
+
+## PR #2853: preview axis zoom
+
+For both axes orders, start a preview and verify the spectral axis is selected. Use the selected-axis zoom-in button, switch the axis selector, and zoom out on the other axis. Move the source line and wait for an actual raster change. Both zoom values and the chosen axis must survive the streamed preview update. Compare the stretched preview PNG with the volatile cursor readout masked, then clip the raster range and assert opaque white RGB at its center.

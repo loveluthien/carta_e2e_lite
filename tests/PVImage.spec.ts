@@ -795,7 +795,8 @@ test.describe('PV Image Generation', () => {
         page.setDefaultTimeout(10_000);
         const effectiveZ = () =>
             page.evaluate(
-                () => (window as any).app.activeFrame.effectiveRestFrameRedshift,
+                () =>
+                    (window as any).app.activeFrame.effectiveRestFrameRedshift,
             );
         await generateButton(page).click();
         await expect(page.getByTestId('image-view-header-title')).toContainText(
@@ -811,7 +812,9 @@ test.describe('PV Image Generation', () => {
             .locator('.image-view-settings')
             .getByRole('tab', { name: 'Conversion' })
             .click();
-        const toggle = page.getByTestId('image-view-settings-rest-frame-toggle');
+        const toggle = page.getByTestId(
+            'image-view-settings-rest-frame-toggle',
+        );
         const modeDropdown = page.getByTestId(
             'image-view-settings-rest-frame-shift-mode-dropdown',
         );
@@ -850,8 +853,7 @@ test.describe('PV Image Generation', () => {
         const expected: Record<string, number> = {
             Radio: 1000 / (c - 1000),
             Optical: 1000 / c,
-            Relativistic:
-                Math.sqrt((1 + 1000 / c) / (1 - 1000 / c)) - 1,
+            Relativistic: Math.sqrt((1 + 1000 / c) / (1 - 1000 / c)) - 1,
         };
         for (const [label, z] of Object.entries(expected)) {
             await convention.selectOption({ label });
@@ -880,6 +882,91 @@ test.describe('PV Preview', () => {
         await createLineAndOpenGenerator(page);
     });
 
+    for (const transposed of [false, true]) {
+        test(`Independent axis zoom survives preview updates (transposed=${transposed})`, async ({
+            page,
+        }) => {
+            if (transposed)
+                await axesOrderSelect(page).selectOption(
+                    'X-axis: Spectral, Y-axis: Spatial',
+                );
+            await previewButton(page).click();
+            const preview = previewWidget(page);
+            await expect(preview).toBeVisible();
+            const state = () =>
+                page.evaluate(() => {
+                    const frame = Array.from(
+                        (window as any).app.previewFrames.values(),
+                    )[0] as any;
+                    return {
+                        axis: frame.zoomAxis,
+                        zoom: { ...frame.effectiveZoomLevel },
+                    };
+                });
+            const spectral = transposed ? 'x' : 'y';
+            await expect.poll(() => state().then((s) => s.axis)).toBe(spectral);
+            const before = await state();
+            await preview.hover();
+            await preview.getByTestId('zoom-in-button').click();
+            const expected = {
+                ...before.zoom,
+                [spectral]: before.zoom[spectral] * 2,
+            };
+            await expect
+                .poll(() => state().then((s) => s.zoom))
+                .toEqual(expected);
+            const other = transposed ? 'y' : 'x';
+            await preview.getByTestId('pv-zoom-axis-button').click();
+            await page.getByTestId(`pv-zoom-axis-${other}`).click();
+            await preview.getByTestId('zoom-out-button').click();
+            expected[other] /= 2;
+            await expect.poll(state).toEqual({ axis: other, zoom: expected });
+            const raster = preview.locator('#raster-canvas');
+            const originalRaster = await raster.evaluate(
+                (c: HTMLCanvasElement) => c.toDataURL(),
+            );
+            // Await a new raster, rather than merely asserting that the source line moved.
+            await moveLineCut(page);
+            await expect
+                .poll(() =>
+                    raster.evaluate((c: HTMLCanvasElement) => c.toDataURL()),
+                )
+                .not.toBe(originalRaster);
+            await expect.poll(state).toEqual({ axis: other, zoom: expected });
+            await page.mouse.move(0, 0);
+            await expect(preview).toHaveScreenshot(
+                `pv-preview-independent-zoom-${transposed}.png`,
+                {
+                    mask: [preview.getByTestId('viewer-cursor-info-bar')],
+                    maskColor: '#f5f8fa',
+                },
+            );
+            await page.evaluate(() => {
+                const frame = Array.from(
+                    (window as any).app.previewFrames.values(),
+                )[0] as any;
+                frame.renderConfig.setColorMap('gray');
+                frame.renderConfig.setCustomScale(-2, -1);
+            });
+            await expect
+                .poll(() =>
+                    raster.evaluate((c: HTMLCanvasElement) =>
+                        Array.from(
+                            c
+                                .getContext('2d')!
+                                .getImageData(
+                                    Math.floor(c.width / 2),
+                                    Math.floor(c.height / 2),
+                                    1,
+                                    1,
+                                ).data,
+                        ),
+                    ),
+                )
+                .toEqual([255, 255, 255, 255]);
+        });
+    }
+
     test('Start, move, close and reopen a PV preview', async ({ page }) => {
         // Start preview
         await previewButton(page).click();
@@ -907,7 +994,8 @@ test.describe('PV Preview', () => {
         await expect(preview).toHaveScreenshot(
             'HD163296_13CO_2-1_subimage_pv_preview_moved.png',
             {
-                style: '[data-testid="viewer-cursor-info-bar"] { visibility: hidden !important; }',
+                mask: [preview.getByTestId('viewer-cursor-info-bar')],
+                maskColor: '#f5f8fa',
             },
         );
 
