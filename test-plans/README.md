@@ -1,6 +1,6 @@
 # CARTA E2E test plans
 
-This directory maps every currently collected Playwright test to its action and expected result. The collector reports **213 cases in 20 spec files**. The Playwright configuration splits Chromium specs into five projects, `test-group1` through `test-group5`. These are plans derived from the current source, not execution results.
+This directory maps every currently collected Playwright test to its action and expected result. The collector reports **225 cases in 20 spec files**. The Playwright configuration splits Chromium specs into five projects, `test-group1` through `test-group5`. These are plans derived from the current source, not execution results.
 
 ## Shared execution plan
 
@@ -39,25 +39,25 @@ Use concise Title Case names for `test.describe()` groups. Write individual test
 | [ChannelMap](./ChannelMap.md)           |     4 | Channel-map empty state, controls, image panels and selection synchronization.                                       |
 | [Contours](./Contours.md)               |     8 | Generators, scaling, Apply/Clear recovery, styling, spatial and spectral matching together, histogram and smoothing. |
 | [CursorInfo](./CursorInfo.md)           |     1 | Cursor values and coordinates across viewer, widget and profilers.                                                   |
-| [Histogram](./Histogram.md)             |     1 | Channel-dependent histogram and pixel-bound validation.                                                              |
+| [Histogram](./Histogram.md)             |     3 | Channel-dependent histogram and pixel-bound validation.                                                              |
 | [ImageFitting](./ImageFitting.md)       |     2 | Fit validation and derived model/residual images.                                                                    |
 | [ImageLayer](./ImageLayer.md)           |     6 | Layer matching, WCS alignment and reordering.                                                                        |
-| [ImageViewer](./ImageViewer.md)         |    21 | Viewer controls, settings, layouts, invalid-input recovery, RGB and matched profiles.                                |
-| [Layout](./Layout.md)                   |     6 | Preset layouts, docking, dynamic layout mappings and context-aware menus.                                            |
-| [LoadingFiles](./LoadingFiles.md)       |     9 | Fixture size, open/append, invalid-file recovery, and FITS/HDF5/CASA metadata and rendering.                         |
+| [ImageViewer](./ImageViewer.md)         |    29 | Viewer controls, settings, layouts, invalid-input recovery, RGB and matched profiles.                                |
+| [Layout](./Layout.md)                   |     7 | Preset layouts, docking, floating window order, dynamic layout mappings and context-aware menus.                     |
+| [LoadingFiles](./LoadingFiles.md)       |    15 | Fixture size, open/append, invalid-file recovery, and FITS/HDF5/CASA metadata and rendering.                         |
 | [MomentMap](./MomentMap.md)             |    41 | Moment generator data, controls, lifecycle and failure recovery.                                                     |
 | [OnlineDataQuery](./OnlineDataQuery.md) |     4 | SIMBAD/VizieR catalog and HiPS image queries, failure/retry, rendered RGB and profile checks.                        |
-| [Profilers](./Profilers.md)             |    13 | Spatial and spectral profiles, formatting, smoothing, matching and viewer connection.                                |
-| [PVImage](./PVImage.md)                 |    22 | PV generator validation, output, preview and cancellation.                                                           |
+| [Profilers](./Profilers.md)             |    27 | Spatial and spectral profiles, formatting, smoothing, matching and viewer connection.                                |
+| [PVImage](./PVImage.md)                 |    25 | PV generator validation, output, preview and cancellation.                                                           |
 | [Regions](./Regions.md)                 |     9 | All regions and annotations, group styling, CRTF/DS9 files, matching, Region List and profiler interactions.         |
 | [Snippets](./Snippets.md)               |     6 | Code Snippets workflows that create or modify image products.                                                        |
 | [Statistics](./Statistics.md)           |     2 | Statistics for regions across images and Stokes planes.                                                              |
-| [Stokes](./Stokes.md)                   |     3 | Stokes cube assembly and analysis widget controls.                                                                   |
+| [Stokes](./Stokes.md)                   |    13 | Stokes cube assembly and analysis widget controls.                                                                   |
 | [VectorOverlay](./VectorOverlay.md)     |     2 | Vector configuration, rendering, invalid sources and clearing.                                                       |
 
 ## Coverage notes
 
-- The 213-case count is collection output, not a passing-test count. Chromium is the only enabled browser in `playwright.config.mjs`.
+- The 225-case count is collection output, not a passing-test count. Chromium is the only enabled browser in `playwright.config.mjs`.
 - Coverage targets selected functional workflows and recovery paths described in the linked plans. It does not establish exhaustive coverage of every CARTA widget or dialog control, and it does not measure performance.
 - Visual checks are targeted: selected viewer and profiler outputs use reviewed PNG snapshots or direct pixel/RGB assertions. Other cases rely on UI state or data assertions, so a snapshot does not imply that every visible property is compared.
 - Three Moment Map cases are annotated with `test.fail()` to track known defects: generation with no selected moments, the rest-frequency reset control remaining enabled, and a missing warning for malformed generated-image acknowledgments. Check the Playwright report to see how those cases behave in a given run.

@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import { LayoutName, PlaywrightDevPage, pixel } from '../utilities';
 
 test.describe.configure({ mode: 'default' });
@@ -271,6 +271,92 @@ test.describe('Layout', () => {
         await expect(
             page.getByTestId('spectral-profiler-0-content'),
         ).toBeVisible();
+    });
+
+    test('Floating widgets and dialogs move to the front when selected', async ({
+        page,
+    }, testInfo) => {
+        const carta = await boot(page);
+        await carta.loadImage('cube.fits');
+        await carta.selectMenuItem('Widgets', 'Statistics Widget');
+        await carta.selectMenuItem('Widgets', 'Histogram Widget');
+        const stats = page.locator('.floating-widget').filter({
+            has: page.getByTestId('stats-0-header-title'),
+        });
+        const histogram = page.locator('.floating-widget').filter({
+            has: page.getByTestId('histogram-0-header-title'),
+        });
+        await expect(stats).toBeVisible();
+        await expect(histogram).toBeVisible();
+
+        const moveTo = async (widget: Locator, x: number, y: number) => {
+            const box = await widget.boundingBox();
+            if (!box) throw new Error('Floating widget is not visible');
+            await page.mouse.move(box.x + 40, box.y + 12);
+            await page.mouse.down();
+            await page.mouse.move(x + 40, y + 12, { steps: 10 });
+            await page.mouse.up();
+        };
+        await moveTo(stats, 650, 280);
+        await moveTo(histogram, 600, 340);
+
+        await openLayout(page);
+        const dialog = page.getByRole('dialog', { name: 'Layout' });
+        await expect(dialog).toBeVisible();
+        await expect
+            .poll(async () => (await dialog.boundingBox())?.width)
+            .toBeGreaterThan(400);
+        const boxes = await Promise.all(
+            [stats, histogram, dialog].map((item) => item.boundingBox()),
+        );
+        if (boxes.some((box) => !box)) {
+            throw new Error('An overlapping window is not visible');
+        }
+        const left = Math.max(...boxes.map((box) => box!.x));
+        const right = Math.min(...boxes.map((box) => box!.x + box!.width));
+        const top = Math.max(...boxes.map((box) => box!.y));
+        const bottom = Math.min(...boxes.map((box) => box!.y + box!.height));
+        expect(right - left).toBeGreaterThan(20);
+        expect(bottom - top).toBeGreaterThan(20);
+        const overlap = { x: (left + right) / 2, y: (top + bottom) / 2 };
+        const isTopAtOverlap = (window: Locator) =>
+            window.evaluate(
+                (element, point) =>
+                    element.contains(
+                        document.elementFromPoint(point.x, point.y),
+                    ),
+                overlap,
+            );
+
+        expect(await isTopAtOverlap(dialog)).toBe(true);
+        await page.mouse.click(boxes[0]!.x + 10, boxes[0]!.y + 12);
+        await expect.poll(() => isTopAtOverlap(stats)).toBe(true);
+        await page.mouse.click(boxes[1]!.x + 10, boxes[1]!.y + 12);
+        await expect.poll(() => isTopAtOverlap(histogram)).toBe(true);
+        await page.mouse.click(
+            boxes[2]!.x + 20,
+            boxes[2]!.y + boxes[2]!.height - 20,
+        );
+        await expect.poll(() => isTopAtOverlap(dialog)).toBe(true);
+        await testInfo.attach('floating-window-order.png', {
+            body: await page.screenshot(),
+            contentType: 'image/png',
+        });
+
+        await page.getByTestId('layout-dialog-header-close-button').click();
+        await expect.poll(() => isTopAtOverlap(histogram)).toBe(true);
+        await histogram.getByTestId('histogram-0-header-close-button').click();
+        await expect.poll(() => isTopAtOverlap(stats)).toBe(true);
+        expect(await pixel(page, 8, 8)).toBeCloseTo(1.5);
+        const rgb = await rasterRgb(page);
+        for (const [channel, min, max] of [
+            [0, 235, 250],
+            [1, 210, 235],
+            [2, 65, 105],
+        ]) {
+            expect(rgb[channel]).toBeGreaterThanOrEqual(min);
+            expect(rgb[channel]).toBeLessThanOrEqual(max);
+        }
     });
 
     test('Saved layout validates names and can be applied, renamed, and deleted', async ({
