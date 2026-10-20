@@ -3029,3 +3029,347 @@ test('Independent axis zoom: PNG export and workspace round trip', async ({
         await snapshotViewer(viewerCanvas, `pv-axis-workspace-${variant}.png`);
     }
 });
+
+test('WCS format round trip preserves numeric position and raster', async ({
+    page,
+    carta,
+    viewerCanvas,
+}) => {
+    await carta.loadImage('cube.fits');
+    await useSinglePanel(page);
+    await page.getByTestId('image-view-header-settings-button').click();
+    const pan = page.locator('.panel-pan-and-zoom');
+    await pan
+        .getByRole('radiogroup')
+        .getByText('Image', { exact: true })
+        .click();
+    for (const name of ['X Coordinate', 'Y Coordinate']) {
+        const input = pan.getByRole('spinbutton', { name, exact: true });
+        await input.fill('8');
+        await input.press('Enter');
+    }
+    await pan
+        .getByRole('radiogroup')
+        .getByText('World', { exact: true })
+        .click();
+    const geometry = () =>
+        page.evaluate(() => {
+            const frame = (window as any).app.activeFrame;
+            return {
+                center: { ...frame.center },
+                zoom: { ...frame.effectiveZoomLevel },
+            };
+        });
+    const original = await geometry();
+    const x = pan.getByRole('textbox', {
+        name: 'X WCS coordinate',
+        exact: true,
+    });
+    const y = pan.getByRole('textbox', {
+        name: 'Y WCS coordinate',
+        exact: true,
+    });
+    const numbers = page.getByRole('tabpanel', {
+        name: 'Numbers',
+        exact: true,
+    });
+    await page.getByRole('tab', { name: 'Numbers', exact: true }).click();
+    await settingsField(numbers, /^Custom format$/)
+        .getByRole('checkbox')
+        .check({ force: true });
+    // Independent SIN projection of pixel (8,8) from cube.fits header:
+    // CRPIX=(8,8), CRVAL=(180,-30), CDELT=(-0.001,0.001) degrees.
+    const expected = { x: 179.99884531109683, y: -29.998999994961665 };
+    let initialSexagesimal: string[];
+    const degrees = (value: string, hours: boolean) => {
+        const [whole, minutes, seconds] = value
+            .replace(/^[+-]/, '')
+            .split(':')
+            .map(Number);
+        return (
+            (value.startsWith('-') ? -1 : 1) *
+            (whole + minutes / 60 + seconds / 3600) *
+            (hours ? 15 : 1)
+        );
+    };
+    const visitReferencePixel = async (decimal: boolean) => {
+        await x.fill(decimal ? '180' : '12:00:00');
+        await x.press('Enter');
+        await y.fill(decimal ? '-30' : '-30:00:00');
+        await y.press('Enter');
+        await expect
+            .poll(() => geometry().then((value) => value.center.x))
+            .toBeCloseTo(7, 5);
+        await expect
+            .poll(() => geometry().then((value) => value.center.y))
+            .toBeCloseTo(7, 5);
+    };
+    for (const format of ['sexagesimal', 'degrees', 'restored'] as const) {
+        await page.getByRole('tab', { name: 'Numbers', exact: true }).click();
+        await settingsField(numbers, /^Format \(X\)$/)
+            .getByRole('combobox')
+            .selectOption(format === 'degrees' ? 'd' : 'hms');
+        await settingsField(numbers, /^Format \(Y\)$/)
+            .getByRole('combobox')
+            .selectOption(format === 'degrees' ? 'd' : 'dms');
+        await page
+            .getByRole('tab', { name: 'Pan and Zoom', exact: true })
+            .click();
+        if (format === 'degrees') {
+            await expect
+                .poll(() => x.inputValue().then(Number))
+                .toBeCloseTo(expected.x, 7);
+            await expect
+                .poll(() => y.inputValue().then(Number))
+                .toBeCloseTo(expected.y, 7);
+            // Submit equivalent world coordinates through the actual input path.
+            await visitReferencePixel(true);
+            await x.fill(String(expected.x));
+            await x.press('Enter');
+            await y.fill(String(expected.y));
+            await y.press('Enter');
+        } else {
+            await expect(x).toHaveValue(/^\d+:\d+:\d+(?:\.\d+)?$/);
+            await expect(y).toHaveValue(/^-\d+:\d+:\d+(?:\.\d+)?$/);
+            const values = [await x.inputValue(), await y.inputValue()];
+            expect(degrees(values[0], true)).toBeCloseTo(expected.x, 7);
+            expect(degrees(values[1], false)).toBeCloseTo(expected.y, 7);
+            if (format === 'sexagesimal') initialSexagesimal = values;
+            else
+                for (const index of [0, 1])
+                    expect(degrees(values[index], index === 0)).toBeCloseTo(
+                        degrees(initialSexagesimal![index], index === 0),
+                        9,
+                    );
+            await visitReferencePixel(false);
+            await x.fill(values[0]);
+            await x.press('Enter');
+            await y.fill(values[1]);
+            await y.press('Enter');
+        }
+        const validX = await x.inputValue();
+        await x.fill(format === 'degrees' ? 'invalid' : '12:xx:00');
+        await x.press('Tab');
+        if (format === 'degrees')
+            await expect
+                .poll(() => x.inputValue().then(Number))
+                .toBeCloseTo(expected.x, 7);
+        else
+            await expect
+                .poll(() =>
+                    x.inputValue().then((value) => degrees(value, true)),
+                )
+                .toBeCloseTo(degrees(validX, true), 9);
+        const after = await geometry();
+        expect(after.center.x).toBeCloseTo(original.center.x, 5);
+        expect(after.center.y).toBeCloseTo(original.center.y, 5);
+        expect(after.zoom).toEqual(original.zoom);
+        await page.evaluate(() => {
+            const config = (window as any).app.activeFrame.renderConfig;
+            config.setColorMap('gray');
+            config.setScaling(0);
+            config.setCustomScale(-2, -1);
+        });
+        await expect
+            .poll(() => axisPixelRgb(page, 8, 8))
+            .toEqual([255, 255, 255, 255]);
+        await page.evaluate(() =>
+            (window as any).app.activeFrame.renderConfig.setCustomScale(0, 2),
+        );
+        await carta.closeWidget('image-view-floating-settings');
+        expect(await pixel(page, 8, 8)).toBeCloseTo(1.5, 5);
+        const cursor = await page.evaluate(
+            () => (window as any).app.activeFrame.cursorInfo.infoWCS,
+        );
+        for (const axis of ['x', 'y'] as const) {
+            const value =
+                format === 'degrees'
+                    ? Number(cursor[axis])
+                    : degrees(cursor[axis], axis === 'x');
+            expect(value).toBeCloseTo(expected[axis], 3);
+            await expect(
+                page.getByTestId('viewer-cursor-info-bar'),
+            ).toContainText(cursor[axis]);
+        }
+        await expect(page.getByTestId('viewer-cursor-info-bar')).toContainText(
+            '1.5 K',
+        );
+        await settleViewer(viewerCanvas);
+        await snapshotViewer(viewerCanvas, `wcs-format-${format}.png`);
+        await page.getByTestId('image-view-header-settings-button').click();
+    }
+});
+
+test('WCS system round trip matches reference coordinates without moving the image', async ({
+    page,
+    carta,
+    viewerCanvas,
+}) => {
+    await carta.loadImage('cube.fits');
+    await useSinglePanel(page);
+    await page.getByTestId('image-view-header-settings-button').click();
+    const pan = page.locator('.panel-pan-and-zoom');
+    await pan
+        .getByRole('radiogroup')
+        .getByText('Image', { exact: true })
+        .click();
+    for (const name of ['X Coordinate', 'Y Coordinate']) {
+        const input = pan.getByRole('spinbutton', { name, exact: true });
+        await input.fill('7');
+        await input.press('Enter');
+    }
+    await pan
+        .getByRole('radiogroup')
+        .getByText('World', { exact: true })
+        .click();
+    const numbers = page.getByRole('tabpanel', {
+        name: 'Numbers',
+        exact: true,
+    });
+    await page.getByRole('tab', { name: 'Numbers', exact: true }).click();
+    await settingsField(numbers, /^Custom format$/)
+        .getByRole('checkbox')
+        .check({ force: true });
+    for (const axis of ['X', 'Y'])
+        await settingsField(numbers, new RegExp(`^Format \\(${axis}\\)$`))
+            .getByRole('combobox')
+            .selectOption('d');
+    await page.getByRole('tab', { name: 'Pan and Zoom', exact: true }).click();
+    const state = () =>
+        page.evaluate(() => {
+            const f = (window as any).app.activeFrame;
+            return {
+                center: { ...f.center },
+                zoom: { ...f.effectiveZoomLevel },
+            };
+        });
+    const original = await state();
+    await page.evaluate(() => {
+        const c = (window as any).app.activeFrame.renderConfig;
+        c.setColorMap('gray');
+        c.setScaling(0);
+        c.setCustomScale(-2, -1);
+    });
+    await expect
+        .poll(() => axisPixelRgb(page, 7, 7))
+        .toEqual([255, 255, 255, 255]);
+    await page.evaluate(() =>
+        (window as any).app.activeFrame.renderConfig.setCustomScale(0, 2),
+    );
+    const raster = page.locator('#raster-canvas').first();
+    await expect
+        .poll(() => axisPixelRgb(page, 7, 7).then((p) => p[0]))
+        .toBeLessThan(255);
+    const originalRaster = await raster.evaluate((c: HTMLCanvasElement) =>
+        c.toDataURL(),
+    );
+    // Reference pixel (7,7) is RA=180, Dec=-30 degrees. Galactic reference
+    // uses the standard J2000 rotation matrix; ecliptic uses J2000 obliquity.
+    for (const [system, longitude, latitude] of [
+        ['FK5', 180, -30],
+        ['GALACTIC', 289.8581117798859, 31.562547013751264],
+        ['ECLIPTIC', 192.93408433302122, -27.305898332084137],
+        ['FK5', 180, -30],
+    ] as const) {
+        await pan.getByRole('combobox').selectOption(system);
+        await expect
+            .poll(() =>
+                pan
+                    .getByRole('textbox', {
+                        name: 'X WCS coordinate',
+                        exact: true,
+                    })
+                    .inputValue()
+                    .then(Number),
+            )
+            .toBeCloseTo(longitude, 3);
+        await expect
+            .poll(() =>
+                pan
+                    .getByRole('textbox', {
+                        name: 'Y WCS coordinate',
+                        exact: true,
+                    })
+                    .inputValue()
+                    .then(Number),
+            )
+            .toBeCloseTo(latitude, 3);
+        await expect.poll(state).toEqual(original);
+        await expect
+            .poll(() =>
+                raster.evaluate((c: HTMLCanvasElement) => c.toDataURL()),
+            )
+            .toBe(originalRaster);
+        await carta.closeWidget('image-view-floating-settings');
+        expect(await pixel(page, 7, 7)).toBeCloseTo(1.4375, 5);
+        await expect(page.getByTestId('viewer-cursor-info-bar')).toContainText(
+            '1.4375 K',
+        );
+        await settleViewer(viewerCanvas);
+        await snapshotViewer(
+            viewerCanvas,
+            `wcs-system-${system.toLowerCase()}.png`,
+        );
+        await page.getByTestId('image-view-header-settings-button').click();
+    }
+});
+
+for (const kind of ['pv', 'swapped'] as const) {
+    test(`WCS coordinates survive unequal ${kind} zoom and unavailable format controls`, async ({
+        page,
+        carta,
+        viewerCanvas,
+    }) => {
+        await carta.loadImage(`wcs-${kind}-clean.fits`);
+        await useSinglePanel(page);
+        const point = { x: kind === 'pv' ? 8 : 2, y: 8 };
+        const world = () =>
+            page.evaluate((point) => {
+                const info = (window as any).app.activeFrame.getCursorInfo(
+                    point,
+                );
+                return { position: info.posWCS, formatted: info.infoWCS };
+            }, point);
+        const original = await world();
+        expect(Number.isFinite(original.position.x)).toBe(true);
+        expect(Number.isFinite(original.position.y)).toBe(true);
+        await viewerCanvas.hover();
+        await page.getByTestId('zoom-in-button').click();
+        const zoom = await page.evaluate(() => ({
+            ...(window as any).app.activeFrame.effectiveZoomLevel,
+        }));
+        expect(zoom.x).not.toBe(zoom.y);
+        await expect.poll(world).toEqual(original);
+        await page.getByTestId('image-view-header-settings-button').click();
+        await page.getByRole('tab', { name: 'Numbers', exact: true }).click();
+        const numbers = page.getByRole('tabpanel', {
+            name: 'Numbers',
+            exact: true,
+        });
+        await expect(
+            settingsField(numbers, /^Custom format$/).getByRole('checkbox'),
+        ).toBeDisabled();
+        await expect(
+            settingsField(numbers, /^Custom precision$/).getByRole('checkbox'),
+        ).toBeDisabled();
+        await carta.closeWidget('image-view-floating-settings');
+        await expect.poll(world).toEqual(original);
+        expect(await pixel(page, point.x, point.y)).toBeCloseTo(
+            kind === 'pv' ? 1.5 : 1.125,
+            5,
+        );
+        await page.evaluate(() => {
+            const config = (window as any).app.activeFrame.renderConfig;
+            config.setColorMap('gray');
+            config.setCustomScale(-2, -1);
+        });
+        await expect
+            .poll(() => axisPixelRgb(page, point.x, point.y))
+            .toEqual([255, 255, 255, 255]);
+        await page.evaluate(() =>
+            (window as any).app.activeFrame.renderConfig.setCustomScale(0, 2),
+        );
+        await settleViewer(viewerCanvas);
+        await snapshotViewer(viewerCanvas, `wcs-${kind}-unequal-zoom.png`);
+    });
+}
