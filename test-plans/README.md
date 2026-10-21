@@ -1,6 +1,6 @@
 # CARTA E2E test plans
 
-This directory maps every currently collected Playwright test to its action and expected result. The collector reports **225 cases in 20 spec files**. The Playwright configuration splits Chromium specs into five projects, `test-group1` through `test-group5`. These are plans derived from the current source, not execution results.
+This directory maps every currently collected Playwright test to its action and expected result. The collector reports **243 cases in 21 spec files**. The Playwright configuration splits Chromium specs into five projects, `test-group1` through `test-group5`. These are plans derived from the current source, not execution results.
 
 ## Shared execution plan
 
@@ -47,6 +47,7 @@ Use concise Title Case names for `test.describe()` groups. Write individual test
 | [LoadingFiles](./LoadingFiles.md)       |    15 | Fixture size, open/append, invalid-file recovery, and FITS/HDF5/CASA metadata and rendering.                         |
 | [MomentMap](./MomentMap.md)             |    41 | Moment generator data, controls, lifecycle and failure recovery.                                                     |
 | [OnlineDataQuery](./OnlineDataQuery.md) |     4 | SIMBAD/VizieR catalog and HiPS image queries, failure/retry, rendered RGB and profile checks.                        |
+| [Preferences](./Preferences.md)         |    18 | All preference tabs, resets, reloads, inherited defaults, RGB/PNG checks, validation, and save failure recovery.     |
 | [Profilers](./Profilers.md)             |    27 | Spatial and spectral profiles, formatting, smoothing, matching and viewer connection.                                |
 | [PVImage](./PVImage.md)                 |    25 | PV generator validation, output, preview and cancellation.                                                           |
 | [Regions](./Regions.md)                 |     9 | All regions and annotations, group styling, CRTF/DS9 files, matching, Region List and profiler interactions.         |
@@ -57,11 +58,12 @@ Use concise Title Case names for `test.describe()` groups. Write individual test
 
 ## Coverage notes
 
-- The 225-case count is collection output, not a passing-test count. Chromium is the only enabled browser in `playwright.config.mjs`.
+- The 243-case count is collection output, not a passing-test count. Chromium is the only enabled browser in `playwright.config.mjs`.
 - Coverage targets selected functional workflows and recovery paths described in the linked plans. It does not establish exhaustive coverage of every CARTA widget or dialog control, and it does not measure performance.
 - Visual checks are targeted: selected viewer and profiler outputs use reviewed PNG snapshots or direct pixel/RGB assertions. Other cases rely on UI state or data assertions, so a snapshot does not imply that every visible property is compared.
 - Three Moment Map cases are annotated with `test.fail()` to track known defects: generation with no selected moments, the rest-frequency reset control remaining enabled, and a missing warning for malformed generated-image acknowledgments. Check the Playwright report to see how those cases behave in a given run.
 - The Regions spec has one executed expected failure for text annotations appearing in the spectral profiler region menu despite the backend rejecting annotations as data regions.
+- Preferences has one executed expected failure for the PV preview limit changing from 750 MB to 2 GB when switching units back to GB. Preference persistence in that spec uses a per-page mock database; image and catalog operations use the real backend.
 - Each plan records the checks present in the current spec; neither the plans nor test collection indicate that a suite has passed.
 
 ## Frontend unit-test boundary

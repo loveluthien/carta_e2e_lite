@@ -45,7 +45,11 @@ const testGroups = [
     },
     {
         name: 'test-group5',
-        testMatch: ['**/ChannelMap.spec.ts', '**/Profilers.spec.ts'],
+        testMatch: [
+            '**/ChannelMap.spec.ts',
+            '**/Profilers.spec.ts',
+            '**/Preferences.spec.ts',
+        ],
     },
 ];
 const defaultWorkers = Number(process.env.workers ?? 6);
