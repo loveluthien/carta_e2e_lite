@@ -36,7 +36,7 @@ const testGroups = [
             '**/Snippets.spec.ts',
             '**/Statistics.spec.ts',
             '**/Stokes.spec.ts',
-            'VectorOverlay.spec.ts',
+            '**/VectorOverlay.spec.ts',
         ],
     },
     {
