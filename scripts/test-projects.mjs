@@ -47,6 +47,7 @@ const testGroups = [
         name: 'test-group5',
         testMatch: [
             '**/ChannelMap.spec.ts',
+            '**/BackendConnection.spec.ts',
             '**/Profilers.spec.ts',
             '**/Preferences.spec.ts',
         ],
