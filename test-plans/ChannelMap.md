@@ -8,6 +8,7 @@ Channel-map empty state, navigation and bounds, rendered panels and labels, spec
 
 - Run each Playwright case in a fresh page against the configured CARTA server. Use the deterministic 5-channel `cube.fits` and one-channel `single.fits` fixtures.
 - Check widget and image-viewer state as well as rendered labels, raster RGB values, and profile data. Compare viewer and profiler PNGs with reviewed baselines.
+- After each navigation or grid-resize step, wait for the selected and requested frame channels to agree on a visible channel and for its rendering histogram to match. Panel labels can update before the debounced channel selection and backend histogram. The final single-panel grid must settle on channel 0 before taking the navigation PNG.
 - Exercise the four navigation buttons, slider, numeric inputs and steppers, label and unit switches, font and color controls, image selector, and viewer mode button. Check rejected start-channel input and recovery.
 - The table describes intended outcomes; it does not claim the full suite has passed.
 

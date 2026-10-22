@@ -16,6 +16,23 @@ async function setNumber(input: Locator, value: number) {
     await input.press('Tab');
 }
 
+async function expectChannels(page: Page, channels: number[]) {
+    await expect(labels(page)).toHaveText(channels.map(String));
+    // Channel selection is debounced; labels alone can precede the histogram.
+    await expect
+        .poll(() =>
+            page.evaluate((channels) => {
+                const frame = (window as any).app.activeFrame;
+                return (
+                    channels.includes(frame.channel) &&
+                    frame.requiredChannel === frame.channel &&
+                    frame.renderConfig.histChannel === frame.channel
+                );
+            }, channels),
+        )
+        .toBe(true);
+}
+
 async function toggle(page: Page, label: string) {
     await field(page, label).locator('.bp6-control-indicator').first().click();
 }
@@ -62,11 +79,11 @@ test.describe('Channel Map Widget', () => {
         await expect(columns).toHaveValue('2');
         await expect(rows).toHaveValue('2');
         await setNumber(rows, 1);
-        await expect(labels(page)).toHaveText(['0', '1']);
+        await expectChannels(page, [0, 1]);
         await spinButtons(page, 'Number of rows').first().click();
-        await expect(labels(page)).toHaveText(['0', '1', '2', '3']);
+        await expectChannels(page, [0, 1, 2, 3]);
         await spinButtons(page, 'Number of rows').last().click();
-        await expect(labels(page)).toHaveText(['0', '1']);
+        await expectChannels(page, [0, 1]);
 
         const buttons = widget(page).locator(
             '.channel-map-channel-control-buttons button',
@@ -77,39 +94,39 @@ test.describe('Channel Map Widget', () => {
         await buttons.nth(1).click(); // previous channel at the lower bound
         await expect(startChannel(page)).toHaveValue('0');
         await buttons.nth(2).click();
-        await expect(labels(page)).toHaveText(['1', '2']);
+        await expectChannels(page, [1, 2]);
         await buttons.nth(3).click();
-        await expect(labels(page)).toHaveText(['3', '4']);
+        await expectChannels(page, [3, 4]);
         await buttons.nth(2).click();
-        await expect(labels(page)).toHaveText(['4']);
+        await expectChannels(page, [4]);
         await buttons.nth(3).click(); // no channel beyond the cube
         await expect(startChannel(page)).toHaveValue('4');
         await buttons.nth(1).click();
         await buttons.nth(0).click();
-        await expect(labels(page)).toHaveText(['1', '2']);
+        await expectChannels(page, [1, 2]);
 
         await setNumber(startChannel(page), 99);
-        await expect(labels(page)).toHaveText(['1', '2']);
+        await expectChannels(page, [1, 2]);
         await setNumber(startChannel(page), 0);
         await spinButtons(page, 'Start channel').first().click();
-        await expect(labels(page)).toHaveText(['1', '2']);
+        await expectChannels(page, [1, 2]);
         await spinButtons(page, 'Start channel').last().click();
-        await expect(labels(page)).toHaveText(['0', '1']);
+        await expectChannels(page, [0, 1]);
         const slider = field(page, 'Start channel').getByRole('slider');
         await slider.focus();
         await slider.press('Home');
         await slider.press('ArrowRight');
         await slider.press('ArrowRight');
-        await expect(labels(page)).toHaveText(['2', '3']);
+        await expectChannels(page, [2, 3]);
         await slider.press('ArrowLeft');
         await slider.press('ArrowLeft');
         await expect(startChannel(page)).toHaveValue('0');
         await setNumber(columns, 1);
-        await expect(labels(page)).toHaveText(['0']);
+        await expectChannels(page, [0]);
         await spinButtons(page, 'Number of columns').first().click();
-        await expect(labels(page)).toHaveText(['0', '1']);
+        await expectChannels(page, [0, 1]);
         await spinButtons(page, 'Number of columns').last().click();
-        await expect(labels(page)).toHaveText(['0']);
+        await expectChannels(page, [0]);
         await carta.closeWidget('channel-map-control');
         await page.mouse.move(0, 0);
         await expect(page.getByTestId('viewer-div')).toHaveScreenshot(
