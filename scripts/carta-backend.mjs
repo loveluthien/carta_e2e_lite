@@ -24,6 +24,7 @@ if (!backendDirectory || !frontendDirectory) {
 
 const cartaUrl = `http://localhost:${cartaPort}`;
 const backendExecutable = path.join(backendDirectory, 'carta_backend');
+const backendLogPath = path.join(projectRoot, 'backend.log');
 const backendArguments = [
     fixtureDirectory,
     '--top_level_folder',
@@ -39,7 +40,7 @@ const backendArguments = [
 ];
 const quote = (value) => `'${value.replaceAll("'", "'\\''")}'`;
 const cartaBackendServer = {
-    command: [backendExecutable, ...backendArguments].map(quote).join(' '),
+    command: `${[backendExecutable, ...backendArguments].map(quote).join(' ')} > ${quote(backendLogPath)} 2>&1`,
     url: `${cartaUrl}/`,
     reuseExistingServer: true,
     stdout: 'pipe',
@@ -49,6 +50,7 @@ const cartaBackendServer = {
 export {
     backendArguments,
     backendExecutable,
+    backendLogPath,
     cartaBackendServer,
     cartaPort,
     cartaUrl,

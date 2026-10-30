@@ -1,5 +1,5 @@
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, rmSync } from 'node:fs';
+import { closeSync, existsSync, openSync, rmSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { mkdir, rm } from 'node:fs/promises';
 import path from 'node:path';
@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import {
     backendArguments,
     backendExecutable,
+    backendLogPath,
     cartaUrl,
 } from './carta-backend.mjs';
 import { defaultWorkers, projectNames } from './test-projects.mjs';
@@ -155,11 +156,17 @@ async function startBackendIfNeeded() {
         return;
     }
 
-    backendProcess = spawn(backendExecutable, backendArguments, {
-        cwd: projectRoot,
-        env: process.env,
-        stdio: 'inherit',
-    });
+    const logFile = openSync(backendLogPath, 'w');
+    try {
+        backendProcess = spawn(backendExecutable, backendArguments, {
+            cwd: projectRoot,
+            env: process.env,
+            stdio: ['ignore', logFile, logFile],
+        });
+    } finally {
+        closeSync(logFile);
+    }
+    console.log(`[projects] Backend log: ${backendLogPath}`);
     ownsBackend = true;
     let spawnError;
     backendProcess.once('error', (error) => {
@@ -169,19 +176,24 @@ async function startBackendIfNeeded() {
     const deadline = Date.now() + 90_000;
     while (Date.now() < deadline) {
         if (spawnError) {
-            throw new Error('Failed to start CARTA backend', {
-                cause: spawnError,
-            });
+            throw new Error(
+                `Failed to start CARTA backend; see ${backendLogPath}`,
+                {
+                    cause: spawnError,
+                },
+            );
         }
         if (backendProcess.exitCode !== null) {
             throw new Error(
-                `CARTA backend exited with code ${backendProcess.exitCode}`,
+                `CARTA backend exited with code ${backendProcess.exitCode}; see ${backendLogPath}`,
             );
         }
         if (await backendIsReady()) return;
         await delay(500);
     }
-    throw new Error(`CARTA backend did not start at ${cartaUrl} within 90s`);
+    throw new Error(
+        `CARTA backend did not start at ${cartaUrl} within 90s; see ${backendLogPath}`,
+    );
 }
 
 async function stopBackend() {

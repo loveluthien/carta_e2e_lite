@@ -34,4 +34,8 @@ Each group has a report under `playwright-report/`. The runner also merges the r
 npm run report
 ```
 
+Browser console messages and uncaught page errors go to `page.log` in each test's output directory under `test-results/`, with timestamps and message types. The log is also attached to the test report; page logs are not printed to the terminal.
+
+Backend stdout and stderr go to `backend.log` in the project root instead of the terminal. Both `npm test` and direct Playwright runs replace this ignored file when they start a backend. Reusing an already running backend leaves its output and the existing log unchanged.
+
 See [`test-plans/README.md`](test-plans/README.md) for test coverage and detailed test plans.

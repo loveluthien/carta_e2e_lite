@@ -24,6 +24,10 @@ npm run report
 
 Failed project runs make `npm test` exit with an error. Review the failed project's report for details.
 
+Browser console messages and uncaught page errors are written to each test's `page.log` and attached to its report, instead of being printed in the terminal. Repeated `goto()` calls on the same page keep one logger and append to the same file.
+
+When the runner or Playwright starts CARTA, backend stdout/stderr are redirected to the ignored project-root `backend.log`. Each backend launch replaces that file; reusing an existing server does not redirect its output. Backend startup errors point to the log for diagnostics.
+
 The project reports are merged into `playwright-report/combined/`. Use `npm run report` to open the combined report; focused runs include the selected projects. Direct `npx playwright test` runs all five projects in parallel and produces one combined report.
 
 ## Test title style

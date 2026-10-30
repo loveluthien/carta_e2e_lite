@@ -1,7 +1,9 @@
-import { expect, type Locator, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
+import { appendFileSync, writeFileSync } from 'node:fs';
 import dotenv from 'dotenv';
 import path from 'path';
 dotenv.config({ path: path.resolve(__dirname, '.env') });
+const loggedPages = new WeakSet<Page>();
 
 export interface FrameSnapshot {
     id: number;
@@ -621,12 +623,26 @@ export class PlaywrightDevPage {
             'Cube Analysis',
             'Continuum Analysis',
         ][layout];
-        this.page.on('console', (msg) =>
-            console.log('PAGE LOG:', msg.type(), msg.text()),
-        );
-        this.page.on('pageerror', (err) =>
-            console.log('PAGE ERROR:', err.message),
-        );
+        if (!loggedPages.has(this.page)) {
+            const info = test.info();
+            const logPath = info.outputPath('page.log');
+            writeFileSync(logPath, '', { flag: 'a' });
+            info.attachments.push({
+                name: 'page.log',
+                path: logPath,
+                contentType: 'text/plain',
+            });
+            const log = (type: string, message: string) =>
+                appendFileSync(
+                    logPath,
+                    `${new Date().toISOString()} [${type}] ${message}\n`,
+                );
+            this.page.on('console', (msg) => log(msg.type(), msg.text()));
+            this.page.on('pageerror', (err) =>
+                log('pageerror', err.stack ?? err.message),
+            );
+            loggedPages.add(this.page);
+        }
         // Isolate startup from other tests' saved settings; reloads still test persistence.
         await this.page.route(
             '**/database/preferences',
