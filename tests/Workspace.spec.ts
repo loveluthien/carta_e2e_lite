@@ -591,14 +591,50 @@ test('Workspace restores changed contour settings and their rendered overlay', a
             (window as any).app.activeFrame.setChannel(24),
         );
         await page.getByTestId('contour-dialog-button').click();
-        const input = contourDialog(page)
-            .getByTestId('contour-config-level-input-form')
-            .locator('input');
-        for (const value of ['0.04', '0.1']) {
-            await input.fill(value);
-            await input.press('Enter');
-        }
         const dialog = contourDialog(page);
+        const levelsTab = dialog.getByRole('tab', {
+            name: 'Levels',
+            exact: true,
+        });
+        const levelsPanel = dialog.getByRole('tabpanel', {
+            name: 'Levels',
+            exact: true,
+        });
+        const generator = levelsPanel.getByRole('button', {
+            name: 'min-max-scaling',
+            exact: true,
+        });
+        const parameter = (name: string) =>
+            levelsPanel
+                .getByText(name, { exact: true })
+                .locator('..')
+                .getByRole('spinbutton');
+        const parameters = [
+            ['Min', 0.04],
+            ['Max', 0.1],
+            ['N', 4],
+        ] as const;
+        const generatedLevels = [0.04, 0.06, 0.08, 0.1];
+
+        await levelsPanel
+            .getByRole('button', { name: 'start-step-multiplier', exact: true })
+            .click();
+        await page
+            .getByRole('menuitem', { name: 'min-max-scaling', exact: true })
+            .click();
+        for (const [name, value] of parameters) {
+            const input = parameter(name);
+            await input.click();
+            await input.press('ControlOrMeta+A');
+            await input.pressSequentially(String(value));
+            await input.press('Tab');
+            await expect
+                .poll(async () => Number(await input.inputValue()))
+                .toBe(value);
+        }
+        await levelsPanel
+            .getByRole('button', { name: 'Generate', exact: true })
+            .click();
         const configuration = dialog.getByRole('tabpanel', {
             name: 'Configuration',
         });
@@ -638,7 +674,9 @@ test('Workspace restores changed contour settings and their rendered overlay', a
                     page.evaluate(() => {
                         const frame = (window as any).app.activeFrame;
                         return {
-                            levels: [...frame.contourConfig.levels],
+                            levels: frame.contourConfig.levels.map(
+                                (level: number) => Number(level.toFixed(8)),
+                            ),
                             progress: frame.contourProgress,
                             enabled: frame.contourConfig.isEnabled,
                             smoothingMode: frame.contourConfig.smoothingMode,
@@ -648,12 +686,31 @@ test('Workspace restores changed contour settings and their rendered overlay', a
                     }),
                 )
                 .toEqual({
-                    levels: [0.04, 0.1],
+                    levels: generatedLevels,
                     progress: 1,
                     enabled: true,
                     smoothingMode: 1,
                     smoothingFactor: 3,
                 });
+            await levelsTab.click();
+            const restored = expect.configure({ soft: true });
+            await restored(generator).toBeVisible();
+            if (await generator.isVisible()) {
+                for (const [name, value] of parameters) {
+                    await restored
+                        .poll(
+                            async () =>
+                                Number(await parameter(name).inputValue()),
+                            {
+                                message: `Contour generator parameter ${name}`,
+                            },
+                        )
+                        .toBe(value);
+                }
+            }
+            await dialog
+                .getByRole('tab', { name: 'Configuration', exact: true })
+                .click();
             await expect
                 .poll(() => overlayHasInk(contourCanvas(page), [255, 255, 255]))
                 .toBe(true);
