@@ -50,6 +50,13 @@ npm test -- --project=test-group2 tests/ImageViewer.spec.ts
 
 Merged header paging/help/restore/popout into the layout/navigation case. Retain existing PNG checks, exit channel-map mode, use one panel, compare parent/popout RGB and attach the popup PNG.
 
+## SVG and PDF export
+
+- Load the lightweight `iquv.fits` fixture with a grayscale raster, solid red rectangle, green 1.3 K contour and magenta polarization vectors. Select SVG in Render Configuration preferences and download PNG and SVG at 200% from the viewer toolbar. Verify the timestamped filenames, matching dimensions after rounding the SVG viewport down, and SVG rectangle, contour path and vector line elements.
+- Rasterize the downloaded SVG in Chromium and compare the raster interior against the downloaded PNG. Require RGB agreement within 5 levels per channel for over 98% of the interior. Each overlay must have over 500 shared pixels within 35 levels per channel of its assigned color and over 85% overlap of those pixels across the two formats.
+- Check that File → Export Image is disabled with an empty viewer. Load the same overlay scene and download a PDF at 200%. Verify the timestamped filename, a single page at the expected dimensions, the embedded raster dimensions and stroked vector paths in the contour and polarization overlay colors.
+- Keep the downloaded files and viewer PNGs in the Playwright test output.
+
 ## PR #2853: independent axis zoom
 
 | Case                               | Interaction                                                                                                                                                 | Expected rendered result                                                                                                                                                                                                                                                                                                                                                       |

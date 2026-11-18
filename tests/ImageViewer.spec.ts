@@ -4,6 +4,7 @@ import {
     expect,
     type Locator,
     type Page,
+    type TestInfo,
 } from '@playwright/test';
 import { PlaywrightDevPage, pixel } from '../utilities';
 
@@ -93,6 +94,87 @@ async function useSinglePanel(page: Page) {
     });
 }
 
+async function downloadViewerImage(
+    page: Page,
+    resolution: string,
+    format: 'PNG' | 'SVG' | 'PDF',
+) {
+    const radio = page.getByRole('radio', { name: resolution, exact: true });
+    await radio.locator('..').click();
+    await expect(radio).toBeChecked();
+    const [download] = await Promise.all([
+        page.waitForEvent('download'),
+        page.getByRole('button', { name: format, exact: true }).click(),
+    ]);
+    await page.mouse.click(0, 0);
+    await expect(
+        page.getByRole('heading', { name: 'Resolution' }),
+    ).toBeHidden();
+    return download;
+}
+
+const exportLayers = {
+    region: { rgb: [255, 0, 0], svg: 'g[id*="-regions-"] rect' },
+    contour: { rgb: [0, 255, 0], svg: 'g[id*="-contours-"] path[d]' },
+    vector: { rgb: [255, 0, 255], svg: 'g[id*="-vector-overlays-"] line' },
+};
+
+async function loadImageWithExportOverlays(carta: PlaywrightDevPage) {
+    await carta.loadImage('iquv.fits');
+    await carta.page.evaluate(async ({ region, contour, vector }) => {
+        const frame = (window as any).app.activeFrame;
+        frame.renderConfig.setColorMap('gray');
+        const rectangle = await frame.regionSet.addRegionAsync(3, [
+            { x: 8, y: 8 },
+            { x: 5, y: 5 },
+        ]);
+        rectangle.setColor(`rgb(${region.rgb.join(',')})`);
+        rectangle.setLineWidth(5);
+        rectangle.setDashLength(0);
+
+        frame.contourConfig.setContourConfiguration([1.3], 0, 1);
+        frame.contourConfig.setColor(`rgb(${contour.rgb.join(',')})`);
+        frame.contourConfig.setThickness(5);
+        frame.contourConfig.setColormapEnabled(false);
+        frame.applyContours();
+
+        frame.vectorOverlayConfig.setColor(`rgb(${vector.rgb.join(',')})`);
+        frame.vectorOverlayConfig.setThickness(5);
+        frame.vectorOverlayConfig.setLengthRange(32, 32);
+        frame.vectorOverlayConfig.setColormapEnabled(false);
+        frame.applyVectorOverlay();
+    }, exportLayers);
+    await expect
+        .poll(() =>
+            carta.page.evaluate(() => {
+                const frame = (window as any).app.activeFrame;
+                return [
+                    frame.contourProgress,
+                    frame.vectorOverlayStore.progress,
+                ];
+            }),
+        )
+        .toEqual([1, 1]);
+    const raster = carta.page.locator('#raster-canvas').first();
+    await expect.poll(async () => (await rasterRGBA(raster))[3]).toBe(255);
+}
+
+async function saveOverlayExport(
+    page: Page,
+    testInfo: TestInfo,
+    resolution: string,
+    format: 'PNG' | 'SVG' | 'PDF',
+) {
+    const extension = format.toLowerCase();
+    const download = await downloadViewerImage(page, resolution, format);
+    expect(download.suggestedFilename()).toMatch(
+        new RegExp(`^iquv\\.fits-image-\\d{4}(?:-\\d{2}){5}\\.${extension}$`),
+    );
+    const output = testInfo.outputPath(`image-${resolution}.${extension}`);
+    await download.saveAs(output);
+    return readFile(output);
+}
+
 test.describe('Image Viewer Controls', () => {
     test.use({ colorScheme: 'dark' });
     test.beforeEach(async ({ page }) => page.setDefaultTimeout(10_000));
@@ -118,16 +200,18 @@ test.describe('Image Viewer Controls', () => {
             .poll(() => rasterRGBA(raster).then((pixel) => pixel[3]))
             .toBe(255);
         const expectedPixel = await rasterRGBA(raster);
+        await viewerCanvas.hover();
+        await expect(raster).toHaveScreenshot(
+            'image-viewer-export-raster.png',
+            {
+                maxDiffPixelRatio: 0.01,
+            },
+        );
         const sizes: Array<[number, number]> = [];
-        for (const [index, label] of [
-            'Normal (100%)',
-            'High (200%)',
-            'Highest (400%)',
-        ].entries()) {
+        for (const [index, resolution] of ['100%', '200%', '400%'].entries()) {
+            await viewerCanvas.hover();
             await page.getByTestId('export-image-view-button').click();
-            const downloadPromise = page.waitForEvent('download');
-            await page.getByRole('menuitem', { name: label }).click();
-            const download = await downloadPromise;
+            const download = await downloadViewerImage(page, resolution, 'PNG');
             expect(download.suggestedFilename()).toMatch(
                 /^cube\.fits-image-\d{4}(?:-\d{2}){5}\.png$/,
             );
@@ -177,9 +261,244 @@ test.describe('Image Viewer Controls', () => {
                 ).toBeLessThanOrEqual(ratio);
             }
         }
-        await expect(page.locator('#raster-canvas').first()).toHaveScreenshot(
-            'image-viewer-export-raster.png',
+    });
+
+    test('SVG export matches PNG raster, region, contour and vector overlay RGB', async ({
+        page,
+        carta,
+        viewerCanvas,
+    }, testInfo) => {
+        await loadImageWithExportOverlays(carta);
+        await page.route('**/database/preferences', (route) =>
+            route.request().method() === 'PUT'
+                ? route.fulfill({ json: { success: true } })
+                : route.fallback(),
         );
+        await page.getByTestId('preference-dialog-button').click();
+        const preferences = page.getByRole('dialog', { name: 'Preferences' });
+        await preferences
+            .getByRole('tab', { name: 'Render Configuration' })
+            .click();
+        await preferences
+            .locator('.bp6-form-group')
+            .filter({ hasText: 'Vector graphic format' })
+            .getByRole('combobox')
+            .selectOption({ label: 'SVG' });
+        await carta.closeDialog('preference-dialog');
+
+        const exportButton = page.getByTestId('export-image-view-button');
+        await viewerCanvas.hover();
+        await exportButton.click();
+        const png = await saveOverlayExport(page, testInfo, '200%', 'PNG');
+        await viewerCanvas.hover();
+        await exportButton.click();
+        const svg = await saveOverlayExport(page, testInfo, '200%', 'SVG');
+        await settleViewer(viewerCanvas);
+        await viewerCanvas.screenshot({
+            path: testInfo.outputPath('svg-export-viewer.png'),
+        });
+
+        const comparison = await page.evaluate(
+            async ({ png, svg, layers }) => {
+                const app = (window as any).app;
+                const { padding, renderWidth, renderHeight } =
+                    app.activeFrame.overlayStore;
+                const scale = 2 * devicePixelRatio;
+                // Exclude the raster border and its axis ticks from the RGB comparison.
+                const x = Math.ceil((padding.left + 0.1 * renderWidth) * scale);
+                const y = Math.ceil((padding.top + 0.1 * renderHeight) * scale);
+                const width = Math.floor(renderWidth * 0.8 * scale);
+                const height = Math.floor(renderHeight * 0.8 * scale);
+                const loadPixels = async (url: string) => {
+                    const image = new Image();
+                    image.src = url;
+                    await image.decode();
+                    const size = [image.naturalWidth, image.naturalHeight];
+                    const canvas = document.createElement('canvas');
+                    [canvas.width, canvas.height] = size;
+                    const context = canvas.getContext('2d')!;
+                    context.drawImage(image, 0, 0);
+                    return {
+                        size,
+                        pixels: context.getImageData(x, y, width, height).data,
+                    };
+                };
+                const [raster, vector] = await Promise.all([
+                    loadPixels(`data:image/png;base64,${png}`),
+                    loadPixels(`data:image/svg+xml,${encodeURIComponent(svg)}`),
+                ]);
+                const markup = new DOMParser().parseFromString(
+                    svg,
+                    'image/svg+xml',
+                );
+                const grayValues = new Set<number>();
+                let matchingPixels = 0;
+                const a = raster.pixels;
+                const b = vector.pixels;
+                for (let i = 0; i < a.length; i += 4) {
+                    if (
+                        a[i + 3] === 255 &&
+                        b[i + 3] === 255 &&
+                        Math.abs(a[i] - b[i]) <= 5 &&
+                        Math.abs(a[i + 1] - b[i + 1]) <= 5 &&
+                        Math.abs(a[i + 2] - b[i + 2]) <= 5
+                    ) {
+                        matchingPixels++;
+                    }
+                    if (a[i] === a[i + 1] && a[i] === a[i + 2])
+                        grayValues.add(a[i]);
+                }
+                const overlays = Object.entries(layers).map(([name, layer]) => {
+                    const hasLayerColor = (
+                        pixels: Uint8ClampedArray,
+                        i: number,
+                    ) =>
+                        pixels[i + 3] === 255 &&
+                        layer.rgb.every(
+                            (value, channel) =>
+                                Math.abs(pixels[i + channel] - value) <= 35,
+                        );
+                    let pngPixels = 0;
+                    let svgPixels = 0;
+                    let sharedPixels = 0;
+                    for (let i = 0; i < a.length; i += 4) {
+                        const inPng = hasLayerColor(a, i);
+                        const inSvg = hasLayerColor(b, i);
+                        pngPixels += Number(inPng);
+                        svgPixels += Number(inSvg);
+                        sharedPixels += Number(inPng && inSvg);
+                    }
+                    return {
+                        name,
+                        hasVectorGeometry: !!markup.querySelector(layer.svg),
+                        sharedPixels,
+                        overlap:
+                            sharedPixels / Math.max(pngPixels, svgPixels, 1),
+                    };
+                });
+                return {
+                    pngSize: raster.size,
+                    // PNG canvas dimensions truncate the fractional SVG viewport.
+                    svgSize: ['width', 'height'].map((dimension) =>
+                        Math.floor(
+                            Number(
+                                markup.documentElement.getAttribute(dimension),
+                            ),
+                        ),
+                    ),
+                    grayLevels: grayValues.size,
+                    matchingFraction: matchingPixels / (width * height),
+                    overlays,
+                };
+            },
+            {
+                png: png.toString('base64'),
+                svg: svg.toString('utf8'),
+                layers: exportLayers,
+            },
+        );
+        expect(comparison.svgSize).toEqual(comparison.pngSize);
+        expect(comparison.grayLevels).toBeGreaterThan(16);
+        expect(comparison.matchingFraction).toBeGreaterThan(0.98);
+        for (const layer of comparison.overlays) {
+            expect(layer.hasVectorGeometry, `${layer.name} SVG geometry`).toBe(
+                true,
+            );
+            expect(
+                layer.sharedPixels,
+                `${layer.name} shared RGB pixels`,
+            ).toBeGreaterThan(500);
+            expect(layer.overlap, `${layer.name} RGB overlap`).toBeGreaterThan(
+                0.85,
+            );
+        }
+    });
+
+    test('File menu exports a PDF with contours and vector overlays after loading an image', async ({
+        page,
+        carta,
+        viewerCanvas,
+    }, testInfo) => {
+        await carta.closeDialog('file-browser-dialog');
+        const exportMenu = page.getByRole('menuitem', {
+            name: /^Export Image\b/,
+        });
+        const exportMenuLink = exportMenu.locator('a.bp6-menu-item').first();
+        await carta.openMenu('File');
+        await expect(exportMenuLink).toHaveAttribute('aria-disabled', 'true');
+        await exportMenu.hover();
+        await expect(
+            page.getByRole('heading', { name: 'Resolution' }),
+        ).toBeHidden();
+        await page.mouse.click(0, 0);
+        await expect(exportMenu).toBeHidden();
+
+        await loadImageWithExportOverlays(carta);
+        await carta.openMenu('File');
+        await expect(exportMenuLink).not.toHaveAttribute(
+            'aria-disabled',
+            'true',
+        );
+        await exportMenu.hover();
+        const pdf = (
+            await saveOverlayExport(page, testInfo, '200%', 'PDF')
+        ).toString('latin1');
+
+        const expected = await page.evaluate(() => {
+            const app = (window as any).app;
+            const { renderWidth, renderHeight } = app.activeFrame;
+            const scale = 2 * devicePixelRatio;
+            return {
+                pageBox: [
+                    0,
+                    0,
+                    app.fullViewWidth * scale,
+                    app.fullViewHeight * scale,
+                ],
+                rasterWidth: Math.floor(renderWidth * scale),
+                rasterHeight: Math.floor(renderHeight * scale),
+            };
+        });
+        expect(pdf).toMatch(/^%PDF-\d\.\d\r?\n/);
+        expect(pdf).toMatch(/%%EOF\s*$/);
+        expect(pdf).toMatch(/\/Type\s*\/Pages\b[\s\S]*?\/Count\s+1\b/);
+        const pageBox = pdf.match(/\/MediaBox\s*\[([^\]]+)\]/);
+        expect(pageBox?.[1].trim().split(/\s+/).map(Number)).toEqual(
+            expected.pageBox,
+        );
+        expect(pdf).toMatch(
+            new RegExp(
+                `\\/Subtype\\s*\\/Image\\s+\\/Width\\s+${expected.rasterWidth}\\s+\\/Height\\s+${expected.rasterHeight}\\b`,
+            ),
+        );
+        // The contour and vector overlay should be stroked paths in the PDF page stream.
+        const contentsId = pdf.match(/\/Contents\s+(\d+)\s+0\s+R/)?.[1];
+        expect(contentsId).toBeDefined();
+        const pageContent =
+            pdf.match(
+                new RegExp(
+                    `^${contentsId} 0 obj\\s*<<[^>]*>>\\s*stream\\r?\\n([\\s\\S]*?)\\r?\\nendstream`,
+                    'm',
+                ),
+            )?.[1] ?? '';
+        const strokeColors = [
+            ...pageContent.matchAll(
+                /^([\d.]+ [\d.]+ [\d.]+) RG\r?\n((?:[^\r\n]+ (?:cm|m|l)\r?\n|h\r?\n)+)S\r?$/gm,
+            ),
+        ]
+            .filter(
+                ([, , path]) => / m\r?\n/.test(path) && / l\r?\n/.test(path),
+            )
+            .map(([, color]) => color.split(' ').map(Number));
+        for (const layer of ['contour', 'vector'] as const) {
+            expect(strokeColors, `${layer} PDF stroke colors`).toContainEqual(
+                exportLayers[layer].rgb.map((channel) => channel / 255),
+            );
+        }
+        await settleViewer(viewerCanvas);
+        await viewerCanvas.screenshot({
+            path: testInfo.outputPath('pdf-export-viewer.png'),
+        });
     });
 
     test('Viewer matching controls spatial and spectral alignment', async ({
@@ -2969,12 +3288,10 @@ test('Independent axis zoom: PNG export and workspace round trip', async ({
     const expected = await state();
     expect(expected.zoom.x).not.toBe(expected.zoom.y);
     const sizes: number[][] = [];
-    for (const [index, label] of ['High (200%)', 'Normal (100%)'].entries()) {
+    for (const [index, resolution] of ['200%', '100%'].entries()) {
         await viewerCanvas.hover();
         await page.getByTestId('export-image-view-button').click();
-        const pending = page.waitForEvent('download');
-        await page.getByRole('menuitem', { name: label }).click();
-        const download = await pending;
+        const download = await downloadViewerImage(page, resolution, 'PNG');
         const target = testInfo.outputPath(`pv-axis-export-${index}.png`);
         await download.saveAs(target);
         const png = await readFile(target);
@@ -2991,7 +3308,10 @@ test('Independent axis zoom: PNG export and workspace round trip', async ({
         expect(
             Math.abs(sizes[0][dimension] - 2 * sizes[1][dimension]),
         ).toBeLessThanOrEqual(2);
-    await carta.selectMenuItem('File', 'Save Workspace');
+    await carta.openMenu('File');
+    await page
+        .getByRole('menuitem', { name: 'Save Workspace', exact: true })
+        .press('Enter');
     const save = page.getByRole('dialog', {
         name: 'Save Workspace',
         exact: true,
@@ -3009,7 +3329,10 @@ test('Independent axis zoom: PNG export and workspace round trip', async ({
             saved.files[0].axisZoomLevel = { x: -1, y: 0 };
         await viewerCanvas.hover();
         await page.getByTestId('zoom-to-1x-fit-button').click();
-        await carta.selectMenuItem('File', 'Open Workspace');
+        await carta.openMenu('File');
+        await page
+            .getByRole('menuitem', { name: 'Open Workspace', exact: true })
+            .press('Enter');
         const open = page.getByRole('dialog', {
             name: 'Open Workspace',
             exact: true,
