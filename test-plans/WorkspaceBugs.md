@@ -17,3 +17,21 @@ The [Channel Map regression test](../tests/Workspace.spec.ts) uses the real fron
 ```sh
 npx playwright test tests/Workspace.spec.ts -g 'channel map mode'
 ```
+
+## Floating Moment Map settings overtake the PV Generator on restore
+
+**Build tested** CARTA 6.1.0-dev, frontend revision `eee9a151fc` and backend revision `737e2d41`.
+
+1. Open the Spectral Profiler settings on the **Moments** tab.
+2. Open the floating **PV Generator** afterward so it is in front of the Moment Map settings in the window stack.
+3. Save the workspace with both windows open. Reopen it in a fresh CARTA session.
+
+**Expected** The PV Generator stays in front of the Moment Map settings.
+
+**Actual** The Moment Map settings move in front of the PV Generator. Both windows keep their positions and settings values. The regression test checks their relative stacking order separately from the restored settings and regenerated images.
+
+The loader restores the regular widget layout before recreating floating widget settings panels, which places the recreated settings panels on top.
+
+```sh
+npx playwright test tests/Workspace.spec.ts -g 'changed moment map and PV'
+```

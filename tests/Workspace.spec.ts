@@ -2,16 +2,25 @@ import path from 'node:path';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import {
     activate,
+    averageWidthInput,
+    control,
     fixtureFolder,
     generate,
     generateButton,
-    generatorCloseBtn,
+    imageDropdown,
     getFrames,
     load,
+    moveSettings,
+    number,
     panel,
     pixel,
     pvCutDropdown,
+    pvPanel,
+    range,
     renderedPixelRgb,
+    spectralFromInput,
+    spectralToInput,
+    tags,
 } from '../utilities';
 import {
     attachWorkspacePng,
@@ -219,20 +228,11 @@ test('Workspace restores image settings, floating windows and their selected tab
     );
 });
 
-test('Workspace regenerates a mean moment and a PV image', async ({
+test('Workspace restores changed moment map and PV generator settings and products', async ({
     page,
 }, info) => {
     await workspaceRoundTrip(page, info, async (carta) => {
         await carta.loadImage('cube.fits');
-        await page.locator('#SpectralProfilerButton').click();
-        await page.getByTestId('moment-generator-button').click();
-        await panel(page)
-            .getByTestId('spectral-profiler-coordinate-dropdown')
-            .selectOption('Channel');
-        const [map] = await generate(page, ['-1']);
-        await activate(page, map.filename);
-        await expect.poll(() => pixel(page, 8, 8, true)).toBeCloseTo(9.3, 4);
-        await carta.closeWidget('spectral-profiler');
         await load(page, 'HD163296_13CO_2-1_subimage.fits', true);
         await workspaceRegion(page, 'line');
         const lineCut = () =>
@@ -247,8 +247,37 @@ test('Workspace regenerates a mean moment and a PV image', async ({
             });
         const savedCut = await lineCut();
         expect(savedCut).toHaveLength(2);
+        await activate(page, 'cube.fits');
+        await page.locator('#SpectralProfilerButton').click();
+        await page.getByTestId('moment-generator-button').click();
+        await panel(page)
+            .getByTestId('spectral-profiler-coordinate-dropdown')
+            .selectOption('Channel');
+        await control(page, 'image-dropdown').selectOption({
+            label: '0: cube.fits',
+        });
+        await control(page, 'region-dropdown').selectOption({ label: 'Image' });
+        await range(page, 'spectral', 1, 3);
+        const [map] = await generate(page, ['-1']);
+        await moveSettings(page);
+        await activate(page, 'HD163296_13CO_2-1_subimage.fits');
         await carta.selectMenuItem('Widgets', 'PV Generator');
+        const source = imageDropdown(page)
+            .locator('option')
+            .filter({
+                hasText: /: HD163296_13CO_2-1_subimage\.fits$/,
+            });
+        await imageDropdown(page).selectOption({
+            label: await source.innerText(),
+        });
         await pvCutDropdown(page).selectOption({ label: 'Region 1' });
+        const pvCoordinate = pvPanel(page).getByTestId(
+            'spectral-profiler-coordinate-dropdown',
+        );
+        await pvCoordinate.selectOption('Channel');
+        await number(spectralFromInput(page), 10);
+        await number(spectralToInput(page), 30);
+        await number(averageWidthInput(page), 5);
         await generateButton(page).click();
         const pvName = 'HD163296_13CO_2-1_subimage_pv.fits';
         await expect(page.getByTestId('image-view-header-title')).toContainText(
@@ -261,12 +290,36 @@ test('Workspace regenerates a mean moment and a PV image', async ({
             );
         const expected = await pv();
         expect(expected?.width).toBeGreaterThan(0);
-        await generatorCloseBtn(page).click();
+        expect(expected?.height).toBe(21);
         const momentImage = () =>
             getFrames(page).then((frames) =>
                 frames.find((frame) => frame.filename === map.filename),
             );
         return async () => {
+            await expect.soft(panel(page)).toBeVisible();
+            await expect.soft(tags(page)).toHaveText(['-1']);
+            await expect
+                .soft(control(page, 'image-dropdown').locator('option:checked'))
+                .toContainText('cube.fits');
+            await expect
+                .soft(control(page, 'spectral-range-from-input'))
+                .toHaveValue('1');
+            await expect
+                .soft(control(page, 'spectral-range-to-input'))
+                .toHaveValue('3');
+            await expect.soft(pvPanel(page)).toBeVisible();
+            await expect
+                .soft(imageDropdown(page).locator('option:checked'))
+                .toContainText('HD163296_13CO_2-1_subimage.fits');
+            await expect
+                .soft(pvCutDropdown(page).locator('option:checked'))
+                .toHaveText('Region 1');
+            await expect
+                .soft(pvCoordinate.locator('option:checked'))
+                .toHaveText('Channel');
+            await expect.soft(spectralFromInput(page)).toHaveValue('10');
+            await expect.soft(spectralToInput(page)).toHaveValue('30');
+            await expect.soft(averageWidthInput(page)).toHaveValue('5');
             await expect.poll(lineCut).toEqual(savedCut);
             await expect
                 .poll(async () => {
@@ -278,9 +331,7 @@ test('Workspace regenerates a mean moment and a PV image', async ({
                 .poll(async () => (await momentImage())?.unit)
                 .toBe('K');
             await activate(page, map.filename);
-            await expect
-                .poll(() => pixel(page, 8, 8, true))
-                .toBeCloseTo(9.3, 4);
+            await expect.poll(() => pixel(page, 8, 8, true)).toBeCloseTo(7, 4);
             await activate(page, pvName);
         };
     });
@@ -327,7 +378,7 @@ test('Workspace restores a local catalog and its plotted sources', async ({
 const contourDialog = (page: Page) => page.getByTestId('contour-dialog');
 const contourCanvas = (page: Page) => page.locator('#contour-canvas');
 
-test('Workspace restores generated contour levels and their rendered overlay', async ({
+test('Workspace restores changed contour settings and their rendered overlay', async ({
     page,
 }, info) => {
     await workspaceRoundTrip(page, info, async (carta) => {
@@ -343,6 +394,17 @@ test('Workspace restores generated contour levels and their rendered overlay', a
             await input.fill(value);
             await input.press('Enter');
         }
+        const dialog = contourDialog(page);
+        const configuration = dialog.getByRole('tabpanel', {
+            name: 'Configuration',
+        });
+        const smoothingMode = configuration.locator('select');
+        const smoothingFactor = dialog.getByPlaceholder('Smoothing factor');
+        await dialog
+            .getByRole('tab', { name: 'Configuration', exact: true })
+            .click();
+        await smoothingMode.selectOption('1');
+        await smoothingFactor.fill('3');
         await contourDialog(page)
             .getByTestId('contour-config-apply-button')
             .click();
@@ -355,8 +417,18 @@ test('Workspace restores generated contour levels and their rendered overlay', a
             .click();
         await page.getByTitle('#FFFFFF').click();
         await page.keyboard.press('Escape');
-        await page.getByTestId('contour-dialog-header-close-button').click();
+        await dialog
+            .getByRole('tab', { name: 'Configuration', exact: true })
+            .click();
+        await smoothingFactor.fill('5');
+        await smoothingFactor.press('Tab');
         return async (stage) => {
+            await expect.soft(configuration).toBeVisible();
+            await expect.soft(smoothingMode).toHaveValue('1');
+            await expect.soft(smoothingFactor).toHaveValue('5');
+            await expect
+                .soft(dialog.getByTestId('contour-config-apply-button'))
+                .toBeEnabled();
             await expect
                 .poll(() =>
                     page.evaluate(() => {
@@ -365,10 +437,19 @@ test('Workspace restores generated contour levels and their rendered overlay', a
                             levels: [...frame.contourConfig.levels],
                             progress: frame.contourProgress,
                             enabled: frame.contourConfig.isEnabled,
+                            smoothingMode: frame.contourConfig.smoothingMode,
+                            smoothingFactor:
+                                frame.contourConfig.smoothingFactor,
                         };
                     }),
                 )
-                .toEqual({ levels: [0.04, 0.1], progress: 1, enabled: true });
+                .toEqual({
+                    levels: [0.04, 0.1],
+                    progress: 1,
+                    enabled: true,
+                    smoothingMode: 1,
+                    smoothingFactor: 3,
+                });
             await expect
                 .poll(() => overlayHasInk(contourCanvas(page), [255, 255, 255]))
                 .toBe(true);
