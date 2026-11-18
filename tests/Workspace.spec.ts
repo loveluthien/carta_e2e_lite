@@ -76,26 +76,6 @@ test('Workspace restores image settings, floating windows and their selected tab
             await expect.poll(regionGeometry).not.toBeNull();
             const originalRegion = await regionGeometry();
 
-            const colormap = page
-                .getByTestId('render-config-0-content')
-                .getByTestId('colormap-dropdown');
-            const setColormap = async (name: string) => {
-                await carta.selectMenuItem(
-                    'Widgets',
-                    'Render Configuration Widget',
-                );
-                await colormap.click();
-                await page.getByRole('menuitem', { name, exact: true }).click();
-                await carta.closeWidget('render-config');
-            };
-            await setColormap('gray');
-            await expect
-                .poll(async () => {
-                    const [r, g, b] = await renderedPixelRgb(page, 8, 8);
-                    return r > 0 && r === g && g === b;
-                })
-                .toBe(true);
-
             await page.locator('#SpectralProfilerButton').click();
             const profiler = page.getByTestId('spectral-profiler-0-content');
             const regionDropdown = profiler.getByTestId(
@@ -130,9 +110,12 @@ test('Workspace restores image settings, floating windows and their selected tab
                 'Widgets',
                 'Render Configuration Widget',
             );
-            const renderTitle = page
-                .locator('.floating-widget .floating-title')
-                .filter({ hasText: 'Render Configuration' });
+            const renderWidget = page.locator('.floating-widget').filter({
+                has: page
+                    .locator('.floating-title')
+                    .filter({ hasText: 'Render Configuration' }),
+            });
+            const renderTitle = renderWidget.locator('.floating-title');
             const move = async (title: Locator) => {
                 await expect(title).toBeVisible();
                 const origin = await title.boundingBox();
@@ -142,6 +125,51 @@ test('Workspace restores image settings, floating windows and their selected tab
                     .not.toBe(origin?.x);
             };
             await move(renderTitle);
+            const renderConfig = renderWidget.locator('.floating-content');
+            const clipMin = renderConfig.getByTestId('clip-min-input');
+            const clipMax = renderConfig.getByTestId('clip-max-input');
+            const invert = renderConfig
+                .locator('.bp6-form-group')
+                .filter({
+                    has: page.getByText('Invert colormap', { exact: true }),
+                })
+                .getByRole('checkbox');
+            const samples = () =>
+                Promise.all([
+                    renderedPixelRgb(page, 8, 4),
+                    renderedPixelRgb(page, 8, 12),
+                ]);
+
+            await renderConfig.getByTestId('colormap-dropdown').click();
+            await page
+                .getByRole('menuitem', { name: 'gray', exact: true })
+                .click();
+            await renderConfig
+                .getByRole('button', { name: 'Linear', exact: true })
+                .click();
+            await page
+                .getByRole('menuitem', { name: 'Square root', exact: true })
+                .click();
+            await number(clipMin, 4);
+            await number(clipMax, 40);
+            await invert.check({ force: true });
+            await expect
+                .poll(async () => {
+                    const [lower, higher] = await samples();
+                    return (
+                        [lower, higher].every(
+                            ([r, g, b, alpha]) =>
+                                alpha === 255 &&
+                                r === g &&
+                                g === b &&
+                                r > 0 &&
+                                r < 255,
+                        ) && lower[0] > higher[0]
+                    );
+                })
+                .toBe(true);
+            const savedSamples = await samples();
+
             await carta.selectMenuItem('Widgets', 'Histogram Widget');
             await page
                 .getByTestId('spectral-profiler-0-header-settings-button')
@@ -192,6 +220,20 @@ test('Workspace restores image settings, floating windows and their selected tab
                 await expect(regionDropdown).toContainText('Region 1');
                 await expect.poll(profileValues).toEqual(originalProfile);
                 await expect(renderTitle).toBeVisible();
+                await expect(
+                    renderConfig.getByRole('button', {
+                        name: 'Square root',
+                        exact: true,
+                    }),
+                ).toBeVisible();
+                await expect
+                    .poll(async () => Number(await clipMin.inputValue()))
+                    .toBe(4);
+                await expect
+                    .poll(async () => Number(await clipMax.inputValue()))
+                    .toBe(40);
+                await expect(invert).toBeChecked();
+                await expect.poll(samples).toEqual(savedSamples);
                 await expect
                     .soft(
                         settings.getByRole('tab', {
