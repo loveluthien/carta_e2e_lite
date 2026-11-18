@@ -836,6 +836,101 @@ test('Workspace restores Vector Overlay settings and rendered vectors', async ({
     });
 });
 
+test('Workspace restores Stokes Analysis settings and fractional polarization plots', async ({
+    page,
+}, info) => {
+    await workspaceRoundTrip(page, info, async (carta) => {
+        await carta.loadImage('stokes-varying.fits');
+        const regionId = await page.evaluate(async () => {
+            const frame = (window as any).app.activeFrame;
+            const region = await frame.regionSet.addRegionAsync(0, [
+                { x: 8, y: 8 },
+            ]);
+            frame.regionSet.setFocusedRegion(region);
+            return region.regionId;
+        });
+        await carta.selectMenuItem('Widgets', 'Stokes Analysis Widget');
+        const widget = page.getByTestId('stokes-0-content');
+        const region = widget.getByTestId('region-dropdown');
+        await region.selectOption(String(regionId));
+        const fractional = widget
+            .locator('.stokes-analysis-toolbar')
+            .getByRole('checkbox');
+        await fractional.check({ force: true });
+
+        const plots = widget.locator('.stokes-widget canvas[role="img"]');
+        const profileRatios = () =>
+            page.evaluate(() => {
+                const app = (window as any).app;
+                const frame = app.activeFrame;
+                const regionId = frame.regionSet.focusedRegion?.regionId;
+                const profiles = app.spectralProfiles
+                    .get(frame.frameInfo.fileId)
+                    ?.get(regionId);
+                const values = (coordinate: string) => {
+                    const profile = Array.from(
+                        profiles?.profiles.get(coordinate)?.values() ?? [],
+                    )[0] as { values?: number[] } | undefined;
+                    return Array.from(profile?.values ?? []);
+                };
+                const intensity = values('Iz');
+                return {
+                    qOverI: values('Qz').map(
+                        (value, index) => (value / intensity[index]) * 100,
+                    ),
+                    uOverI: values('Uz').map(
+                        (value, index) => (value / intensity[index]) * 100,
+                    ),
+                };
+            });
+
+        return async (stage) => {
+            await expect(widget).toBeVisible();
+            await expect(region.locator('option:checked')).toHaveText(
+                'Region 1',
+            );
+            await expect(fractional).toBeChecked();
+            await expect.poll(profileRatios).toEqual({
+                qOverI: [200, 225, 250, 275, 300],
+                uOverI: [300, 275, 250, 225, 200],
+            });
+            await expect(plots).toHaveCount(4);
+            await expect
+                .poll(() =>
+                    plots.evaluateAll((canvases: HTMLCanvasElement[]) =>
+                        canvases.map((canvas) => {
+                            const pixels = canvas
+                                .getContext('2d')!
+                                .getImageData(
+                                    0,
+                                    0,
+                                    canvas.width,
+                                    canvas.height,
+                                ).data;
+                            for (let i = 0; i < pixels.length; i += 4) {
+                                const [red, green, blue] = [
+                                    pixels[i],
+                                    pixels[i + 1],
+                                    pixels[i + 2],
+                                ];
+                                if (
+                                    pixels[i + 3] > 0 &&
+                                    Math.max(red, green, blue) -
+                                        Math.min(red, green, blue) >
+                                        40
+                                )
+                                    return true;
+                            }
+                            return false;
+                        }),
+                    ),
+                )
+                .toEqual([true, true, true, true]);
+            await attachWorkspacePng(info, `${stage}-stokes-analysis`, widget);
+        };
+    });
+});
+
 const widget = (page: Page) => page.locator('.channel-map-control-containers');
 const field = (page: Page, label: string) =>
     widget(page).locator('.bp6-form-group').filter({ hasText: label });
