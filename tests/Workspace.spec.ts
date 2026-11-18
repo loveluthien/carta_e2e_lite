@@ -462,6 +462,77 @@ test('Workspace restores changed contour settings and their rendered overlay', a
     });
 });
 
+test('Workspace restores Vector Overlay settings and rendered vectors', async ({
+    page,
+}, info) => {
+    await workspaceRoundTrip(page, info, async (carta) => {
+        await carta.loadImage('iquv.fits');
+        await page.getByTestId('vector-dialog-button').click();
+        const dialog = page.getByTestId('vector-dialog');
+        const configuration = dialog.getByTestId(
+            'vector-field-configuration-tab',
+        );
+        const styling = dialog.getByTestId('vector-field-styling-tab');
+        await number(
+            dialog.getByTestId('vector-field-averaging-width-input'),
+            4,
+        );
+        await dialog.getByTestId('vector-field-apply-button').click();
+        await styling.click();
+        const thickness = dialog.getByTestId('vector-field-line-input');
+        await number(thickness, 2);
+        const colorMode = dialog.getByTestId(
+            'vector-field-color-mode-dropdown',
+        );
+        await colorMode.selectOption('0');
+        await dialog
+            .locator('.vector-overlay-style-panel .color-swatch-button')
+            .first()
+            .click();
+        await page.getByTitle('#FFFFFF').click();
+        await page.keyboard.press('Escape');
+        const canvas = page.locator('#vector-overlay-canvas');
+        const vectorState = () =>
+            page.evaluate(() => {
+                const frame = (window as any).app.activeFrame;
+                return {
+                    progress: frame.vectorOverlayStore.progress,
+                    vertices: frame.vectorOverlayStore.tiles.reduce(
+                        (total: number, tile: { numVertices: number }) =>
+                            total + tile.numVertices,
+                        0,
+                    ),
+                    averaging: frame.vectorOverlayConfig.pixelAveraging,
+                    thickness: frame.vectorOverlayConfig.thickness,
+                };
+            });
+        await expect
+            .poll(async () => (await vectorState()).progress, {
+                timeout: 30000,
+            })
+            .toBe(1);
+        const saved = await vectorState();
+        expect(saved).toMatchObject({ averaging: 4, thickness: 2 });
+        expect(saved.vertices).toBeGreaterThan(0);
+
+        return async (stage) => {
+            await expect(dialog).toBeVisible();
+            await expect(styling).toHaveAttribute('aria-selected', 'true');
+            await expect(configuration).toHaveAttribute(
+                'aria-selected',
+                'false',
+            );
+            await expect(thickness).toHaveValue('2');
+            await expect(colorMode).toHaveValue('0');
+            await expect.poll(vectorState).toEqual(saved);
+            await expect
+                .poll(() => overlayHasInk(canvas, [255, 255, 255]))
+                .toBe(true);
+            await attachWorkspacePng(info, `${stage}-vectors`, canvas);
+        };
+    });
+});
+
 const widget = (page: Page) => page.locator('.channel-map-control-containers');
 const field = (page: Page, label: string) =>
     widget(page).locator('.bp6-form-group').filter({ hasText: label });
