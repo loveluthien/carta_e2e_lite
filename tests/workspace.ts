@@ -107,7 +107,13 @@ export async function workspaceRoundTrip(
     page: Page,
     info: TestInfo,
     prepare: (carta: PlaywrightDevPage) => Promise<CheckRestore>,
-    { verifyDatabaseFailures = false } = {},
+    {
+        verifyDatabaseFailures = false,
+        configureSession,
+    }: {
+        verifyDatabaseFailures?: boolean;
+        configureSession?: () => Promise<void>;
+    } = {},
 ) {
     info.setTimeout(90000);
     page.setDefaultTimeout(10000);
@@ -150,6 +156,7 @@ export async function workspaceRoundTrip(
 
     const carta = new PlaywrightDevPage(page);
     await carta.goto();
+    await configureSession?.();
     const check = await prepare(carta);
     const viewer = page.getByTestId('viewer-div').first();
     const imageState = () =>
@@ -230,6 +237,7 @@ export async function workspaceRoundTrip(
 
     await test.step('Open the snapshot in a fresh CARTA session', async () => {
         await carta.goto();
+        await configureSession?.();
         await expect.poll(imageState).toMatchObject({ files: [] });
         await page
             .getByTestId('file-browser-dialog-header-close-button')

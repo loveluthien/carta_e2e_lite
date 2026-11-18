@@ -4,6 +4,7 @@ import {
     activate,
     averageWidthInput,
     control,
+    fixtureBrowserPath,
     fixtureFolder,
     generate,
     generateButton,
@@ -373,6 +374,209 @@ test('Workspace restores a local catalog and its plotted sources', async ({
             await attachWorkspacePng(info, `${stage}-catalog`, canvas);
         };
     });
+});
+
+test('Workspace restores an online SIMBAD query and its catalog', async ({
+    page,
+}, info) => {
+    const queries: string[] = [];
+    await page.route('**/sim-tap/sync?**', async (route) => {
+        const query =
+            new URL(route.request().url()).searchParams.get('query') ?? '';
+        if (query.includes('FROM basic WHERE CONTAINS')) queries.push(query);
+        await route.fulfill({
+            headers: { 'access-control-allow-origin': '*' },
+            json: {
+                metadata: [
+                    { name: 'ra', datatype: 'DOUBLE', unit: 'deg' },
+                    { name: 'dec', datatype: 'DOUBLE', unit: 'deg' },
+                    { name: 'main_id', datatype: 'CHAR' },
+                ],
+                data: [
+                    [180.004, -30.003, 'Alpha'],
+                    [179.999, -30, 'Beta'],
+                ],
+            },
+        });
+    });
+
+    await workspaceRoundTrip(page, info, async (carta) => {
+        await load(
+            page,
+            'catalog-image.fits',
+            false,
+            path.join(fixtureFolder, 'catalogs'),
+        );
+        const dialog = page.getByRole('dialog', {
+            name: 'Online Data Query',
+            exact: true,
+        });
+        const maxObjects = dialog.getByTestId(
+            'catalog-query-max-objects-input',
+        );
+        const radius = dialog.getByTestId('catalog-query-search-radius-input');
+        await carta.selectMenuItem('View', 'Online Data Query');
+        await number(maxObjects, 2);
+        await number(radius, 0.05);
+        await dialog
+            .getByRole('button', { name: 'Query', exact: true })
+            .click();
+        await expect(dialog).toBeHidden();
+        expect(queries).toHaveLength(1);
+        expect(queries[0]).toContain('SELECT Top 2');
+
+        const catalog = page.locator('.catalog-overlay');
+        await catalog.getByTestId('catalog-plot-button').click();
+        await carta.selectMenuItem('View', 'Online Data Query');
+        await number(maxObjects, 7);
+        const canvas = page.locator('#catalog-canvas');
+        return async (stage) => {
+            await expect(
+                dialog.getByRole('tab', { name: 'Catalog', selected: true }),
+            ).toBeVisible();
+            await expect(
+                dialog.getByTestId('catalog-query-database-select-button'),
+            ).toHaveText('SIMBAD');
+            await expect(maxObjects).toHaveValue('7');
+            await expect(radius).toHaveValue('0.05');
+            await expect(
+                catalog.getByTestId('catalog-table-filtering-info'),
+            ).toContainText('total 2 entries');
+            await expect(
+                catalog.getByTestId('filterable-table-0-2'),
+            ).toHaveText('Alpha');
+            await expect(
+                catalog.getByTestId('filterable-table-1-2'),
+            ).toHaveText('Beta');
+            expect(queries).toHaveLength(stage === 'saved' ? 1 : 2);
+            expect(queries.at(-1)).toBe(queries[0]);
+            await expect
+                .poll(() => overlayHasInk(canvas, [0, 163, 150]))
+                .toBe(true);
+            await attachWorkspacePng(info, `${stage}-simbad-overlay`, canvas);
+        };
+    });
+});
+
+test('Workspace restores a HiPS image and its query form', async ({
+    page,
+}, info) => {
+    await page.route('**/MocServer/query?**', (route) =>
+        route.fulfill({ json: ['E2E/HiPS'] }),
+    );
+
+    await workspaceRoundTrip(
+        page,
+        info,
+        async (carta) => {
+            await carta.loadImage('cube.fits');
+            const dialog = page.getByRole('dialog', {
+                name: 'Online Data Query',
+                exact: true,
+            });
+            const hips = dialog.locator('.hips-query-panel');
+            const tab = dialog.getByRole('tab', {
+                name: 'HiPS Survey',
+                exact: true,
+            });
+            const field = (label: string) =>
+                hips
+                    .locator('.bp6-form-group')
+                    .filter({
+                        has: page.locator('.bp6-label', {
+                            hasText: new RegExp(`^${label}`),
+                        }),
+                    })
+                    .locator('input');
+            const survey = hips.locator('.survey-input input');
+            const width = hips.getByPlaceholder('Width');
+            const height = hips.getByPlaceholder('Height');
+
+            await carta.selectMenuItem('View', 'Online Data Query');
+            await tab.click();
+            await survey.fill('E2E/HiPS');
+            await page
+                .getByRole('option', { name: /E2E\/HiPS/ })
+                .first()
+                .click();
+            await field('Object').fill('M 31');
+            await width.fill('16');
+            await height.fill('16');
+            await field('Field of view').fill('0.016');
+            await hips.locator('select').selectOption('SIN');
+            await number(field('Rotation angle'), 45);
+            await hips
+                .getByRole('button', { name: 'Query', exact: true })
+                .click();
+            await expect(dialog).toBeHidden();
+            await expect(
+                page.getByTestId('image-view-header-title'),
+            ).toContainText('hips-image.fits');
+
+            await carta.selectMenuItem('View', 'Online Data Query');
+            await tab.click();
+            await width.fill('24');
+
+            return async () => {
+                const requests = await page.evaluate(
+                    () => (window as any).workspaceHipsRequests,
+                );
+                expect(requests).toHaveLength(1);
+                expect(requests[0]).toMatchObject({
+                    hips: 'E2E/HiPS',
+                    object: 'M 31',
+                    width: 16,
+                    height: 16,
+                    fov: 0.016,
+                    coordsys: 'icrs',
+                    projection: 'SIN',
+                    rotationAngle: 45,
+                });
+                expect((await getFrames(page)).at(-1)).toMatchObject({
+                    filename: 'hips-image.fits',
+                    width: 16,
+                    height: 16,
+                    channels: 1,
+                });
+                await expect.poll(() => pixel(page, 8, 8, true)).toBe(137);
+
+                const restored = expect.configure({
+                    soft: true,
+                    timeout: 2000,
+                });
+                await restored(tab).toHaveAttribute('aria-selected', 'true');
+                await restored(survey).toHaveValue('E2E/HiPS');
+                await restored(field('Object')).toHaveValue('M 31');
+                await restored(width).toHaveValue('24');
+                await restored(height).toHaveValue('16');
+                await restored(field('Field of view')).toHaveValue('0.016');
+                await restored(hips.locator('select')).toHaveValue('SIN');
+                await restored(field('Rotation angle')).toHaveValue('45');
+            };
+        },
+        {
+            configureSession: () =>
+                page.evaluate((directory) => {
+                    const app = (window as any).app;
+                    const backend = app.backendService;
+                    const requests: unknown[] = [];
+                    (window as any).workspaceHipsRequests = requests;
+                    backend.requestRemoteFile = async (request: {
+                        fileId: number;
+                    }) => {
+                        requests.push({ ...request });
+                        const openFileAck = await backend.loadFile(
+                            directory,
+                            'hips-image.fits',
+                            '',
+                            request.fileId,
+                            false,
+                        );
+                        return { success: true, openFileAck };
+                    };
+                }, fixtureBrowserPath),
+        },
+    );
 });
 
 const contourDialog = (page: Page) => page.getByTestId('contour-dialog');

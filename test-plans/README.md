@@ -1,6 +1,6 @@
 # CARTA E2E test plans
 
-This directory maps every currently collected Playwright test to its action and expected result. The collector reports **251 cases in 23 spec files**. The Playwright configuration splits Chromium specs into five projects, `test-group1` through `test-group5`. These are plans derived from the current source, not execution results.
+This directory maps every currently collected Playwright test to its action and expected result. The collector reports **253 cases in 23 spec files**. The Playwright configuration splits Chromium specs into five projects, `test-group1` through `test-group5`. These are plans derived from the current source, not execution results.
 
 ## Shared execution plan
 
@@ -60,7 +60,7 @@ Use concise Title Case names for `test.describe()` groups. Write individual test
 | [Statistics](./Statistics.md)               |     2 | Statistics for regions across images and Stokes planes.                                                                  |
 | [Stokes](./Stokes.md)                       |    13 | Stokes cube assembly and analysis widget controls.                                                                       |
 | [VectorOverlay](./VectorOverlay.md)         |     2 | Vector configuration, rendering, invalid sources and clearing.                                                           |
-| [Workspace](./Workspace.md)                 |     6 | Snapshot save and restore for mixed sessions, generated images, overlays, and channel maps.                              |
+| [Workspace](./Workspace.md)                 |     8 | Snapshot save and restore for mixed sessions, generated images, overlays, and channel maps.                              |
 
 ## Workspace coverage
 
@@ -68,7 +68,7 @@ The [workspace test plan](./Workspace.md) groups snapshot scenarios by saved sta
 
 ## Coverage notes
 
-- The 251-case count is collection output, not a passing-test count. Chromium is the only enabled browser in `playwright.config.mjs`.
+- The 253-case count is collection output, not a passing-test count. Chromium is the only enabled browser in `playwright.config.mjs`.
 - Coverage targets selected functional workflows and recovery paths described in the linked plans. It does not establish exhaustive coverage of every CARTA widget or dialog control, and it does not measure performance.
 - Visual checks are targeted: selected viewer and profiler outputs use reviewed PNG snapshots or direct pixel/RGB assertions. Other cases rely on UI state or data assertions, so a snapshot does not imply that every visible property is compared.
 - Three Moment Map cases are annotated with `test.fail()` to track known defects: generation with no selected moments, the rest-frequency reset control remaining enabled, and a missing warning for malformed generated-image acknowledgments. Check the Playwright report to see how those cases behave in a given run.

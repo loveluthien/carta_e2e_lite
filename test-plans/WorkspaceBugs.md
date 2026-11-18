@@ -35,3 +35,19 @@ The loader restores the regular widget layout before recreating floating widget 
 ```sh
 npx playwright test tests/Workspace.spec.ts -g 'changed moment map and PV'
 ```
+
+## The HiPS Survey form resets on workspace restore
+
+**Build tested** CARTA 6.1.0-dev, frontend revision `eee9a151fc` and backend revision `737e2d41`.
+
+1. Open **View → Online Data Query → HiPS Survey** and load a cutout. The regression uses a mocked survey for M 31 with a 16×16 cutout, a field of view of 0.016, SIN projection, and a 45° rotation.
+2. Reopen the HiPS Survey tab, edit the width to 24, and save the workspace with the form still open.
+3. Open the workspace in a fresh CARTA session.
+
+**Expected** CARTA regenerates the original 16×16 cutout and restores the open form with the unsent width of 24 and the other saved values.
+
+**Actual** CARTA replays the original request, restores the cutout pixels, and reopens the HiPS Survey tab. The survey, object, dimensions, and field of view are blank. The projection returns to TAN and the rotation returns to 0°.
+
+```sh
+npx playwright test tests/Workspace.spec.ts -g 'a HiPS image'
+```
