@@ -1,0 +1,19 @@
+# Workspace test plan
+
+**Source** [Workspace.spec.ts](../tests/Workspace.spec.ts) · **Cases** 5
+
+| Scenario                       | Expected restore                                                                                                                                                                                                                                                                                                                                                                                                          |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Mixed image and layout session | The cube returns on channel 4 with the saved gray colormap and 24 K at pixel (8, 8). The selected rectangle, its five-point spectral profile, floating widgets, and the moved File Header dialog return. The open Spectral Profiler settings panel restores its Smoothing tab, and the dialog restores its File Information tab. A rejected save can be retried, and opening a missing record preserves the live session. |
+| Generated moment and PV images | A single snapshot regenerates both images. The mean moment retains its 9.3 K pixel, and the PV image retains its dimensions, source line cut, and active selection.                                                                                                                                                                                                                                                       |
+| Plotted catalog                | The five-row local catalog returns with its table and teal source markers in the viewer.                                                                                                                                                                                                                                                                                                                                  |
+| Contours                       | The saved levels regenerate and render white pixels on the contour canvas.                                                                                                                                                                                                                                                                                                                                                |
+| Channel Map                    | The control, saved 1×2 grid, channel labels, and panels for channels 0 and 1 return. This case reproduces the [known Channel Map reset](./WorkspaceBugs.md).                                                                                                                                                                                                                                                              |
+
+Each scenario saves and opens through the File menu. The tests intercept workspace storage and use the real backend for FITS, catalog, and generated data. The shared check compares image order, active image, channel, polarization, raster RGB, docked tab groups, floating widgets, and visible dialogs. Playwright attaches before and after viewer and full-window PNGs.
+
+The [Image Viewer plan](./ImageViewer.md) also covers independent PV-axis zoom and legacy workspace compatibility alongside its PNG export checks.
+
+```sh
+npm test -- --project=test-group2 tests/Workspace.spec.ts
+```

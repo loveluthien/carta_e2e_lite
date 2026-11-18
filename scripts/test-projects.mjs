@@ -26,6 +26,7 @@ const testGroups = [
             '**/Layout.spec.ts',
             '**/LoadingFiles.spec.ts',
             '**/OnlineDataQuery.spec.ts',
+            '**/Workspace.spec.ts',
         ],
     },
     {
