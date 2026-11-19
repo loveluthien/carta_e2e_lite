@@ -46,6 +46,12 @@ Viewer controls, settings, layouts and raster appearance.
 npm test -- --project=test-group2 tests/ImageViewer.spec.ts
 ```
 
+## PNG and SVG WCS grid crossings
+
+- With an SVG-enabled frontend build, run `npm test -- --project=test-group2 tests/ImageViewer.spec.ts -g 'agree where the WCS grid'`.
+- Use `iquv.fits` with a yellow WCS grid, green contour, and magenta polarization vectors. Export grid-only and overlay-only PNGs to locate the solid-color crossing pixels. Export the combined view as PNG and SVG at 100%, then compare the exported RGB at those pixels. Require at least 21 samples per layer and no more than 10% disagreement within 20 levels per channel.
+- Save the viewer PNG, both reference PNGs, both combined exports, and the crossing counts. Frontend commit `ae4bb12f78` reproduces the original mismatch. The fix draws the WCS grid below contours and vectors in both formats.
+
 ## Coverage additions
 
 Merged header paging/help/restore/popout into the layout/navigation case. Retain existing PNG checks, exit channel-map mode, use one panel, compare parent/popout RGB and attach the popup PNG.

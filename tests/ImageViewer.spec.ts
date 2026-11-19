@@ -97,6 +97,181 @@ test.describe('Image Viewer Controls', () => {
     test.use({ colorScheme: 'dark' });
     test.beforeEach(async ({ page }) => page.setDefaultTimeout(10_000));
 
+    test('PNG and SVG agree where the WCS grid crosses contours and polarization vectors', async ({
+        page,
+        carta,
+        viewerCanvas,
+    }, testInfo) => {
+        await carta.loadImage('iquv.fits');
+        await page.route('**/database/preferences', (route) =>
+            route.request().method() === 'PUT'
+                ? route.fulfill({ json: { success: true } })
+                : route.fallback(),
+        );
+        await page.getByTestId('preference-dialog-button').click();
+        const preferences = page.getByRole('dialog', { name: 'Preferences' });
+        await preferences
+            .getByRole('tab', { name: 'Render Configuration' })
+            .click();
+        await preferences
+            .locator('.bp6-form-group')
+            .filter({ hasText: 'Vector graphic format' })
+            .getByRole('combobox')
+            .selectOption({ label: 'SVG' });
+        await carta.closeDialog('preference-dialog');
+
+        await page.evaluate(() => {
+            const app = (window as any).app;
+            const frame = app.activeFrame;
+            frame.renderConfig.setColorMap('gray');
+            const grid = app.overlaySettings.grid;
+            grid.setVisible(true);
+            grid.setCustomColor(true);
+            grid.setColor('#FFFF00');
+            grid.setWidth(5);
+        });
+        const download = async (format: 'PNG' | 'SVG', name: string) => {
+            await viewerCanvas.hover();
+            await page.getByTestId('export-image-view-button').click();
+            await expect(
+                page.getByRole('radio', { name: '100%', exact: true }),
+            ).toBeChecked();
+            const [file] = await Promise.all([
+                page.waitForEvent('download', { timeout: 15_000 }),
+                page.getByRole('button', { name: format, exact: true }).click(),
+            ]);
+            const path = testInfo.outputPath(name);
+            await file.saveAs(path);
+            await page.mouse.click(0, 0);
+            await expect(
+                page.getByRole('heading', { name: 'Resolution' }),
+            ).toBeHidden();
+            return (await readFile(path)).toString('base64');
+        };
+        const grid = await download('PNG', 'grid-only.png');
+
+        await page.evaluate(() => {
+            const app = (window as any).app;
+            const frame = app.activeFrame;
+            app.overlaySettings.grid.setVisible(false);
+            frame.contourConfig.setContourConfiguration([1.3], 0, 1);
+            frame.contourConfig.setColor('#00FF00');
+            frame.contourConfig.setThickness(7);
+            frame.contourConfig.setColormapEnabled(false);
+            frame.applyContours();
+            frame.vectorOverlayConfig.setColor('#FF00FF');
+            frame.vectorOverlayConfig.setThickness(7);
+            frame.vectorOverlayConfig.setLengthRange(64, 64);
+            frame.vectorOverlayConfig.setColormapEnabled(false);
+            frame.applyVectorOverlay();
+        });
+        await expect
+            .poll(() =>
+                page.evaluate(() => {
+                    const frame = (window as any).app.activeFrame;
+                    return [
+                        frame.contourProgress,
+                        frame.vectorOverlayStore.progress,
+                    ];
+                }),
+            )
+            .toEqual([1, 1]);
+        const overlays = await download('PNG', 'overlays-only.png');
+        await viewerCanvas.hover();
+        await page.getByTestId('grid-button').click();
+        const png = await download('PNG', 'grid-crossings.png');
+        const svg = await download('SVG', 'grid-crossings.svg');
+        await settleViewer(viewerCanvas);
+        await viewerCanvas.screenshot({
+            path: testInfo.outputPath('grid-crossings-viewer.png'),
+        });
+
+        const crossings = await page.evaluate(
+            async ({ grid, overlays, png, svg }) => {
+                const { padding, renderWidth, renderHeight } = (window as any)
+                    .app.activeFrame.overlayStore;
+                const scale = devicePixelRatio;
+                // Ignore axis ticks and focus on crossings inside the image.
+                const x = Math.ceil((padding.left + 0.1 * renderWidth) * scale);
+                const y = Math.ceil((padding.top + 0.1 * renderHeight) * scale);
+                const width = Math.floor(renderWidth * 0.8 * scale);
+                const height = Math.floor(renderHeight * 0.8 * scale);
+                const pixels = async (data: string, type = 'png') => {
+                    const image = new Image();
+                    image.src = `data:image/${type};base64,${data}`;
+                    await image.decode();
+                    const canvas = document.createElement('canvas');
+                    canvas.width = image.naturalWidth;
+                    canvas.height = image.naturalHeight;
+                    const context = canvas.getContext('2d')!;
+                    context.drawImage(image, 0, 0);
+                    return context.getImageData(x, y, width, height).data;
+                };
+                const [gridPixels, overlayPixels, pngPixels, svgPixels] =
+                    await Promise.all([
+                        pixels(grid),
+                        pixels(overlays),
+                        pixels(png),
+                        pixels(svg, 'svg+xml'),
+                    ]);
+                const nearColor = (
+                    data: Uint8ClampedArray,
+                    index: number,
+                    rgb: number[],
+                ) =>
+                    data[index + 3] === 255 &&
+                    rgb.every(
+                        (value, channel) =>
+                            Math.abs(value - data[index + channel]) <= 20,
+                    );
+                return [
+                    { name: 'contour', rgb: [0, 255, 0] },
+                    { name: 'vector', rgb: [255, 0, 255] },
+                ].map(({ name, rgb }) => {
+                    let samples = 0;
+                    let mismatches = 0;
+                    let reversedLayerOrder = 0;
+                    for (let i = 0; i < gridPixels.length; i += 4) {
+                        if (
+                            !nearColor(gridPixels, i, [255, 255, 0]) ||
+                            !nearColor(overlayPixels, i, rgb)
+                        )
+                            continue;
+                        samples++;
+                        const pngRgb = [
+                            pngPixels[i],
+                            pngPixels[i + 1],
+                            pngPixels[i + 2],
+                        ];
+                        mismatches += Number(!nearColor(svgPixels, i, pngRgb));
+                        reversedLayerOrder += Number(
+                            nearColor(pngPixels, i, [255, 255, 0]) &&
+                                nearColor(svgPixels, i, rgb),
+                        );
+                    }
+                    return { name, samples, mismatches, reversedLayerOrder };
+                });
+            },
+            { grid, overlays, png, svg },
+        );
+        for (const crossing of crossings) {
+            expect(
+                crossing.samples,
+                `${crossing.name} crossing pixels`,
+            ).toBeGreaterThan(20);
+        }
+        await testInfo.attach('crossing RGB counts', {
+            body: JSON.stringify(crossings, null, 2),
+            contentType: 'application/json',
+        });
+        const inconsistent = crossings.filter(
+            ({ samples, mismatches }) => mismatches / samples > 0.1,
+        );
+        expect(inconsistent, 'Crossing RGB disagreements above 10%').toEqual(
+            [],
+        );
+    });
+
     test('Toolbar toggle and all export resolutions', async ({
         page,
         carta,

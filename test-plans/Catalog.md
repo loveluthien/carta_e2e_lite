@@ -1,6 +1,6 @@
 # Catalog test plan
 
-**Source:** [`tests/Catalog.spec.ts`](../tests/Catalog.spec.ts) · **Cases:** 16
+**Source:** [`tests/Catalog.spec.ts`](../tests/Catalog.spec.ts) · **Cases:** 17
 
 Local catalog table, overlay, plot, coordinate and styling behavior.
 
@@ -13,6 +13,12 @@ Local catalog table, overlay, plot, coordinate and styling behavior.
 - Referenced FITS fixtures: `catalog-image.fits`, `catalog-image-shifted.fits`, `catalog-angular-size-image.fits`, `catalog-format-image.fits`.
 - Referenced catalog fixtures: `catalog-sky.vot`, `catalog-pixel.vot`, `catalog-invalid.vot`, `catalog-angular-size.vot`, `catalog-sky.xml`, `catalog-missing-tabledata.xml`.
 - The toolbar case compares the viewer against a named PNG baseline. The other cases capture viewer and spatial-profile PNG artifacts in the Playwright output directory as diagnostic captures.
+
+## Selected marker export
+
+- Plot `catalog-sky.vot` on `catalog-image.fits`, select one circular source through the viewer, and export PNG, SVG, and PDF at 200%.
+- Use Chromium to decode PNG and SVG and Poppler’s `pdftoppm` to render the PDF at 72 DPI. Compare the teal source and red highlight separately inside the selected marker’s bounds. Require each color centroid to agree within 1.5 output pixels and over 65% RGB overlap within 20 levels per channel. Keep the exports, PDF render, viewer PNG, and counts as artifacts.
+- Run with the SVG-enabled frontend and `pdftoppm` on PATH. Use `npm test -- --project=test-group1 tests/Catalog.spec.ts -g 'Selected catalog marker keeps'`.
 
 ## Cases
 
