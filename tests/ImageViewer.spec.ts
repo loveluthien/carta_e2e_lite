@@ -89,7 +89,7 @@ async function useSinglePanel(page: Page) {
         await app.preferenceStore.setPreference('imagePanelMode', 'fixed');
         await app.preferenceStore.setPreference('imagePanelColumns', 1);
         await app.preferenceStore.setPreference('imagePanelRows', 1);
-        app.widgetsStore.setImageMultiPanelEnabled(true);
+        app.imageViewConfigStore.setMultiPanelEnabled(true);
     });
 }
 
@@ -3026,7 +3026,10 @@ test('Independent axis zoom: PNG export and workspace round trip', async ({
             .poll(() => axisPixelRgb(page, 8, 8).then((rgb) => rgb[3]))
             .toBe(255);
         await settleViewer(viewerCanvas);
-        await snapshotViewer(viewerCanvas, `pv-axis-workspace-${variant}.png`);
+        // Restoring the cursor can change its readout relative to older baselines.
+        await snapshotViewer(viewerCanvas, `pv-axis-workspace-${variant}.png`, {
+            maxDiffPixelRatio: 0.001,
+        });
     }
 });
 

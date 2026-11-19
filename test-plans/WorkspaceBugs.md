@@ -51,3 +51,13 @@ npx playwright test tests/Workspace.spec.ts -g 'changed moment map and PV'
 ```sh
 npx playwright test tests/Workspace.spec.ts -g 'a HiPS image'
 ```
+
+## Invalid PV-axis zoom prevents scalar zoom fallback
+
+The independent PV-axis zoom E2E test saved unequal X/Y zoom and reopened both the current workspace and a legacy copy with the axis-specific zoom omitted. Both restored the expected zoom.
+
+To exercise malformed workspace recovery, the test then sets the saved `axisZoomLevel` to `{x: -1, y: 0}` while leaving the valid scalar zoom in place. The expected fallback is to open the workspace and use the saved scalar zoom for both axes. Instead, workspace validation fails and the Open Workspace dialog shows **Could not read the workspace**. This case uses an injected invalid record.
+
+```sh
+npx playwright test tests/ImageViewer.spec.ts -g 'PNG export and workspace round trip'
+```

@@ -178,7 +178,7 @@ export async function open(
     await carta.setTestPreferences();
     await load(page, name, false, folder);
     await carta.fillSnippetInput(
-        'app.widgetsStore.setImageMultiPanelEnabled(false);',
+        'app.imageViewConfigStore.setMultiPanelEnabled(false);',
     );
     await carta.applyLayout(LayoutName.Default);
     await page.locator('#SpectralProfilerButton').click();
@@ -995,7 +995,7 @@ export class PlaywrightDevPage {
 
     async setMultiPanelLayout(rows: number = 2, columns: number = 2) {
         await this.fillSnippetInput(
-            `app.widgetsStore.setImageMultiPanelEnabled(true); app.preferenceStore.setPreference("imagePanelMode", "dynamic"); app.preferenceStore.setPreference("imagePanelColumns", ${columns}); app.preferenceStore.setPreference("imagePanelRows", ${rows});`,
+            `app.imageViewConfigStore.setMultiPanelEnabled(true); app.preferenceStore.setPreference("imagePanelMode", "dynamic"); app.preferenceStore.setPreference("imagePanelColumns", ${columns}); app.preferenceStore.setPreference("imagePanelRows", ${rows});`,
         );
     }
 
@@ -1081,7 +1081,7 @@ export class PlaywrightDevPage {
                     throw new Error(`Failed to set test preference: ${key}`);
                 }
             }
-            app.widgetsStore.setImageMultiPanelEnabled(true);
+            app.imageViewConfigStore.setMultiPanelEnabled(true);
             app.overlaySettings.global.setLabelType('Exterior');
         });
     }

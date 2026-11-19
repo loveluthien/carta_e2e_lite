@@ -311,7 +311,9 @@ test.describe('Animator', () => {
             page.getByTestId('animator-time-series-mode'),
         ).toBeChecked();
         await page.evaluate(() =>
-            (window as any).app.widgetsStore.setImageMultiPanelEnabled(false),
+            (window as any).app.imageViewConfigStore.setMultiPanelEnabled(
+                false,
+            ),
         );
 
         const series = () =>
@@ -401,7 +403,9 @@ test.describe('Animator', () => {
         await carta.loadImage('cube.fits');
         await carta.loadImage('matching-cube.fits', true);
         await page.evaluate(() =>
-            (window as any).app.widgetsStore.setImageMultiPanelEnabled(false),
+            (window as any).app.imageViewConfigStore.setMultiPanelEnabled(
+                false,
+            ),
         );
         await carta.applyLayout(LayoutName.Default);
 
