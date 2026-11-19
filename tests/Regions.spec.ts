@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { existsSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fixtureBrowserPath, PlaywrightDevPage } from '../utilities';
 
@@ -239,6 +239,7 @@ test.describe('Regions', () => {
             'ellipse',
             'polygon',
             'polyline',
+            'annulus',
         ]) {
             await draw(type);
             await expect
@@ -260,6 +261,7 @@ test.describe('Regions', () => {
                         'ellipse',
                         'polygon',
                         'polyline',
+                        'annulus',
                     ].indexOf(type) + 1,
                 );
         }
@@ -273,6 +275,7 @@ test.describe('Regions', () => {
             'Ellipse',
             'Polygon',
             'Polyline',
+            'Annulus',
         ].entries()) {
             await expect(
                 list.getByTestId(`region-list-table-row-${index + 2}`),
@@ -309,7 +312,7 @@ test.describe('Regions', () => {
                 ),
             )
             .toEqual(
-                Array.from({ length: 6 }, (_, index) => ({
+                Array.from({ length: 7 }, (_, index) => ({
                     id: index + 1,
                     temporary: false,
                 })),
@@ -963,6 +966,12 @@ test.describe('Regions', () => {
 
         // Exercise the annotation dialog's lock and visibility actions on the ruler.
         const visibleWhitePixels = await regionRgbCount(page, [255, 255, 255]);
+        await list
+            .locator(':scope > div')
+            .last()
+            .evaluate((element) => {
+                element.scrollTop = 9 * 35;
+            });
         await list.getByTestId('region-list-table-row-11').dblclick();
         await dialog.getByTestId('region-dialog-lock-button').click();
         await expect(
@@ -1151,7 +1160,7 @@ test.describe('Regions', () => {
                     .click();
                 await expect(selectAnnotations).toBeChecked();
                 await expect(
-                    browser.getByText('Selected 10 / 11 elements.', {
+                    browser.getByText('Selected 11 / 12 elements.', {
                         exact: true,
                     }),
                 ).toBeVisible();
@@ -1431,6 +1440,1090 @@ test.describe('Regions', () => {
             maxDiffPixelRatio: 0.02,
         });
     });
+
+    test('Annulus name, geometry, and style edits update the viewer, statistics, and profiler', async ({
+        page,
+    }) => {
+        test.setTimeout(60_000);
+        page.setDefaultTimeout(10_000);
+        const carta = new PlaywrightDevPage(page);
+        await carta.goto();
+        await carta.loadImage('HD163296_13CO_2-1_subimage.fits');
+
+        const viewer = page.getByTestId('viewer-div');
+        const canvas = page
+            .locator('.region-stage > .konvajs-content > canvas')
+            .first();
+        const box = await canvas.boundingBox();
+        expect(box).not.toBeNull();
+        await page.getByTestId('annulus-region-shortcut-button').click();
+        await canvas.dragTo(canvas, {
+            sourcePosition: { x: box!.width * 0.35, y: box!.height * 0.35 },
+            targetPosition: { x: box!.width * 0.65, y: box!.height * 0.65 },
+        });
+
+        const region = () =>
+            page.evaluate(() => {
+                const r = (
+                    window as any
+                ).app.activeFrame.regionSet.regions.find(
+                    (item: any) => item.regionId === 1,
+                );
+                return (
+                    r && {
+                        type: r.regionType,
+                        name: r.nameString,
+                        center: { x: r.center.x, y: r.center.y },
+                        size: { x: r.size.x, y: r.size.y },
+                        innerSize: { x: r.innerSize.x, y: r.innerSize.y },
+                        rotation: r.rotation,
+                        color: r.color,
+                        lineWidth: r.lineWidth,
+                        dashLength: r.dashLength,
+                        opacity: r.opacity,
+                        locked: r.isLocked,
+                        isValid: r.isValid,
+                    }
+                );
+            });
+        await expect.poll(region).toMatchObject({
+            type: 5,
+            opacity: 1,
+            locked: false,
+            isValid: true,
+        });
+
+        await page.getByTestId('region-list-0-header-title').click();
+        const list = page.getByTestId('region-list-table');
+        const row = list.getByTestId('region-list-table-row-2');
+        await expect(row).toContainText('Annulus');
+        await expect(row).toContainText('Region 1');
+        await expect
+            .poll(() => regionRgbCount(page, [46, 230, 214]))
+            .toBeGreaterThan(0);
+        await expect(viewer.locator('.image-ratio-popup')).toHaveCSS(
+            'opacity',
+            '0',
+        );
+        await expect(viewer).toHaveScreenshot('annulus-created.png');
+
+        await row.dblclick();
+        const dialog = page.locator('.region-dialog');
+        await expect(dialog).toBeVisible();
+        const setField = async (testId: string, value: string) => {
+            const input = dialog.getByTestId(testId);
+            await input.fill(value);
+            await input.press('Tab');
+        };
+
+        await setField('annulus-name-input', 'Ring ROI');
+        await expect(dialog.locator('.bp6-dialog-header')).toContainText(
+            'Ring ROI',
+        );
+        await expect(row).toContainText('Ring ROI');
+
+        await dialog.getByRole('radiogroup').getByText('Image').click();
+        await setField('annulus-center-x-input', '45');
+        await setField('annulus-center-y-input', '45');
+        await setField('annulus-outer-major-input', '20');
+        await setField('annulus-outer-minor-input', '12');
+        await setField('annulus-inner-major-input', '10');
+        await setField('annulus-inner-minor-input', '6');
+        await setField('annulus-rotation-input', '35');
+        await expect.poll(region).toMatchObject({
+            name: 'Ring ROI',
+            center: { x: 45, y: 45 },
+            size: { x: 20, y: 12 },
+            innerSize: { x: 10, y: 6 },
+            rotation: 35,
+            isValid: true,
+        });
+
+        // Inner axes preserve the outer aspect ratio (20:12 -> 15:9).
+        await setField('annulus-inner-major-input', '15');
+        await expect
+            .poll(async () => (await region())?.innerSize)
+            .toEqual({ x: 15, y: 9 });
+        await setField('annulus-inner-major-input', '10');
+        await expect
+            .poll(async () => (await region())?.innerSize)
+            .toEqual({ x: 10, y: 6 });
+
+        // Inner >= outer clamps strictly below outer; zero/negative values are rejected.
+        await setField('annulus-inner-major-input', '25');
+        await expect
+            .poll(async () => {
+                const state = await region();
+                return (
+                    state &&
+                    state.isValid &&
+                    state.innerSize.x < state.size.x &&
+                    state.innerSize.y < state.size.y
+                );
+            })
+            .toBe(true);
+        await setField('annulus-inner-major-input', '10');
+        await expect
+            .poll(async () => (await region())?.innerSize)
+            .toEqual({ x: 10, y: 6 });
+
+        for (const [testId, invalid] of [
+            ['annulus-inner-major-input', '0'],
+            ['annulus-inner-major-input', '-5'],
+            ['annulus-outer-major-input', '0'],
+            ['annulus-outer-major-input', '-5'],
+        ]) {
+            await setField(testId, invalid);
+            await expect.poll(region).toMatchObject({
+                size: { x: 20, y: 12 },
+                innerSize: { x: 10, y: 6 },
+            });
+        }
+
+        await dialog.getByRole('radiogroup').getByText('World').click();
+        await expect(
+            dialog.getByTestId('annulus-outer-major-input'),
+        ).toHaveValue(/"$/);
+        for (const invalid of ['abc', '-1"', '0"']) {
+            await setField('annulus-inner-major-input', invalid);
+            await expect
+                .poll(async () => (await region())?.innerSize)
+                .toEqual({ x: 10, y: 6 });
+        }
+
+        await dialog.getByTestId('region-dialog-styling-tab-title').click();
+        await dialog.locator('.color-swatch-button').click();
+        await page.getByTitle('#FFFFFF').click();
+        await page.keyboard.press('Escape');
+        await setField('region-dialog-line-width-input', '4');
+        await setField('region-dialog-dash-length-input', '4');
+        await expect.poll(region).toMatchObject({
+            color: '#ffffff',
+            lineWidth: 4,
+            dashLength: 4,
+        });
+        await expect
+            .poll(() => regionRgbCount(page, [255, 255, 255]))
+            .toBeGreaterThan(0);
+
+        await dialog.getByTestId('region-dialog-focus-button').click();
+        await expect
+            .poll(async () => {
+                const current = await region();
+                return page
+                    .evaluate(() => (window as any).app.activeFrame.center)
+                    .then((frameCenter) => ({
+                        dx: Math.abs(frameCenter.x - current.center.x),
+                        dy: Math.abs(frameCenter.y - current.center.y),
+                    }));
+            })
+            .toMatchObject({ dx: 0, dy: 0 });
+
+        await dialog.getByTestId('region-dialog-lock-button').click();
+        await expect.poll(region).toMatchObject({ locked: true });
+        await expect(
+            dialog.getByTestId('region-dialog-delete-button'),
+        ).toBeDisabled();
+        await dialog.getByTestId('region-dialog-lock-button').click();
+        await dialog.getByTestId('region-dialog-visibility-button').click();
+        await dialog.getByTestId('region-dialog-visibility-button').click();
+        await expect.poll(region).toMatchObject({ opacity: 0, locked: false });
+        await expect.poll(() => regionRgbCount(page, [255, 255, 255])).toBe(0);
+        await dialog.getByTestId('region-dialog-visibility-button').click();
+        await expect.poll(region).toMatchObject({ opacity: 1 });
+        await expect
+            .poll(() => regionRgbCount(page, [255, 255, 255]))
+            .toBeGreaterThan(0);
+
+        await page.getByTestId('region-dialog-header-close-button').click();
+        await expect(viewer.locator('.image-ratio-popup')).toHaveCSS(
+            'opacity',
+            '0',
+        );
+        await expect(viewer).toHaveScreenshot('annulus-edited.png');
+
+        // Verify Statistics and Spectral Profiler exact Annulus == Outer - Inner invariant.
+        await page.evaluate(async () => {
+            const rs = (window as any).app.activeFrame.regionSet;
+            await rs.addRegionAsync(
+                4,
+                [
+                    { x: 45, y: 45 },
+                    { x: 20, y: 12 },
+                ],
+                35,
+            );
+            await rs.addRegionAsync(
+                4,
+                [
+                    { x: 45, y: 45 },
+                    { x: 10, y: 6 },
+                ],
+                35,
+            );
+        });
+        await expect
+            .poll(() =>
+                page.evaluate(
+                    () =>
+                        (
+                            window as any
+                        ).app.activeFrame.regionSet.regions.filter(
+                            (r: any) => r.regionId > 0,
+                        ).length,
+                ),
+            )
+            .toBe(3);
+
+        await carta.selectMenuItem('Widgets', 'Statistics Widget');
+        const statsWidget = page.getByTestId('stats-0-content');
+        const statsTable = statsWidget.getByTestId('statistics-table');
+        const statsRegion = statsWidget.getByTestId('region-dropdown');
+        await expect(statsTable).toBeVisible();
+        const readStats = async (regionId: string, previousSum?: number) => {
+            await statsRegion.selectOption(regionId);
+            const parseRows = async () => {
+                const rows = await statsTable.locator('tbody tr').all();
+                const values: Record<string, number> = {};
+                for (const statsRow of rows) {
+                    const key = (
+                        await statsRow.locator('td').nth(0).textContent()
+                    )?.trim();
+                    const raw = (
+                        await statsRow.locator('td').nth(1).textContent()
+                    )?.trim();
+                    if (key && raw) {
+                        values[key] = Number.parseFloat(raw);
+                    }
+                }
+                return values;
+            };
+            await expect
+                .poll(
+                    async () => {
+                        const values = await parseRows();
+                        return (
+                            values.NumPixels > 0 &&
+                            Number.isFinite(values.Sum) &&
+                            (previousSum === undefined ||
+                                Math.abs(values.Sum - previousSum) > 1e-12)
+                        );
+                    },
+                    { timeout: 5000 },
+                )
+                .toBe(true);
+            return parseRows();
+        };
+        const annStats = await readStats('1');
+        const outStats = await readStats('2', annStats.Sum);
+        const inStats = await readStats('3', outStats.Sum);
+        expect(annStats.NumPixels).toBe(outStats.NumPixels - inStats.NumPixels);
+        expect(
+            Math.abs(annStats.Sum - (outStats.Sum - inStats.Sum)),
+        ).toBeLessThan(1e-6);
+
+        await page.locator('#SpectralProfilerButton').click();
+        const profiler = page.getByTestId('spectral-profiler-0-content');
+        await profiler.getByTestId('spectral-profiler-region-dropdown').click();
+        await page
+            .getByRole('menuitem', { name: 'Ring ROI', exact: true })
+            .click();
+        await page.keyboard.press('Escape');
+        await profiler
+            .getByTestId('spectral-profiler-statistic-dropdown')
+            .click();
+        await page.getByRole('menuitem', { name: 'Sum', exact: true }).click();
+        await page.keyboard.press('Escape');
+
+        const readProfileSum = async (regionId: number) => {
+            await profiler
+                .getByTestId('spectral-profiler-region-dropdown')
+                .click();
+            const label = regionId === 1 ? 'Ring ROI' : `Region ${regionId}`;
+            await page
+                .getByRole('menuitem', { name: label, exact: true })
+                .click();
+            await page.keyboard.press('Escape');
+            await expect
+                .poll(() =>
+                    page.evaluate(() => {
+                        const widget = (
+                            window as any
+                        ).app.widgetsStore.spectralProfileWidgets.get(
+                            'spectral-profiler-0',
+                        );
+                        const pts = widget?.plotData?.data?.[0];
+                        return {
+                            regionId: widget?.effectiveRegionId,
+                            len: pts?.length ?? 0,
+                            finite:
+                                pts?.every((p: any) => Number.isFinite(p.y)) ??
+                                false,
+                        };
+                    }),
+                )
+                .toEqual({ regionId, len: 110, finite: true });
+            return page.evaluate(() =>
+                (window as any).app.widgetsStore.spectralProfileWidgets
+                    .get('spectral-profiler-0')
+                    .plotData.data[0].map((p: any) => p.y),
+            ) as Promise<number[]>;
+        };
+        const outerSp = await readProfileSum(2);
+        const innerSp = await readProfileSum(3);
+        const annulusSp = await readProfileSum(1);
+        const maxProfileDiff = Math.max(
+            ...annulusSp.map((v, i) => Math.abs(v - (outerSp[i] - innerSp[i]))),
+        );
+        expect(maxProfileDiff).toBeLessThan(1e-5);
+        await expect(
+            page
+                .locator(
+                    '.spectral-profiler-widget .line-plot-component .annotation-stage canvas',
+                )
+                .first(),
+        ).toHaveScreenshot('annulus-profile.png', {
+            maxDiffPixelRatio: 0.02,
+        });
+
+        await row.dblclick();
+        await dialog.getByTestId('region-dialog-delete-button').click();
+        await expect.poll(region).toBeFalsy();
+        await profiler.getByTestId('spectral-profiler-region-dropdown').click();
+        await expect(
+            page.getByRole('menuitem', { name: 'Ring ROI', exact: true }),
+        ).toHaveCount(0);
+    });
+
+    test('Annulus CRTF and DS9 export/import preserves WCS angle, circular zero rotation, and reports invalid files', async ({
+        page,
+    }) => {
+        test.setTimeout(60_000);
+        page.setDefaultTimeout(10_000);
+        const carta = new PlaywrightDevPage(page);
+        const ds9Roundtrip = {
+            name: 'annulus-roundtrip-world.reg',
+            path: path.resolve(
+                __dirname,
+                '../test_data/annulus-roundtrip-world.reg',
+            ),
+        };
+        const crtfRoundtrip = {
+            name: 'annulus-roundtrip-world.crtf',
+            path: path.resolve(
+                __dirname,
+                '../test_data/annulus-roundtrip-world.crtf',
+            ),
+        };
+        const invalidPartial = {
+            name: 'annulus-invalid-partial.reg',
+            path: path.resolve(
+                __dirname,
+                '../test_data/annulus-invalid-partial.reg',
+            ),
+        };
+        const cleanupFiles = [
+            ds9Roundtrip.path,
+            crtfRoundtrip.path,
+            invalidPartial.path,
+        ];
+        for (const filePath of cleanupFiles) rmSync(filePath, { force: true });
+
+        try {
+            await carta.goto();
+            await carta.loadImage('HD163296_13CO_2-1_subimage.fits');
+
+            await page.evaluate(async () => {
+                const rs = (window as any).app.activeFrame.regionSet;
+                const ellipAnn = await rs.addRegionAsync(
+                    5,
+                    [
+                        { x: 45, y: 45 },
+                        { x: 20, y: 12 },
+                        { x: 10, y: 6 },
+                    ],
+                    35,
+                );
+                ellipAnn.setName('EllipRing');
+                const matchEllip = await rs.addRegionAsync(
+                    4,
+                    [
+                        { x: 45, y: 45 },
+                        { x: 20, y: 12 },
+                    ],
+                    35,
+                );
+                matchEllip.setName('MatchEllip');
+                const circAnn = await rs.addRegionAsync(
+                    5,
+                    [
+                        { x: 25, y: 65 },
+                        { x: 10, y: 10 },
+                        { x: 4, y: 4 },
+                    ],
+                    0,
+                );
+                circAnn.setName('CircRing');
+            });
+            await expect
+                .poll(() =>
+                    page.evaluate(
+                        () =>
+                            (
+                                window as any
+                            ).app.activeFrame.regionSet.regions.filter(
+                                (r: any) => r.regionId > 0,
+                            ).length,
+                    ),
+                )
+                .toBe(3);
+
+            const browser = page.getByTestId('file-browser-dialog');
+            const directory = browser.getByPlaceholder(
+                'Input directory path with respect to the top level folder',
+            );
+            const exportFile = async (
+                fileName: string,
+                formatLabel: 'DS9 region file' | 'CRTF region file',
+            ) => {
+                await carta.selectMenuItem('File', 'Export Regions');
+                await expect(browser).toBeVisible();
+                await browser.locator('.edit-path-button').click();
+                await directory.fill(fixtureBrowserPath);
+                await directory.press('Enter');
+                await browser
+                    .getByTestId('export-region-file-type-dropdown')
+                    .click();
+                await page.getByRole('menuitem', { name: formatLabel }).click();
+                await browser
+                    .getByPlaceholder('Enter file name')
+                    .fill(fileName);
+                await browser
+                    .getByRole('button', { name: 'Export regions' })
+                    .click();
+                await expect(browser).toBeHidden();
+            };
+
+            const importFile = async (fileName: string) => {
+                await carta.selectMenuItem('File', 'Import Regions');
+                await expect(browser).toBeVisible();
+                await browser.locator('.edit-path-button').click();
+                await directory.fill(fixtureBrowserPath);
+                await directory.press('Enter');
+                await browser.getByText(fileName, { exact: true }).click();
+                await browser
+                    .getByRole('button', { name: 'Load region' })
+                    .click();
+                await expect(browser).toBeHidden();
+            };
+
+            await page.getByTestId('region-list-0-header-title').click();
+            const deleteAll = async () => {
+                await page
+                    .locator('.region-list-widget .float .bp6-button')
+                    .first()
+                    .click();
+                await expect(
+                    page.getByText(
+                        'Are you sure you want to delete all regions?',
+                    ),
+                ).toBeVisible();
+                await page.keyboard.press('Enter');
+                await expect
+                    .poll(() =>
+                        page.evaluate(
+                            () =>
+                                (window as any).app.activeFrame.regionSet
+                                    .regions.length,
+                        ),
+                    )
+                    .toBe(1);
+            };
+
+            // DS9 World export: elliptical annulus angle matches ellipse (~125 deg) and circular uses annulus(...).
+            await exportFile(ds9Roundtrip.name, 'DS9 region file');
+            await expect.poll(() => existsSync(ds9Roundtrip.path)).toBe(true);
+            const ds9Lines = readFileSync(ds9Roundtrip.path, 'utf8').split(
+                '\n',
+            );
+            const ellipAnnLine = ds9Lines.find((l) =>
+                l.includes('text={EllipRing}'),
+            );
+            const matchEllipLine = ds9Lines.find((l) =>
+                l.includes('text={MatchEllip}'),
+            );
+            const circAnnLine = ds9Lines.find((l) =>
+                l.includes('text={CircRing}'),
+            );
+            expect(ellipAnnLine).toBeTruthy();
+            expect(matchEllipLine).toBeTruthy();
+            expect(circAnnLine?.startsWith('annulus(')).toBe(true);
+            const parseDs9Angle = (line: string) =>
+                Number(line.match(/,\s*([-\d.]+)\)/)?.[1]);
+            expect(parseDs9Angle(matchEllipLine!)).toBeCloseTo(125, 1);
+            expect(parseDs9Angle(ellipAnnLine!)).toBeCloseTo(125, 1);
+
+            await deleteAll();
+            await importFile(ds9Roundtrip.name);
+            await expect
+                .poll(() =>
+                    page.evaluate(() =>
+                        (window as any).app.activeFrame.regionSet.regions
+                            .filter((r: any) => r.regionId > 0)
+                            .map((r: any) => ({
+                                type: r.regionType,
+                                name: r.nameString,
+                                center: r.center,
+                                size: r.size,
+                                innerSize: r.innerSize,
+                                rotation: r.rotation,
+                            })),
+                    ),
+                )
+                .toHaveLength(3);
+            const ds9Imported = await page.evaluate(() =>
+                (window as any).app.activeFrame.regionSet.regions
+                    .filter((r: any) => r.regionId > 0)
+                    .map((r: any) => ({
+                        type: r.regionType,
+                        name: r.nameString,
+                        center: r.center,
+                        size: r.size,
+                        innerSize: r.innerSize,
+                        rotation: r.rotation,
+                    })),
+            );
+            const reEllipAnn = ds9Imported.find(
+                (r: any) => r.name === 'EllipRing',
+            );
+            const reCircAnn = ds9Imported.find(
+                (r: any) => r.name === 'CircRing',
+            );
+            expect(reEllipAnn.type).toBe(5);
+            expect(reEllipAnn.center.x).toBeCloseTo(45, 2);
+            expect(reEllipAnn.center.y).toBeCloseTo(45, 2);
+            expect(reEllipAnn.size.x).toBeCloseTo(20, 2);
+            expect(reEllipAnn.size.y).toBeCloseTo(12, 2);
+            expect(reEllipAnn.innerSize.x).toBeCloseTo(10, 2);
+            expect(reEllipAnn.innerSize.y).toBeCloseTo(6, 2);
+            expect(reEllipAnn.rotation).toBeCloseTo(35, 1);
+            expect(reCircAnn.type).toBe(5);
+            expect(reCircAnn.center.x).toBeCloseTo(25, 2);
+            expect(reCircAnn.center.y).toBeCloseTo(65, 2);
+            expect(reCircAnn.size.x).toBeCloseTo(10, 2);
+            expect(reCircAnn.size.y).toBeCloseTo(10, 2);
+            expect(reCircAnn.innerSize.x).toBeCloseTo(4, 2);
+            expect(reCircAnn.innerSize.y).toBeCloseTo(4, 2);
+            expect(reCircAnn.rotation).toBe(0);
+            await expect
+                .poll(() => regionRgbCount(page, [46, 230, 214]))
+                .toBeGreaterThan(0);
+            await expect(page.getByTestId('viewer-div')).toHaveScreenshot(
+                'annulus-ds9-world-reloaded.png',
+            );
+
+            // CRTF export warns and skips elliptical annulus, while circular annulus roundtrips cleanly.
+            await exportFile(crtfRoundtrip.name, 'CRTF region file');
+            await expect(
+                page
+                    .locator('.bp6-toast')
+                    .filter({
+                        hasText: 'Ellipse annulus is not supported in CRTF',
+                    })
+                    .first(),
+            ).toBeVisible();
+            await expect.poll(() => existsSync(crtfRoundtrip.path)).toBe(true);
+            const crtfText = readFileSync(crtfRoundtrip.path, 'utf8');
+            expect(crtfText).toContain('CircRing');
+            expect(crtfText).not.toContain('EllipRing');
+
+            await deleteAll();
+            await importFile(crtfRoundtrip.name);
+            await expect
+                .poll(() =>
+                    page.evaluate(() =>
+                        (window as any).app.activeFrame.regionSet.regions
+                            .filter((r: any) => r.regionId > 0)
+                            .map((r: any) => ({
+                                type: r.regionType,
+                                name: r.nameString,
+                                size: r.size,
+                                innerSize: r.innerSize,
+                                rotation: r.rotation,
+                            })),
+                    ),
+                )
+                .toHaveLength(2);
+            const crtfImported = await page.evaluate(() =>
+                (window as any).app.activeFrame.regionSet.regions
+                    .filter((item: any) => item.regionId > 0)
+                    .map((r: any) => ({
+                        type: r.regionType,
+                        name: r.nameString,
+                        size: r.size,
+                        innerSize: r.innerSize,
+                        rotation: r.rotation,
+                    })),
+            );
+            expect(crtfImported.some((r: any) => r.name === 'EllipRing')).toBe(
+                false,
+            );
+            const crtfCirc = crtfImported.find(
+                (r: any) => r.name === 'CircRing',
+            );
+            expect(crtfCirc).toBeTruthy();
+            expect(crtfCirc.type).toBe(5);
+            expect(crtfCirc.size.x).toBeCloseTo(10, 2);
+            expect(crtfCirc.innerSize.x).toBeCloseTo(4, 2);
+            expect(crtfCirc.rotation).toBe(0);
+
+            // Partial invalid DS9 import loads valid annulus and shows specific warning toast without duplicate generic syntax error.
+            writeFileSync(
+                invalidPartial.path,
+                [
+                    '# Region file format: DS9 version 4.1',
+                    'image',
+                    'annulus(45,45,5,15) # text={ValidRing}',
+                    'annulus(45,45,5,10,15) # text={MultiRing}',
+                    'ellipse(45,45,5,10,15,20,35) # text={MismatchedRatio}',
+                    '',
+                ].join('\n'),
+            );
+            await deleteAll();
+            await importFile(invalidPartial.name);
+            await expect
+                .poll(() =>
+                    page.evaluate(() =>
+                        (window as any).app.activeFrame.regionSet.regions
+                            .filter((r: any) => r.regionId > 0)
+                            .map((r: any) => ({
+                                type: r.regionType,
+                                name: r.nameString,
+                                center: r.center,
+                                size: r.size,
+                                innerSize: r.innerSize,
+                            })),
+                    ),
+                )
+                .toEqual([
+                    {
+                        type: 5,
+                        name: 'ValidRing',
+                        center: { x: 44, y: 44 },
+                        size: { x: 15, y: 15 },
+                        innerSize: { x: 5, y: 5 },
+                    },
+                ]);
+            const warningToast = page
+                .locator('.bp6-toast')
+                .filter({ hasText: 'multiple rings' })
+                .first();
+            await expect(warningToast).toBeVisible();
+            await expect(warningToast).toContainText(
+                'different inner/outer axis ratios',
+            );
+            await expect(warningToast).not.toContainText(
+                'Invalid DS9 region syntax',
+            );
+        } finally {
+            for (const filePath of cleanupFiles)
+                rmSync(filePath, { force: true });
+        }
+    });
+
+    test('Spatially matched images, moment map, and canvas handles work with annulus regions', async ({
+        page,
+    }) => {
+        test.setTimeout(60_000);
+        page.setDefaultTimeout(10_000);
+        const carta = new PlaywrightDevPage(page);
+        await carta.goto();
+        await carta.loadImage('cube.fits');
+        await carta.loadImage('matching-cube.fits', true);
+
+        await carta.selectMenuItem('Widgets', [
+            'Info Panels',
+            'Image List Widget',
+        ]);
+        const imageList = page
+            .locator('[data-testid^="layer-list-"][data-testid$="-content"]')
+            .filter({ has: page.locator('.layer-list-widget') })
+            .last();
+        const matching = imageList.getByTestId('image-list-0-matching-xy');
+        await imageList.getByTestId('image-list-1-image-name').click();
+        if (
+            await page.evaluate(
+                () => !!(window as any).app.frames[1].spatialReference,
+            )
+        )
+            await matching.click();
+        await expect
+            .poll(() =>
+                page.evaluate(
+                    () =>
+                        (window as any).app.frames[1].spatialReference
+                            ?.filename ?? null,
+                ),
+            )
+            .toBeNull();
+        await matching.click();
+        await expect
+            .poll(() =>
+                page.evaluate(
+                    () =>
+                        (window as any).app.frames[1].spatialReference
+                            ?.filename ?? null,
+                ),
+            )
+            .toBe('cube.fits');
+
+        await imageList.getByTestId('image-list-0-image-name').click();
+        await page.evaluate(async () => {
+            const rs = (window as any).app.frames[0].regionSet;
+            await rs.addRegionAsync(
+                5,
+                [
+                    { x: 8, y: 8 },
+                    { x: 5, y: 3 },
+                    { x: 2.5, y: 1.5 },
+                ],
+                25,
+            );
+            await rs.addRegionAsync(
+                4,
+                [
+                    { x: 8, y: 8 },
+                    { x: 5, y: 3 },
+                ],
+                25,
+            );
+            await rs.addRegionAsync(
+                4,
+                [
+                    { x: 8, y: 8 },
+                    { x: 2.5, y: 1.5 },
+                ],
+                25,
+            );
+        });
+        await expect
+            .poll(() =>
+                page.evaluate(
+                    () =>
+                        (window as any).app.frames[1].regionSet.regions.filter(
+                            (r: any) => r.regionId > 0,
+                        ).length,
+                ),
+            )
+            .toBe(3);
+
+        await imageList.getByTestId('image-list-1-image-name').click();
+        await carta.closeWidget('layer-list');
+        await carta.closeWidget('region-list');
+        await expect
+            .poll(() =>
+                page.evaluate(
+                    () =>
+                        (window as any).app.activeFrame.frameInfo.fileInfo.name,
+                ),
+            )
+            .toBe('matching-cube.fits');
+        await expect
+            .poll(() => regionRgbCount(page, [46, 230, 214]))
+            .toBeGreaterThan(0);
+        await expect(
+            page.getByTestId('viewer-div').locator('.image-ratio-popup'),
+        ).toHaveCSS('opacity', '0');
+        await expect(page.getByTestId('viewer-div')).toHaveScreenshot(
+            'annulus-matched-viewer.png',
+        );
+
+        await carta.selectMenuItem('Widgets', 'Statistics Widget');
+        const statsWidget = page.getByTestId('stats-0-content');
+        const statsImage = statsWidget.getByTestId('image-dropdown');
+        const statsRegion = statsWidget.getByTestId('region-dropdown');
+        const statsTable = statsWidget.getByTestId('statistics-table');
+        await expect(statsTable).toBeVisible();
+
+        const readStats = async (
+            imageId: string,
+            regionId: string,
+            previousSum?: number,
+        ) => {
+            await statsImage.selectOption(imageId);
+            await statsRegion.selectOption(regionId);
+            const parseRows = async () => {
+                const rows = await statsTable.locator('tbody tr').all();
+                const values: Record<string, number> = {};
+                for (const statsRow of rows) {
+                    const key = (
+                        await statsRow.locator('td').nth(0).textContent()
+                    )?.trim();
+                    const raw = (
+                        await statsRow.locator('td').nth(1).textContent()
+                    )?.trim();
+                    if (key && raw) {
+                        values[key] = Number.parseFloat(raw);
+                    }
+                }
+                return values;
+            };
+            await expect
+                .poll(
+                    async () => {
+                        const values = await parseRows();
+                        return (
+                            values.NumPixels > 0 &&
+                            Number.isFinite(values.Sum) &&
+                            (previousSum === undefined ||
+                                Math.abs(values.Sum - previousSum) > 1e-12)
+                        );
+                    },
+                    { timeout: 5000 },
+                )
+                .toBe(true);
+            return parseRows();
+        };
+
+        const matchedAnn = await readStats('1', '1');
+        const matchedOut = await readStats('1', '2', matchedAnn.Sum);
+        const matchedIn = await readStats('1', '3', matchedOut.Sum);
+        expect(matchedAnn.NumPixels).toBe(
+            matchedOut.NumPixels - matchedIn.NumPixels,
+        );
+        expect(
+            Math.abs(matchedAnn.Sum - (matchedOut.Sum - matchedIn.Sum)),
+        ).toBeLessThan(1e-6);
+
+        const cubeAnn = await readStats('0', '1', matchedIn.Sum);
+
+        await page.locator('#SpectralProfilerButton').click();
+        await page
+            .getByTestId('spectral-profiler-0-content')
+            .getByTestId('moment-generator-button')
+            .click();
+        await page
+            .locator('[data-testid="moment-generator-image-dropdown"]:visible')
+            .first()
+            .selectOption('0');
+        await page
+            .locator('[data-testid="moment-generator-region-dropdown"]:visible')
+            .first()
+            .selectOption('1');
+        await page
+            .locator('[data-testid="moment-generator-generate-button"]:visible')
+            .first()
+            .click();
+        await expect
+            .poll(() =>
+                page.evaluate(() =>
+                    (window as any).app.frames.map(
+                        (f: any) => f.frameInfo.fileInfo.name,
+                    ),
+                ),
+            )
+            .toContain('cube.fits.moment.integrated');
+        const momentFileId = await page.evaluate(() => {
+            const frame = (window as any).app.frames.find(
+                (f: any) =>
+                    f.frameInfo.fileInfo.name === 'cube.fits.moment.integrated',
+            );
+            return String(frame.frameInfo.fileId);
+        });
+        const momentImageStats = await readStats(
+            momentFileId,
+            '-1',
+            cubeAnn.Sum,
+        );
+        expect(momentImageStats.NumPixels).toBe(cubeAnn.NumPixels);
+
+        await page.keyboard.press('Escape');
+        await carta.closeWidget('stats');
+        await carta.closeWidget('spectral-profiler');
+
+        // Switch back to cube.fits, keep only Region 1 at P.A. 0, and verify interactive canvas handle dragging.
+        await carta.selectMenuItem('Widgets', [
+            'Info Panels',
+            'Image List Widget',
+        ]);
+        const listAgain = page
+            .locator('[data-testid^="layer-list-"][data-testid$="-content"]')
+            .filter({ has: page.locator('.layer-list-widget') })
+            .last();
+        await listAgain.getByTestId('image-list-0-image-name').click();
+        await carta.closeWidget('layer-list');
+        await expect
+            .poll(() =>
+                page.evaluate(
+                    () =>
+                        (window as any).app.activeFrame.frameInfo.fileInfo.name,
+                ),
+            )
+            .toBe('cube.fits');
+        await page.evaluate(() => {
+            const rs = (window as any).app.frames[0].regionSet;
+            for (const item of rs.regions.filter((r: any) => r.regionId > 1)) {
+                rs.deleteRegion(item);
+            }
+            const r1 = rs.regions.find((r: any) => r.regionId === 1);
+            r1.setControlPoints([
+                { x: 8, y: 8 },
+                { x: 5, y: 3 },
+                { x: 2.5, y: 1.5 },
+            ]);
+            r1.setRotation(0);
+        });
+        await carta.selectMenuItem('Widgets', [
+            'Info Panels',
+            'Region List Widget',
+        ]);
+        await page
+            .getByTestId('region-list-table')
+            .getByTestId('region-list-table-row-2')
+            .click();
+        await carta.closeWidget('region-list');
+
+        const getHandles = () =>
+            page.evaluate(() => {
+                const frame = (window as any).app.activeFrame;
+                const r = frame.regionSet.regions.find(
+                    (item: any) => item.regionId === 1,
+                );
+                const canvas = document.querySelector(
+                    '.region-stage > .konvajs-content > canvas',
+                )!;
+                const rect = canvas.getBoundingClientRect();
+                const fv =
+                    frame.requiredFrameViewForRegionRender ||
+                    frame.currentFrameView;
+                const toScreen = (ix: number, iy: number) => ({
+                    x:
+                        rect.left +
+                        ((ix - fv.xMin) / (fv.xMax - fv.xMin)) * rect.width,
+                    y:
+                        rect.top +
+                        ((fv.yMax - iy) / (fv.yMax - fv.yMin)) * rect.height,
+                });
+                return {
+                    innerTop: toScreen(r.center.x, r.center.y + r.innerSize.x),
+                    outerTop: toScreen(r.center.x, r.center.y + r.size.x),
+                    ringBody: toScreen(
+                        r.center.x + (r.innerSize.y + r.size.y) / 2,
+                        r.center.y,
+                    ),
+                };
+            });
+        const handlesBefore = await getHandles();
+        await page.mouse.move(
+            handlesBefore.innerTop.x,
+            handlesBefore.innerTop.y,
+        );
+        await page.mouse.down();
+        await page.mouse.move(
+            handlesBefore.outerTop.x,
+            handlesBefore.outerTop.y - 40,
+            { steps: 8 },
+        );
+        await page.mouse.up();
+        await expect
+            .poll(() =>
+                page.evaluate(() => {
+                    const r = (
+                        window as any
+                    ).app.activeFrame.regionSet.regions.find(
+                        (item: any) => item.regionId === 1,
+                    );
+                    return (
+                        r &&
+                        r.isValid &&
+                        r.innerSize.x > 2.5 &&
+                        r.innerSize.x < r.size.x &&
+                        r.innerSize.y < r.size.y
+                    );
+                }),
+            )
+            .toBe(true);
+
+        // Restore comfortable ring width before dragging the ring body to translate the annulus.
+        await page.evaluate(() => {
+            const r = (window as any).app.activeFrame.regionSet.regions.find(
+                (item: any) => item.regionId === 1,
+            );
+            r.setControlPoints([
+                { x: 8, y: 8 },
+                { x: 5, y: 3 },
+                { x: 2.5, y: 1.5 },
+            ]);
+        });
+        await expect
+            .poll(() =>
+                page.evaluate(() => {
+                    const r = (
+                        window as any
+                    ).app.activeFrame.regionSet.regions.find(
+                        (item: any) => item.regionId === 1,
+                    );
+                    return {
+                        size: { x: r.size.x, y: r.size.y },
+                        innerSize: { x: r.innerSize.x, y: r.innerSize.y },
+                    };
+                }),
+            )
+            .toEqual({
+                size: { x: 5, y: 3 },
+                innerSize: { x: 2.5, y: 1.5 },
+            });
+
+        const stateBeforeMove = await page.evaluate(() => {
+            const r = (window as any).app.activeFrame.regionSet.regions.find(
+                (item: any) => item.regionId === 1,
+            );
+            return {
+                center: { x: r.center.x, y: r.center.y },
+                size: { x: r.size.x, y: r.size.y },
+                innerSize: { x: r.innerSize.x, y: r.innerSize.y },
+            };
+        });
+        const handlesAfterResize = await getHandles();
+        await page.mouse.move(
+            handlesAfterResize.ringBody.x,
+            handlesAfterResize.ringBody.y,
+        );
+        await page.mouse.down();
+        await page.mouse.move(
+            handlesAfterResize.ringBody.x + 30,
+            handlesAfterResize.ringBody.y - 20,
+            { steps: 8 },
+        );
+        await page.mouse.up();
+        await expect
+            .poll(() =>
+                page.evaluate(() => {
+                    const r = (
+                        window as any
+                    ).app.activeFrame.regionSet.regions.find(
+                        (item: any) => item.regionId === 1,
+                    );
+                    return {
+                        center: { x: r.center.x, y: r.center.y },
+                        size: { x: r.size.x, y: r.size.y },
+                        innerSize: { x: r.innerSize.x, y: r.innerSize.y },
+                    };
+                }),
+            )
+            .toMatchObject({
+                size: stateBeforeMove.size,
+                innerSize: stateBeforeMove.innerSize,
+            });
+        const centerAfterMove = await page.evaluate(
+            () =>
+                (window as any).app.activeFrame.regionSet.regions.find(
+                    (item: any) => item.regionId === 1,
+                ).center,
+        );
+        expect(centerAfterMove.x).toBeGreaterThan(stateBeforeMove.center.x);
+        expect(centerAfterMove.y).toBeGreaterThan(stateBeforeMove.center.y);
+    });
 });
 
 const annotationTypes = [
@@ -1444,6 +2537,7 @@ const annotationTypes = [
     { name: 'Text', type: 15 },
     { name: 'Compass', type: 16 },
     { name: 'Ruler', type: 14 },
+    { name: 'Annulus', type: 17 },
 ];
 
 async function createAnnotations(page: Page) {
@@ -1461,8 +2555,8 @@ async function createAnnotations(page: Page) {
                 `annotation-shortcut-dropdown-${annotation.name.toLowerCase()}`,
             )
             .click();
-        const x = box!.width * (0.12 + (index % 5) * 0.18);
-        const y = box!.height * (index < 5 ? 0.3 : 0.65);
+        const x = box!.width * (0.12 + (index % 6) * 0.15);
+        const y = box!.height * (index < 6 ? 0.3 : 0.65);
         if (annotation.name === 'Point' || annotation.name === 'Compass') {
             await canvas.click({ position: { x, y } });
         } else if (
@@ -1477,10 +2571,16 @@ async function createAnnotations(page: Page) {
             for (const position of vertices) await canvas.click({ position });
             await canvas.dblclick({ position: vertices[2] });
         } else {
+            if (annotation.name === 'Annulus') {
+                await page.keyboard.down('Shift');
+            }
             await canvas.dragTo(canvas, {
                 sourcePosition: { x: x - 45, y: y - 30 },
                 targetPosition: { x: x + 45, y: y + 30 },
             });
+            if (annotation.name === 'Annulus') {
+                await page.keyboard.up('Shift');
+            }
         }
         await expect
             .poll(() =>

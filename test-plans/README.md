@@ -1,6 +1,6 @@
 # CARTA E2E test plans
 
-This directory maps every currently collected Playwright test to its action and expected result. The collector reports **246 cases in 22 spec files**. The Playwright configuration splits Chromium specs into five projects, `test-group1` through `test-group5`. These are plans derived from the current source, not execution results.
+This directory maps every currently collected Playwright test to its action and expected result. The collector reports **249 cases in 22 spec files**. The Playwright configuration splits Chromium specs into five projects, `test-group1` through `test-group5`. These are plans derived from the current source, not execution results.
 
 ## Shared execution plan
 
@@ -55,7 +55,7 @@ Use concise Title Case names for `test.describe()` groups. Write individual test
 | [Preferences](./Preferences.md)         |    18 | All preference tabs, resets, reloads, inherited defaults, RGB/PNG checks, validation, and save failure recovery.     |
 | [Profilers](./Profilers.md)             |    27 | Spatial and spectral profiles, formatting, smoothing, matching and viewer connection.                                |
 | [PVImage](./PVImage.md)                 |    25 | PV generator validation, output, preview and cancellation.                                                           |
-| [Regions](./Regions.md)                 |     9 | All regions and annotations, group styling, CRTF/DS9 files, matching, Region List and profiler interactions.         |
+| [Regions](./Regions.md)                 |    12 | All regions and annotations, group styling, CRTF/DS9 files, matching, Region List and profiler interactions.         |
 | [Snippets](./Snippets.md)               |     6 | Code Snippets workflows that create or modify image products.                                                        |
 | [Statistics](./Statistics.md)           |     2 | Statistics for regions across images and Stokes planes.                                                              |
 | [Stokes](./Stokes.md)                   |    13 | Stokes cube assembly and analysis widget controls.                                                                   |
@@ -63,7 +63,7 @@ Use concise Title Case names for `test.describe()` groups. Write individual test
 
 ## Coverage notes
 
-- The 246-case count is collection output, not a passing-test count. Chromium is the only enabled browser in `playwright.config.mjs`.
+- The 249-case count is collection output, not a passing-test count. Chromium is the only enabled browser in `playwright.config.mjs`.
 - Coverage targets selected functional workflows and recovery paths described in the linked plans. It does not establish exhaustive coverage of every CARTA widget or dialog control, and it does not measure performance.
 - Visual checks are targeted: selected viewer and profiler outputs use reviewed PNG snapshots or direct pixel/RGB assertions. Other cases rely on UI state or data assertions, so a snapshot does not imply that every visible property is compared.
 - Three Moment Map cases are annotated with `test.fail()` to track known defects: generation with no selected moments, the rest-frequency reset control remaining enabled, and a missing warning for malformed generated-image acknowledgments. Check the Playwright report to see how those cases behave in a given run.
