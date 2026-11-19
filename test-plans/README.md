@@ -1,6 +1,6 @@
 # CARTA E2E test plans
 
-This directory maps every currently collected Playwright test to its action and expected result. The collector reports **256 cases in 23 spec files**. The Playwright configuration splits Chromium specs into five projects, `test-group1` through `test-group5`. These are plans derived from the current source, not execution results.
+This directory maps every currently collected Playwright test to its action and expected result. The collector reports **265 cases in 23 spec files**. The Playwright configuration splits Chromium specs into five projects, `test-group1` through `test-group5`. These are plans derived from the current source, not execution results.
 
 ## Shared execution plan
 
@@ -36,31 +36,31 @@ Use concise Title Case names for `test.describe()` groups. Write individual test
 
 ## Plans
 
-| Plan                                        | Cases | Focus                                                                                                                    |
-| ------------------------------------------- | ----: | ------------------------------------------------------------------------------------------------------------------------ |
-| [Animator](./Animator.md)                   |     5 | Channel and polarization navigation, spectral matching, playback modes and viewer/profile synchronization.               |
-| [BackendConnection](./BackendConnection.md) |     3 | Retry, session restoration, interrupted generation and failed reconnect recovery with viewer/profile RGB and PNG checks. |
-| [Catalog](./Catalog.md)                     |    16 | Local catalog table, overlay, plot, coordinate and styling behavior.                                                     |
-| [ChannelMap](./ChannelMap.md)               |     4 | Channel-map empty state, controls, image panels and selection synchronization.                                           |
-| [Contours](./Contours.md)                   |     8 | Generators, scaling, Apply/Clear recovery, styling, spatial and spectral matching together, histogram and smoothing.     |
-| [CursorInfo](./CursorInfo.md)               |     1 | Cursor values and coordinates across viewer, widget and profilers.                                                       |
-| [Histogram](./Histogram.md)                 |     3 | Channel-dependent histogram and pixel-bound validation.                                                                  |
-| [ImageFitting](./ImageFitting.md)           |     2 | Fit validation and derived model/residual images.                                                                        |
-| [ImageLayer](./ImageLayer.md)               |     6 | Layer matching, WCS alignment and reordering.                                                                            |
-| [ImageViewer](./ImageViewer.md)             |    29 | Viewer controls, settings, layouts, invalid-input recovery, RGB and matched profiles.                                    |
-| [Layout](./Layout.md)                       |     6 | Preset layouts, docking, floating window order, dynamic layout mappings and context-aware menus.                         |
-| [LoadingFiles](./LoadingFiles.md)           |    15 | Fixture size, open/append, invalid-file recovery, and FITS/HDF5/CASA metadata and rendering.                             |
-| [MomentMap](./MomentMap.md)                 |    41 | Moment generator data, controls, lifecycle and failure recovery.                                                         |
-| [OnlineDataQuery](./OnlineDataQuery.md)     |     4 | SIMBAD/VizieR catalog and HiPS image queries, failure/retry, rendered RGB and profile checks.                            |
-| [Preferences](./Preferences.md)             |    18 | All preference tabs, resets, reloads, inherited defaults, RGB/PNG checks, validation, and save failure recovery.         |
-| [Profilers](./Profilers.md)                 |    27 | Spatial and spectral profiles, formatting, smoothing, matching and viewer connection.                                    |
-| [PVImage](./PVImage.md)                     |    25 | PV generator validation, output, preview and cancellation.                                                               |
-| [Regions](./Regions.md)                     |     9 | All regions and annotations, group styling, CRTF/DS9 files, matching, Region List and profiler interactions.             |
-| [Snippets](./Snippets.md)                   |     6 | Code Snippets workflows that create or modify image products.                                                            |
-| [Statistics](./Statistics.md)               |     2 | Statistics for regions across images and Stokes planes.                                                                  |
-| [Stokes](./Stokes.md)                       |    13 | Stokes cube assembly and analysis widget controls.                                                                       |
-| [VectorOverlay](./VectorOverlay.md)         |     2 | Vector configuration, rendering, invalid sources and clearing.                                                           |
-| [Workspace](./Workspace.md)                 |    11 | Snapshot save and restore for mixed sessions, generated images, overlays, and channel maps.                              |
+| Plan                                        | Cases | Focus                                                                                                                                |
+| ------------------------------------------- | ----: | ------------------------------------------------------------------------------------------------------------------------------------ |
+| [Animator](./Animator.md)                   |     5 | Channel and polarization navigation, spectral matching, playback modes and viewer/profile synchronization.                           |
+| [BackendConnection](./BackendConnection.md) |     3 | Retry, session restoration, interrupted generation and failed reconnect recovery with viewer/profile RGB and PNG checks.             |
+| [Catalog](./Catalog.md)                     |    16 | Local catalog table, overlay, plot, coordinate and styling behavior.                                                                 |
+| [ChannelMap](./ChannelMap.md)               |     4 | Channel-map empty state, controls, image panels and selection synchronization.                                                       |
+| [Contours](./Contours.md)                   |     8 | Generators, scaling, Apply/Clear recovery, styling, spatial and spectral matching together, histogram and smoothing.                 |
+| [CursorInfo](./CursorInfo.md)               |     1 | Cursor values and coordinates across viewer, widget and profilers.                                                                   |
+| [Histogram](./Histogram.md)                 |     3 | Channel-dependent histogram and pixel-bound validation.                                                                              |
+| [ImageFitting](./ImageFitting.md)           |     2 | Fit validation and derived model/residual images.                                                                                    |
+| [ImageLayer](./ImageLayer.md)               |     6 | Layer matching, WCS alignment and reordering.                                                                                        |
+| [ImageViewer](./ImageViewer.md)             |    29 | Viewer controls, settings, layouts, invalid-input recovery, RGB and matched profiles.                                                |
+| [Layout](./Layout.md)                       |     6 | Preset layouts, docking, floating window order, dynamic layout mappings and context-aware menus.                                     |
+| [LoadingFiles](./LoadingFiles.md)           |    15 | Fixture size, open/append, invalid-file recovery, and FITS/HDF5/CASA metadata and rendering.                                         |
+| [MomentMap](./MomentMap.md)                 |    41 | Moment generator data, controls, lifecycle and failure recovery.                                                                     |
+| [OnlineDataQuery](./OnlineDataQuery.md)     |     4 | SIMBAD/VizieR catalog and HiPS image queries, failure/retry, rendered RGB and profile checks.                                        |
+| [Preferences](./Preferences.md)             |    18 | All preference tabs, resets, reloads, inherited defaults, RGB/PNG checks, validation, and save failure recovery.                     |
+| [Profilers](./Profilers.md)                 |    27 | Spatial and spectral profiles, formatting, smoothing, matching and viewer connection.                                                |
+| [PVImage](./PVImage.md)                     |    25 | PV generator validation, output, preview and cancellation.                                                                           |
+| [Regions](./Regions.md)                     |     9 | All regions and annotations, group styling, CRTF/DS9 files, matching, Region List and profiler interactions.                         |
+| [Snippets](./Snippets.md)                   |     6 | Code Snippets workflows that create or modify image products.                                                                        |
+| [Statistics](./Statistics.md)               |     2 | Statistics for regions across images and Stokes planes.                                                                              |
+| [Stokes](./Stokes.md)                       |    13 | Stokes cube assembly and analysis widget controls.                                                                                   |
+| [VectorOverlay](./VectorOverlay.md)         |     2 | Vector configuration, rendering, invalid sources and clearing.                                                                       |
+| [Workspace](./Workspace.md)                 |    20 | Snapshot save and restore for mixed sessions, generated images, overlays, catalogs, color blending, image fitting, and channel maps. |
 
 ## Workspace coverage
 

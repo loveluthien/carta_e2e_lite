@@ -15,6 +15,8 @@ import {
     number,
     panel,
     pixel,
+    PlaywrightDevPage,
+    previewButton,
     pvCutDropdown,
     pvPanel,
     range,
@@ -1076,6 +1078,787 @@ test('Workspace restores a nonadjacent region selection and its focused region',
             await restored(
                 groupDialog.locator('.bp6-dialog-header'),
             ).toContainText('Editing 2 Regions');
+        };
+    });
+});
+
+test('Workspace restores a floating catalog scatter plot, row selection, and Show Selected Data', async ({
+    page,
+}, info) => {
+    await workspaceRoundTrip(page, info, async (carta) => {
+        await load(
+            page,
+            'catalog-image.fits',
+            false,
+            path.join(fixtureFolder, 'catalogs'),
+        );
+        await carta.selectMenuItem('File', 'Import Catalog');
+        const browser = page.getByTestId('file-browser-dialog');
+        await browser
+            .getByRole('textbox', { name: 'Filter by filename with fuzzy' })
+            .fill('catalog-sky.vot');
+        await browser
+            .getByText('catalog-sky.vot', { exact: true })
+            .first()
+            .click();
+        await browser
+            .getByRole('button', { name: 'Load catalog', exact: true })
+            .click();
+
+        const catalog = page.locator('.catalog-overlay');
+        const choose = async (dropdown: Locator, option: string) => {
+            await dropdown.click();
+            await page
+                .getByRole('menuitem', { name: option, exact: true })
+                .click();
+        };
+
+        await catalog.getByTestId('catalog-plot-button').click();
+        await expect
+            .poll(() =>
+                overlayHasInk(page.locator('#catalog-canvas'), [0, 163, 150]),
+            )
+            .toBe(true);
+
+        await choose(
+            catalog.getByTestId('catalog-rendering-type-dropdown'),
+            '2D scatter',
+        );
+        await choose(
+            catalog.getByTestId('catalog-rendering-column-x-dropdown'),
+            'Flux',
+        );
+        await choose(
+            catalog.getByTestId('catalog-rendering-column-y-dropdown'),
+            'Size',
+        );
+        await catalog.getByTestId('catalog-plot-button').click();
+
+        const scatterPlot = page.getByTestId('catalog-scatter-plot');
+        const scatterCanvas = scatterPlot.locator('canvas[data-overlay]');
+        await expect(scatterCanvas).toBeVisible();
+        await expect
+            .poll(() => overlayHasInk(scatterCanvas, [33, 93, 176]))
+            .toBe(true);
+
+        // Select two rows and enable "Show selected data"
+        await page.evaluate(() => {
+            const app = (window as any).app;
+            const catalogId = app.catalogStore.activeCatalogFiles[0];
+            const profileStore =
+                app.catalogStore.catalogProfileStores.get(catalogId);
+            const displayStore =
+                app.catalogStore.getCatalogDisplayStore(catalogId);
+            profileStore.setSelectedPointIndices([1, 3], false);
+            displayStore.setShowSelectedData(true);
+        });
+
+        const selectionState = () =>
+            page.evaluate(() => {
+                const app = (window as any).app;
+                const catalogId = app.catalogStore.activeCatalogFiles[0];
+                const profileStore =
+                    app.catalogStore.catalogProfileStores.get(catalogId);
+                const displayStore =
+                    app.catalogStore.getCatalogDisplayStore(catalogId);
+                return {
+                    selected: Array.from(
+                        profileStore?.selectedPointIndices ?? [],
+                    ).sort((a: any, b: any) => a - b),
+                    showSelectedOnly: displayStore?.isShowingSelectedData,
+                };
+            });
+
+        const scatterWidgetInfo = () =>
+            page.evaluate(() => {
+                const app = (window as any).app;
+                const floating = app.widgetsStore.floatingWidgets.find(
+                    (w: any) => w.type === 'catalog-plot',
+                );
+                const plotStore = floating
+                    ? app.widgetsStore.catalogPlotWidgets.get(floating.id)
+                    : undefined;
+                return {
+                    title: floating?.title,
+                    xColumn: plotStore?.xColumnName,
+                    yColumn: plotStore?.yColumnName,
+                    plotType: plotStore?.plotType,
+                };
+            });
+
+        const savedScatter = await scatterWidgetInfo();
+
+        return async (stage) => {
+            const restored = expect.configure({ soft: true });
+            await restored(scatterCanvas).toBeVisible();
+            await restored
+                .poll(() => overlayHasInk(scatterCanvas, [33, 93, 176]))
+                .toBe(true);
+            await restored.poll(selectionState).toEqual({
+                selected: [1, 3],
+                showSelectedOnly: true,
+            });
+            await restored.poll(scatterWidgetInfo).toEqual(savedScatter);
+            await attachWorkspacePng(
+                info,
+                `${stage}-catalog-scatter`,
+                scatterPlot,
+            );
+        };
+    });
+});
+
+test('Workspace restores a color-blended image, spatial matching, alpha values, and layer visibility', async ({
+    page,
+}, info) => {
+    await workspaceRoundTrip(page, info, async (carta) => {
+        await carta.loadImage('m16_f0444w.fits');
+        await load(page, 'm16_f0770w.fits', true);
+        await carta.selectMenuItem('Widgets', [
+            'Info Panels',
+            'Image List Widget',
+        ]);
+        const list = page.locator('.layer-list-widget').last();
+        await list.getByTestId('image-list-1-matching-xy').click();
+        await expect
+            .poll(() =>
+                page.evaluate(
+                    () =>
+                        (window as any).app.frames[1]?.spatialReference
+                            ?.filename ?? null,
+                ),
+            )
+            .toBe('m16_f0444w.fits');
+
+        await page.evaluate(() => {
+            const app = (window as any).app;
+            const blend = app.imageViewConfigStore.createColorBlending();
+            blend.setAlpha(0, 0.8);
+            blend.setAlpha(1, 0.45);
+            blend.setTitleCustomText('Blended M16');
+            blend.toggleContourVisible();
+            app.updateActiveImage({ type: 1, store: blend });
+        });
+
+        const blendState = () =>
+            page.evaluate(() => {
+                const app = (window as any).app;
+                const active = app.activeImage;
+                const blend =
+                    active?.type === 1
+                        ? active.store
+                        : Array.from(
+                              app.imageViewConfigStore.colorBlendingImageMap.values(),
+                          )[0];
+                return {
+                    activeIsBlend: active?.type === 1,
+                    title: blend?.titleCustomText,
+                    alpha: blend ? Array.from(blend.alpha) : [],
+                    selectedFrames: blend
+                        ? blend.selectedFrames.map((f: any) => f.filename)
+                        : [],
+                    rasterVisible: blend?.isRasterVisible,
+                    contourVisible: blend?.isContourVisible,
+                    vectorVisible: blend?.isVectorOverlayVisible,
+                    spatialMatched: app.frames.map((f: any) => ({
+                        filename: f.filename,
+                        ref: f.spatialReference?.filename ?? null,
+                    })),
+                };
+            });
+
+        const expected = await blendState();
+        expect(expected).toMatchObject({
+            activeIsBlend: true,
+            title: 'Blended M16',
+            alpha: [0.8, 0.45],
+            selectedFrames: ['m16_f0770w.fits'],
+            rasterVisible: true,
+            contourVisible: false,
+            vectorVisible: true,
+        });
+
+        return async () => {
+            await expect
+                .configure({ soft: true })
+                .poll(blendState)
+                .toEqual(expected);
+        };
+    });
+});
+
+test('Workspace restores Image Fitting results, ellipses, and generated model and residual images', async ({
+    page,
+}, info) => {
+    await workspaceRoundTrip(page, info, async (carta) => {
+        await carta.loadImage('Gaussian_triple.fits');
+        await carta.selectMenuItem('View', 'Image Fitting');
+
+        const dialog = page.locator('.fitting-dialog');
+        await dialog
+            .locator('.bp6-form-group')
+            .filter({ hasText: 'Region' })
+            .locator('select')
+            .selectOption({ label: 'Image' });
+        const components = page.getByTestId('image-fitting-component-input');
+        await components.fill('1');
+        await components.press('Tab');
+        await page.getByTestId('image-fitting-fit-button').click();
+
+        const result = page.getByTestId('image-fitting-result-tab');
+        await expect(result).toContainText('Component #1:', { timeout: 30000 });
+        await expect(page.getByText(/Image fitting processing/)).toBeHidden({
+            timeout: 10000,
+        });
+        await page.getByRole('tab', { name: 'Full Log' }).click();
+        await expect(
+            page.getByTestId('image-fitting-full-log-tab'),
+        ).toContainText('Gaussian_triple.fits');
+
+        const fittingState = () =>
+            page.evaluate(() => {
+                const app = (window as any).app;
+                const source = app.frames.find(
+                    (f: any) => f.filename === 'Gaussian_triple.fits',
+                );
+                return {
+                    frames: app.frames.map((f: any) => ({
+                        filename: f.filename,
+                        width: f.frameInfo.fileInfoExtended.width,
+                        height: f.frameInfo.fileInfoExtended.height,
+                        generated: !!f.frameInfo.generated,
+                    })),
+                    hasResult: !!source?.fittingResult,
+                    ellipseCount:
+                        source?.fittingResultRegionParams?.length ?? 0,
+                    components: app.imageFittingStore.components.length,
+                };
+            });
+
+        const saved = await fittingState();
+        expect(saved.frames).toHaveLength(3);
+        expect(saved.hasResult).toBe(true);
+        expect(saved.ellipseCount).toBe(1);
+
+        return async () => {
+            const restored = expect.configure({ soft: true });
+            await restored(dialog).toBeVisible();
+            await restored(
+                dialog.getByRole('tab', { name: 'Full Log', selected: true }),
+            ).toBeVisible();
+            await restored.poll(fittingState).toEqual(saved);
+        };
+    });
+});
+
+test('Workspace restores region annotations, lock, opacity, dash style, and line sample width', async ({
+    page,
+}, info) => {
+    await workspaceRoundTrip(page, info, async (carta) => {
+        await carta.loadImage('cube.fits');
+        await page.evaluate(async () => {
+            const frame = (window as any).app.activeFrame;
+            const rs = frame.regionSet;
+            // 3 = RECTANGLE, 1 = LINE, 10 = ANNTEXT, 14 = ANNCOMPASS, 13 = ANNRULER
+            const rect = await rs.addRegionAsync(
+                3,
+                [
+                    { x: 6, y: 6 },
+                    { x: 4, y: 4 },
+                ],
+                15,
+                'LockedRect',
+            );
+            rect.setLocked(true);
+            rect.setDashLength(0);
+            rect.setOpacity(0.5);
+
+            const line = await rs.addRegionAsync(
+                1,
+                [
+                    { x: 2, y: 8 },
+                    { x: 14, y: 8 },
+                ],
+                0,
+                'WideLine',
+            );
+            line.setLineRegionSampleWidth(5);
+
+            const text = await rs.addRegionAsync(
+                10,
+                [
+                    { x: 8, y: 12 },
+                    { x: 4, y: 2 },
+                ],
+                0,
+                'NoteAnn',
+            );
+            text.setText?.('Workspace Note');
+
+            await rs.addRegionAsync(
+                14,
+                [
+                    { x: 4, y: 12 },
+                    { x: 2, y: 2 },
+                ],
+                0,
+                'CompassAnn',
+            );
+            await rs.addRegionAsync(
+                13,
+                [
+                    { x: 3, y: 3 },
+                    { x: 12, y: 3 },
+                ],
+                0,
+                'RulerAnn',
+            );
+        });
+
+        const regionSummary = () =>
+            page.evaluate(() => {
+                const rs = (window as any).app.activeFrame.regionSet;
+                return rs.regions
+                    .filter((r: any) => r.regionId > 0)
+                    .map((r: any) => ({
+                        name: r.name,
+                        type: r.regionType,
+                        locked: r.isLocked,
+                        dashLength: r.dashLength,
+                        opacity: r.opacity,
+                        sampleWidth: r.lineRegionSampleWidth,
+                        text: r.text ?? null,
+                    }))
+                    .sort((a: any, b: any) => a.name.localeCompare(b.name));
+            });
+
+        const saved = await regionSummary();
+        expect(saved).toHaveLength(5);
+
+        return async () => {
+            await expect
+                .configure({ soft: true })
+                .poll(regionSummary)
+                .toEqual(saved);
+        };
+    });
+});
+
+test('Workspace restores animator settings, time series membership, multi-panel grid, and offset coordinates', async ({
+    page,
+}, info) => {
+    await workspaceRoundTrip(page, info, async (carta) => {
+        await carta.loadImage('cube.fits');
+        await load(page, 'time-early.fits', true);
+        await load(page, 'time-late.fits', true);
+        await activate(page, 'cube.fits');
+
+        await page.evaluate(() => {
+            const app = (window as any).app;
+            const [cube, early, late] = app.frames;
+            cube.setAnimationRange([1, 3]);
+            cube.setTitleCustomText('Custom Cube Title');
+            cube.setOffsetCenter(8, 8);
+            if (!cube.isOffsetCoord) cube.toggleOffsetCoord();
+            app.setTimeSeriesMember(early, true);
+            app.setTimeSeriesMember(late, true);
+            app.animatorStore.setFrameRate(10);
+            app.animatorStore.setStep(2);
+            app.animatorStore.setPlayMode(2); // BOUNCING
+            app.imageViewConfigStore.setMultiPanelEnabled(true);
+            app.imageViewConfigStore.setMultiPanelMode('fixed');
+            app.imageViewConfigStore.setPanelRows(1);
+            app.imageViewConfigStore.setPanelColumns(2);
+            app.preferenceStore.setPreference('pixelGridVisible', true);
+        });
+
+        const sessionState = () =>
+            page.evaluate(() => {
+                const app = (window as any).app;
+                const cube = app.frames.find(
+                    (f: any) => f.filename === 'cube.fits',
+                );
+                return {
+                    animRange: cube?.animationChannelRange
+                        ? Array.from(cube.animationChannelRange)
+                        : null,
+                    title: cube?.titleCustomText,
+                    offsetCoord: cube?.isOffsetCoord,
+                    timeSeries: app.timeSeriesStore.members
+                        .map((f: any) => f.filename)
+                        .sort(),
+                    frameRate: app.animatorStore.frameRate,
+                    step: app.animatorStore.step,
+                    playMode: app.animatorStore.playMode,
+                    multiPanel: app.imageViewConfigStore.isMultiPanelEnabled,
+                    panelMode: app.imageViewConfigStore.multiPanelMode,
+                    panelRows: app.imageViewConfigStore.panelRows,
+                    panelColumns: app.imageViewConfigStore.panelColumns,
+                    pixelGrid: app.imageViewConfigStore.isPixelGridVisible,
+                };
+            });
+
+        const saved = await sessionState();
+        expect(saved).toMatchObject({
+            animRange: [1, 3],
+            title: 'Custom Cube Title',
+            offsetCoord: true,
+            timeSeries: ['time-early.fits', 'time-late.fits'],
+            frameRate: 10,
+            step: 2,
+            playMode: 2,
+            multiPanel: true,
+            panelMode: 'fixed',
+            panelRows: 1,
+            panelColumns: 2,
+            pixelGrid: true,
+        });
+
+        return async () => {
+            await expect
+                .configure({ soft: true })
+                .poll(sessionState)
+                .toEqual(saved);
+            await expect.soft(page.locator('.image-panel-div')).toHaveCount(2);
+        };
+    });
+});
+
+test('Workspace restores a floating PV preview viewer, per-cube histogram, and statistics/histogram widgets', async ({
+    page,
+}, info) => {
+    await workspaceRoundTrip(page, info, async (carta) => {
+        await carta.loadImage('HD163296_13CO_2-1_subimage.fits');
+        await workspaceRegion(page, 'line');
+
+        // Enable per-cube histogram on active frame
+        await page.evaluate(() => {
+            const app = (window as any).app;
+            const frame = app.activeFrame;
+            frame.renderConfig.setUseCubeHistogram(true);
+            app.requestCubeHistogram(frame.frameInfo.fileId, 'z');
+        });
+        await expect
+            .poll(
+                () =>
+                    page.evaluate(
+                        () =>
+                            (window as any).app.activeFrame.renderConfig
+                                .cubeHistogramProgress,
+                    ),
+                { timeout: 30000 },
+            )
+            .toBe(1);
+
+        // Open PV Generator and launch floating PV Preview Viewer
+        await carta.selectMenuItem('Widgets', 'PV Generator');
+        await pvCutDropdown(page).selectOption({ label: 'Region 1' });
+        await previewButton(page).click();
+        const preview = page.locator('.floating-widget').filter({
+            has: page
+                .locator('.floating-title')
+                .filter({ hasText: 'PV Preview Viewer' }),
+        });
+        await expect(preview).toBeVisible({ timeout: 30000 });
+        await expect
+            .poll(
+                () =>
+                    page.evaluate(() => {
+                        const pvStore = Array.from(
+                            (
+                                window as any
+                            ).app.widgetsStore.pvGeneratorWidgets.values(),
+                        )[0] as any;
+                        return !!pvStore?.previewFrame;
+                    }),
+                { timeout: 30000 },
+            )
+            .toBe(true);
+
+        // Open Statistics and Histogram widgets
+        await carta.selectMenuItem('Widgets', [
+            'Info Panels',
+            'Statistics Widget',
+        ]);
+        await carta.selectMenuItem('Widgets', 'Histogram Widget');
+
+        const state = () =>
+            page.evaluate(() => {
+                const app = (window as any).app;
+                const cube = app.frames.find(
+                    (f: any) =>
+                        f.filename === 'HD163296_13CO_2-1_subimage.fits',
+                );
+                const pvStore = Array.from(
+                    app.widgetsStore.pvGeneratorWidgets.values(),
+                )[0] as any;
+                return {
+                    useCubeHist: cube?.renderConfig.isUsingCubeHistogram,
+                    cubeHistProgress: cube?.renderConfig.cubeHistogramProgress,
+                    hasPreviewFrame: !!pvStore?.previewFrame,
+                    previewWidth:
+                        pvStore?.previewFrame?.frameInfo?.fileInfoExtended
+                            ?.width ?? 0,
+                    previewHeight:
+                        pvStore?.previewFrame?.frameInfo?.fileInfoExtended
+                            ?.height ?? 0,
+                };
+            });
+
+        const saved = await state();
+        expect(saved.useCubeHist).toBe(true);
+        expect(saved.hasPreviewFrame).toBe(true);
+        expect(saved.previewWidth).toBeGreaterThan(0);
+
+        return async (stage) => {
+            const restored = expect.configure({ soft: true });
+            await restored(preview).toBeVisible();
+            await restored.poll(state, { timeout: 30000 }).toEqual(saved);
+            await attachWorkspacePng(info, `${stage}-pv-preview`, preview);
+        };
+    });
+});
+
+test('Opening a single-panel workspace clears Channel Map mode from the current session', async ({
+    page,
+}, info) => {
+    info.setTimeout(90000);
+    page.setDefaultTimeout(10000);
+    const name = 'e2e-single-panel-workspace';
+    let saved: { date: number } | undefined;
+    await page.route('**/database/list/workspaces', (route) =>
+        route.fulfill({
+            json: {
+                success: true,
+                workspaces: saved ? [{ name, date: saved.date }] : [],
+            },
+        }),
+    );
+    await page.route(/\/database\/workspace(?:\/.*)?$/, async (route) => {
+        if (route.request().method() === 'PUT') {
+            saved = route.request().postDataJSON().workspace;
+        }
+        await route.fulfill({ json: { success: !!saved, workspace: saved } });
+    });
+
+    const carta = new PlaywrightDevPage(page);
+    await carta.goto();
+    await carta.loadImage('cube.fits');
+
+    // Save a normal single-panel workspace (channel map disabled)
+    await carta.selectMenuItem('File', 'Save Workspace');
+    const save = page.getByRole('dialog', {
+        name: 'Save Workspace',
+        exact: true,
+    });
+    await save.getByPlaceholder('Enter workspace name').fill(name);
+    await save.getByRole('button', { name: 'Save', exact: true }).click();
+    await expect(save).toBeHidden();
+    expect(saved).toBeDefined();
+
+    // Now enable Channel Map mode in the current live session
+    await carta.selectMenuItem('Widgets', 'Channel Map Control');
+    await toggle(page, 'Enable channel map mode');
+    await toggle(page, 'Show channel string');
+    await setNumber(
+        widget(page).getByRole('spinbutton', { name: 'Number of rows' }),
+        1,
+    );
+    await expectChannels(page, [0, 1]);
+
+    // Open the saved single-panel workspace directly from this dirty session
+    await carta.selectMenuItem('File', 'Open Workspace');
+    const open = page.getByRole('dialog', {
+        name: 'Open Workspace',
+        exact: true,
+    });
+    await open.getByText(name, { exact: true }).first().click();
+    await open.getByRole('button', { name: 'Open', exact: true }).click();
+    await expect(open).toBeHidden({ timeout: 30000 });
+    await expect
+        .poll(() => page.evaluate(() => (window as any).app.isLoadingWorkspace))
+        .toBe(false);
+
+    // Channel Map mode should be cleared, restoring the single-panel view
+    const restored = expect.configure({ soft: true });
+    await restored
+        .poll(() =>
+            page.evaluate(
+                () => (window as any).app.channelMapStore.isChannelMapEnabled,
+            ),
+        )
+        .toBe(false);
+    await restored(labels(page)).toHaveCount(0);
+    await attachWorkspacePng(
+        info,
+        'restored-from-channel-map-session',
+        page.getByTestId('viewer-div').first(),
+    );
+});
+
+test('Restored floating catalog scatter plot keeps its componentId, updates title, and closes cleanly', async ({
+    page,
+}, info) => {
+    await workspaceRoundTrip(page, info, async (carta) => {
+        await load(
+            page,
+            'catalog-image.fits',
+            false,
+            path.join(fixtureFolder, 'catalogs'),
+        );
+        await carta.selectMenuItem('File', 'Import Catalog');
+        const browser = page.getByTestId('file-browser-dialog');
+        await browser
+            .getByRole('textbox', { name: 'Filter by filename with fuzzy' })
+            .fill('catalog-sky.vot');
+        await browser
+            .getByText('catalog-sky.vot', { exact: true })
+            .first()
+            .click();
+        await browser
+            .getByRole('button', { name: 'Load catalog', exact: true })
+            .click();
+
+        const catalog = page.locator('.catalog-overlay');
+        const choose = async (dropdown: Locator, option: string) => {
+            await dropdown.click();
+            await page
+                .getByRole('menuitem', { name: option, exact: true })
+                .click();
+        };
+        await choose(
+            catalog.getByTestId('catalog-rendering-type-dropdown'),
+            '2D scatter',
+        );
+        await choose(
+            catalog.getByTestId('catalog-rendering-column-x-dropdown'),
+            'Flux',
+        );
+        await choose(
+            catalog.getByTestId('catalog-rendering-column-y-dropdown'),
+            'Size',
+        );
+        await catalog.getByTestId('catalog-plot-button').click();
+
+        const scatterPlot = page.getByTestId('catalog-scatter-plot');
+        await expect(scatterPlot.locator('canvas[data-overlay]')).toBeVisible();
+
+        const plotBindingInfo = () =>
+            page.evaluate(() => {
+                const app = (window as any).app;
+                const floating = app.widgetsStore.floatingWidgets.find(
+                    (w: any) => w.type === 'catalog-plot',
+                );
+                const bindingComponentIds =
+                    app.catalogStore.widgetBindings.componentIds();
+                return {
+                    floatingId: floating?.id,
+                    floatingComponentId: floating?.componentId,
+                    bindingComponentIds,
+                    matchesBinding: bindingComponentIds.includes(
+                        floating?.componentId,
+                    ),
+                    title: floating?.title,
+                };
+            });
+
+        const saved = await plotBindingInfo();
+        expect(saved.matchesBinding).toBe(true);
+
+        return async (stage) => {
+            const restored = expect.configure({ soft: true });
+            await restored.poll(plotBindingInfo).toMatchObject({
+                matchesBinding: true,
+                title: saved.title,
+            });
+            if (stage === 'restored') {
+                const floatingWidget = page
+                    .locator('.floating-widget')
+                    .filter({ has: scatterPlot });
+                await floatingWidget
+                    .locator(
+                        '.floating-header button[title="Close"], .floating-header .bp6-icon-cross',
+                    )
+                    .first()
+                    .click();
+                await restored(scatterPlot).toBeHidden();
+                await restored
+                    .poll(() =>
+                        page.evaluate(
+                            () =>
+                                (
+                                    window as any
+                                ).app.catalogStore.widgetBindings.componentIds()
+                                    .length,
+                        ),
+                    )
+                    .toBe(0);
+            }
+        };
+    });
+});
+
+test('Workspace restores rest frequency, beam styling, WCS Galactic system, custom axis labels, and unlocked Contour source', async ({
+    page,
+}, info) => {
+    await workspaceRoundTrip(page, info, async (carta) => {
+        await carta.loadImage('HD163296_13CO_2-1_subimage.fits');
+        await load(page, 'HD163296_C18O_2-1_subimage.fits', true);
+
+        await page.evaluate(() => {
+            const app = (window as any).app;
+            const [first, second] = app.frames;
+            // Custom rest frequency on first frame
+            first.restFreqStore.setCustomVal(220.5);
+            // Custom beam styling on first frame
+            first.overlayBeamSettings.setVisible(true);
+            first.overlayBeamSettings.setColor('#00FF00');
+            first.overlayBeamSettings.setShiftX(15);
+            first.overlayBeamSettings.setShiftY(20);
+            // Custom WCS system + custom axis label
+            app.overlaySettings.global.setSystem('GALACTIC');
+            app.overlaySettings.labels.setCustomText(true);
+            app.overlaySettings.labels.setCustomLabelX('Custom Lon');
+            // Unlock Contour dialog to point to first frame while second is active
+            app.setContourDataSourceUnlocked(first);
+            app.updateActiveImageByFrame(second);
+        });
+
+        const state = () =>
+            page.evaluate(() => {
+                const app = (window as any).app;
+                const first = app.frames.find(
+                    (f: any) =>
+                        f.filename === 'HD163296_13CO_2-1_subimage.fits',
+                );
+                return {
+                    restFreq: first?.restFreqStore.customRestFreq.value,
+                    beamColor: first?.overlayBeamSettings.color,
+                    beamShiftX: first?.overlayBeamSettings.shiftX,
+                    beamShiftY: first?.overlayBeamSettings.shiftY,
+                    wcsSystem: app.overlaySettings.global.system,
+                    hasCustomLabel: app.overlaySettings.labels.hasCustomText,
+                    customLabelX: app.overlaySettings.labels.customLabelX,
+                    contourLocked: app.isFrameLockedToContour,
+                    contourSource: app.contourDataSource?.filename,
+                };
+            });
+
+        const saved = await state();
+        expect(saved).toMatchObject({
+            restFreq: 220.5,
+            beamColor: '#00FF00',
+            beamShiftX: 15,
+            beamShiftY: 20,
+            wcsSystem: 'GALACTIC',
+            hasCustomLabel: true,
+            customLabelX: 'Custom Lon',
+            contourLocked: false,
+            contourSource: 'HD163296_13CO_2-1_subimage.fits',
+        });
+
+        return async () => {
+            await expect.configure({ soft: true }).poll(state).toEqual(saved);
         };
     });
 });
