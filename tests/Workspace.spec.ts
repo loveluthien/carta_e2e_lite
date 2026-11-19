@@ -1002,3 +1002,80 @@ test('Workspace restores channel map mode and the selected panel grid', async ({
         };
     });
 });
+
+test('Workspace restores a frozen cursor at the saved pixel', async ({
+    page,
+}, info) => {
+    await workspaceRoundTrip(page, info, async (carta) => {
+        await carta.loadImage('cube.fits');
+        await expect.poll(() => pixel(page, 8, 8)).toBeCloseTo(1.5, 5);
+        await page.keyboard.press('f');
+        const cursor = () =>
+            page.evaluate(() => {
+                const app = (window as any).app;
+                const position = app.activeFrame.cursorInfo?.posImageSpace;
+                return {
+                    frozen: app.isCursorFrozen,
+                    pixel: position && [
+                        Math.round(position.x),
+                        Math.round(position.y),
+                    ],
+                    value: app.activeFrame.cursorValue?.value,
+                };
+            });
+        const expected = { frozen: true, pixel: [8, 8], value: 1.5 };
+        const canvas = page
+            .locator('.region-stage > .konvajs-content > canvas')
+            .first();
+
+        return async () => {
+            await expect.poll(cursor).toEqual(expected);
+            const box = (await canvas.boundingBox())!;
+            await canvas.hover({
+                position: { x: box.width * 0.65, y: box.height * 0.65 },
+            });
+            await expect.poll(cursor).toEqual(expected);
+            await expect(
+                page.getByTestId('viewer-cursor-info-bar'),
+            ).toContainText('1.5 K');
+        };
+    });
+});
+
+test('Workspace restores a nonadjacent region selection and its focused region', async ({
+    page,
+}, info) => {
+    await workspaceRoundTrip(page, info, async (carta) => {
+        await carta.loadImage('cube.fits');
+        const canvas = page
+            .locator('.region-stage > .konvajs-content > canvas')
+            .first();
+        await expect(canvas).toBeVisible();
+        const box = (await canvas.boundingBox())!;
+        for (const x of [0.4, 0.5, 0.6]) {
+            await page.getByTestId('point-region-shortcut-button').click();
+            await canvas.click({
+                position: { x: box.width * x, y: box.height * 0.5 },
+            });
+        }
+
+        await page.getByTestId('region-list-0-header-title').click();
+        const list = page.getByTestId('region-list-table');
+        const row = (index: number) =>
+            list.getByTestId(`region-list-table-row-${index}`);
+        await row(2).click();
+        await row(4).click({ modifiers: ['ControlOrMeta'] });
+        await list.press('Enter');
+        const groupDialog = page.locator('.region-dialog');
+
+        return async () => {
+            const restored = expect.configure({ soft: true });
+            await restored(row(2)).toHaveClass(/\bselected\b/);
+            await restored(row(3)).not.toHaveClass(/\b(selected|active)\b/);
+            await restored(row(4)).toHaveClass(/\bactive\b/);
+            await restored(
+                groupDialog.locator('.bp6-dialog-header'),
+            ).toContainText('Editing 2 Regions');
+        };
+    });
+});
