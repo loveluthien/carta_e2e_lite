@@ -942,6 +942,128 @@ preferencesTest.describe('Preferences', () => {
     );
 
     preferencesTest(
+        'Annulus default region type persists, initializes new frames, and creates click-sized annuli',
+        async ({ page, saved }) => {
+            await tab(page, 'Region');
+            const baseline = await controls(page);
+            await expect(
+                field(page, 'Region type').locator('select option'),
+            ).toHaveText([
+                'Point',
+                'Line',
+                'Rectangle',
+                'Ellipse',
+                'Polygon',
+                'Polyline',
+                'Annulus',
+            ]);
+            await select(page, 'Region type', 'regionType', 'Annulus', 5);
+            await numeric(page, 'Region size', 'regionSize', 40);
+            await expect
+                .poll(() => [saved.regionType, saved.regionSize])
+                .toEqual([5, 40]);
+
+            await page.reload();
+            await page.waitForFunction(
+                () => (window as any).app?.preferenceStore?.isPreferenceReady,
+            );
+            await new PlaywrightDevPage(page).loadImage('single.fits');
+            await page.getByTestId('preference-dialog-button').click();
+            await tab(page, 'Region');
+            await expect(
+                field(page, 'Region type').locator('select'),
+            ).toHaveValue('5');
+            await stored(page, 'regionType', 5);
+            await page
+                .getByTestId('preference-dialog-header-close-button')
+                .click();
+
+            await expect
+                .poll(() =>
+                    page.evaluate(() => ({
+                        newRegionType: (window as any).app.activeFrame.regionSet
+                            .newRegionType,
+                        isNewAnnotation: (window as any).app.activeFrame
+                            .regionSet.isNewRegionAnnotation,
+                    })),
+                )
+                .toEqual({ newRegionType: 5, isNewAnnotation: false });
+
+            const createButton = page.getByTestId(
+                'toolbar-region-creating-button',
+            );
+            await createButton.hover();
+            await expect(
+                page.locator('.bp6-tooltip').getByText('Create annulus region'),
+            ).toBeVisible();
+            await createButton.click();
+
+            const canvas = page
+                .locator('.region-stage > .konvajs-content > canvas')
+                .first();
+            const box = await canvas.boundingBox();
+            expect(box).not.toBeNull();
+            await canvas.click({
+                position: { x: box!.width * 0.5, y: box!.height * 0.5 },
+            });
+
+            await expect
+                .poll(() =>
+                    page.evaluate(() => {
+                        const frame = (window as any).app.activeFrame;
+                        const zoom = frame.effectiveZoomLevel;
+                        const r = frame.regionSet.regions.find(
+                            (region: any) => region.regionId > 0,
+                        );
+                        return (
+                            r && {
+                                type: r.regionType,
+                                points: r.controlPoints.length,
+                                outerSizeX: Number(
+                                    (r.size.x * zoom.y).toFixed(3),
+                                ),
+                                outerSizeY: Number(
+                                    (r.size.y * zoom.x).toFixed(3),
+                                ),
+                                innerSizeX: Number(
+                                    (r.innerSize.x * zoom.y).toFixed(3),
+                                ),
+                                innerSizeY: Number(
+                                    (r.innerSize.y * zoom.x).toFixed(3),
+                                ),
+                            }
+                        );
+                    }),
+                )
+                .toEqual({
+                    type: 5,
+                    points: 3,
+                    outerSizeX: 20,
+                    outerSizeY: 20,
+                    innerSizeX: 10,
+                    innerSizeY: 10,
+                });
+            await expect
+                .poll(() =>
+                    rgbCount(page, '.region-stage canvas', [46, 230, 214]),
+                )
+                .toBeGreaterThan(0);
+
+            await page.getByTestId('preference-dialog-button').click();
+            await viewer(page, 'region-annulus');
+            await page.getByTestId('preference-dialog-button').click();
+            await tab(page, 'Region');
+            await restore(page, saved, baseline, ['regionType', 'regionSize']);
+            await stored(page, 'regionType', undefined);
+            expect(
+                await page.evaluate(
+                    () => (window as any).app.preferenceStore.regionType,
+                ),
+            ).toBe(3);
+        },
+    );
+
+    preferencesTest(
         'Annotation defaults update point caches and new annotation styles',
         async ({ page, saved }) => {
             await tab(page, 'Annotation');
