@@ -110,9 +110,11 @@ export async function workspaceRoundTrip(
     {
         verifyDatabaseFailures = false,
         configureSession,
+        editAfterSave,
     }: {
         verifyDatabaseFailures?: boolean;
         configureSession?: () => Promise<void>;
+        editAfterSave?: (carta: PlaywrightDevPage) => Promise<void>;
     } = {},
 ) {
     info.setTimeout(90000);
@@ -235,13 +237,20 @@ export async function workspaceRoundTrip(
         });
     }
 
-    await test.step('Open the snapshot in a fresh CARTA session', async () => {
-        await carta.goto();
-        await configureSession?.();
-        await expect.poll(imageState).toMatchObject({ files: [] });
-        await page
-            .getByTestId('file-browser-dialog-header-close-button')
-            .click();
+    if (editAfterSave) {
+        await test.step('Keep working after saving', () =>
+            editAfterSave(carta));
+    }
+
+    await test.step('Open the saved workspace', async () => {
+        if (!editAfterSave) {
+            await carta.goto();
+            await configureSession?.();
+            await expect.poll(imageState).toMatchObject({ files: [] });
+            await page
+                .getByTestId('file-browser-dialog-header-close-button')
+                .click();
+        }
         await carta.selectMenuItem('File', 'Open Workspace');
 
         await open.getByText(name, { exact: true }).first().click();

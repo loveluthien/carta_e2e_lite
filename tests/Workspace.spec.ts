@@ -2162,3 +2162,53 @@ test('Workspace restores a loaded Time Series on its middle epoch and keeps navi
         };
     });
 });
+
+test('Workspace reopens a saved cube after unsaved image, cursor and widget edits', async ({
+    page,
+}, info) => {
+    const frozen = () =>
+        page.evaluate(() => (window as any).app.isCursorFrozen);
+    const histogram = page.locator('.histogram-widget');
+    const contour = contourDialog(page);
+    await workspaceRoundTrip(
+        page,
+        info,
+        async (carta) => {
+            await carta.loadImage('cube.fits');
+            await page.getByTestId('animator-0-header-title').click();
+            await page.getByTestId('animator-next-button').click();
+            return async (stage) => {
+                await expect.configure({ soft: true }).poll(frozen).toBe(false);
+                await expect.soft(histogram).toBeHidden();
+                await expect.soft(contour).toBeHidden();
+                await expect(
+                    page.getByTestId('image-view-header-title'),
+                ).toContainText('cube.fits');
+                await expect
+                    .poll(() => pixel(page, 8, 8, true))
+                    .toBeCloseTo(3, 5);
+                if (stage === 'restored') {
+                    await page.getByTestId('contour-dialog-button').click();
+                    await expect(contour).toBeVisible();
+                    await expect(contour.locator('.bp6-tag')).toHaveCount(0);
+                }
+            };
+        },
+        {
+            editAfterSave: async (carta) => {
+                await load(page, 'single.fits', true);
+                await page.keyboard.press('f');
+                await expect.poll(frozen).toBe(true);
+                await carta.selectMenuItem('Widgets', 'Histogram Widget');
+                await expect(histogram).toBeVisible();
+                await page.getByTestId('contour-dialog-button').click();
+                const level = contour
+                    .getByTestId('contour-config-level-input-form')
+                    .locator('input');
+                await level.fill('0.75');
+                await level.press('Enter');
+                await expect(contour.locator('.bp6-tag')).toContainText('0.75');
+            },
+        },
+    );
+});
