@@ -1862,3 +1862,303 @@ test('Workspace restores rest frequency, beam styling, WCS Galactic system, cust
         };
     });
 });
+
+async function workspaceProfileCheck(
+    page: Page,
+    info: Parameters<typeof attachWorkspacePng>[0],
+    x: number,
+    y: number,
+    spectral = false,
+) {
+    for (const id of [
+        'spatial-profiler-0-content',
+        'spatial-profiler-1-content',
+    ]) {
+        await page
+            .getByTestId(id)
+            .getByTestId('region-dropdown')
+            .selectOption({ label: 'Cursor' });
+    }
+    if (spectral) {
+        await page
+            .getByTestId('spectral-profiler-0-content')
+            .getByTestId('spectral-profiler-region-dropdown')
+            .click();
+        await page
+            .getByRole('menuitem', { name: 'Cursor', exact: true })
+            .click();
+    }
+    let saved: number[][];
+    return async (stage: 'saved' | 'restored') => {
+        await pixel(page, x, y, true);
+        const values = () =>
+            page.evaluate(
+                ({ includeSpectral, x, y }) => {
+                    const app = (window as any).app;
+                    const profile = app.spatialProfiles.get(
+                        `${app.activeFrame.frameInfo.fileId}-0`,
+                    );
+                    // Compare the same coordinates even when the backend streams a wider profile after reopening.
+                    const spatial = (['x', 'y'] as const).map((axis) => {
+                        const data = profile?.getProfile(axis);
+                        const center = axis === 'x' ? x : y;
+                        return [-2, -1, 0, 1, 2].map(
+                            (offset) =>
+                                data?.values[
+                                    (center + offset - (data.start ?? 0)) /
+                                        (data.mip || 1)
+                                ],
+                        );
+                    });
+                    if (!includeSpectral) return spatial;
+                    const points =
+                        app.widgetsStore.spectralProfileWidgets.get(
+                            'spectral-profiler-0',
+                        )?.plotData?.data?.[0] ?? [];
+                    return [
+                        ...spatial,
+                        points.map(
+                            (point: { y: number }) => point.y,
+                        ) as number[],
+                    ];
+                },
+                { includeSpectral: spectral, x, y },
+            );
+        await expect
+            .poll(async () =>
+                (await values()).every(
+                    (profile) =>
+                        profile.length > 0 && profile.every(Number.isFinite),
+                ),
+            )
+            .toBe(true);
+        if (stage === 'saved') saved = await values();
+        else await expect.poll(values).toEqual(saved);
+
+        const spatial = page.locator(
+            '.spatial-profiler-widget:visible .profile-plot',
+        );
+        await expect(spatial).toHaveCount(2);
+        for (const [index, plot] of (await spatial.all()).entries()) {
+            await attachWorkspacePng(
+                info,
+                `${stage}-spatial-profile-${index}`,
+                plot,
+            );
+        }
+        if (spectral) {
+            const plot = page
+                .getByTestId('spectral-profiler-0-content')
+                .locator('.line-plot-component .annotation-stage canvas')
+                .first();
+            await expect(plot).toBeVisible();
+            await attachWorkspacePng(info, `${stage}-spectral-profile`, plot);
+        }
+    };
+}
+
+test('Workspace restores two appended spatial matches, a shared region, and the active view', async ({
+    page,
+}, info) => {
+    await workspaceRoundTrip(page, info, async (carta) => {
+        const files = ['cube.fits', 'matching-cube.fits', 'time-late.fits'];
+        const reference = files[1];
+        await carta.loadImage(files[0]);
+        for (const file of files.slice(1)) {
+            await load(page, file, true);
+        }
+
+        await page.getByTestId('layer-list-0-header-title').click();
+        const image = (index: number) =>
+            page.getByTestId(`image-list-${index}-image-name`);
+        await image(1).click({ button: 'right' });
+        await page
+            .getByRole('menuitem', {
+                name: 'Set as spatial reference',
+                exact: true,
+            })
+            .click();
+        for (const index of [0, 2]) {
+            await page.getByTestId(`image-list-${index}-matching-xy`).click();
+        }
+
+        const matching = () =>
+            page.evaluate(() => {
+                const app = (window as any).app;
+                return {
+                    reference: app.spatialReference?.filename,
+                    links: app.frames.map(
+                        (frame: any) =>
+                            frame.spatialReference?.filename ?? null,
+                    ),
+                };
+            });
+        const expectedMatching = {
+            reference,
+            links: [reference, null, reference],
+        };
+        await expect.poll(matching).toEqual(expectedMatching);
+        await activate(page, reference);
+        await workspaceRegion(page, 'rectangle');
+        await activate(page, files[2]);
+
+        // Pan through a matched image. Its WCS is shifted from the reference.
+        await page.evaluate(() =>
+            (window as any).app.activeFrame.setCenter(6, 8),
+        );
+        const view = () =>
+            page.evaluate(() => {
+                const app = (window as any).app;
+                const round = (value: number) => Number(value.toFixed(5));
+                const sharedRegion =
+                    app.spatialReference.regionSet.regions.find(
+                        (region: any) => region.regionId > 0,
+                    );
+                return {
+                    center: [
+                        round(app.spatialReference.center.x),
+                        round(app.spatialReference.center.y),
+                    ],
+                    zoom: round(app.spatialReference.zoomLevel),
+                    rectangle: sharedRegion?.controlPoints.map(
+                        ({ x, y }: { x: number; y: number }) => [
+                            round(x),
+                            round(y),
+                        ],
+                    ),
+                    sharedBy: app.frames
+                        .filter(
+                            (frame: any) =>
+                                frame.regionSet ===
+                                app.spatialReference.regionSet,
+                        )
+                        .map((frame: any) => frame.filename),
+                };
+            });
+        const initialZoom = (await view()).zoom;
+        await page.getByTestId('viewer-div').hover();
+        await page.getByTestId('zoom-in-button').click();
+        await expect
+            .poll(async () => (await view()).zoom)
+            .toBeGreaterThan(initialZoom);
+        const savedView = await view();
+        expect(savedView.center[0]).toBeGreaterThan(7.5);
+        expect(savedView.rectangle).toHaveLength(2);
+        expect(savedView.sharedBy).toEqual(files);
+
+        await page.locator('#SpectralProfilerButton').click();
+        const checkProfiles = await workspaceProfileCheck(
+            page,
+            info,
+            8,
+            8,
+            true,
+        );
+        const samples: number[][] = [];
+        return async (stage) => {
+            await expect.poll(matching).toEqual(expectedMatching);
+            await expect.poll(view).toEqual(savedView);
+            await expect(
+                page.getByTestId('image-view-header-title'),
+            ).toContainText(files[2]);
+            await checkProfiles(stage);
+            for (const [index, file] of files.entries()) {
+                await activate(page, file);
+                await page.evaluate(() =>
+                    (window as any).app.waitForImageData(),
+                );
+                const rgba = () => renderedPixelRgb(page, 8, 8);
+                if (stage === 'saved') {
+                    await expect.poll(async () => (await rgba())[3]).toBe(255);
+                    samples.push(await rgba());
+                } else {
+                    await expect.poll(rgba).toEqual(samples[index]);
+                }
+            }
+        };
+    });
+});
+
+test('Workspace restores a loaded Time Series on its middle epoch and keeps navigation working', async ({
+    page,
+}, info) => {
+    await workspaceRoundTrip(page, info, async () => {
+        const dates = ['2015-05-24', '2020-03-17', '2024-08-13'];
+        const files = dates.map((date) => `J0423-0120_${date}.fits`);
+        const browser = page.getByTestId('file-browser-dialog');
+        await browser.locator('.edit-path-button').click();
+        const directory = browser.getByPlaceholder(
+            'Input directory path with respect to the top level folder',
+        );
+        await directory.fill(`${fixtureBrowserPath}/time_series`);
+        await directory.press('Enter');
+        for (const [index, file] of [files[2], files[0], files[1]].entries()) {
+            await browser
+                .getByText(file, { exact: true })
+                .click({ modifiers: index ? ['ControlOrMeta'] : [] });
+        }
+        await browser
+            .getByTestId('file-browser-load-as-time-series-button')
+            .click();
+        await expect(browser).toBeHidden();
+        const mode = page.getByTestId('animator-time-series-mode');
+        const slider = page.getByTestId('animator-time-series-slider');
+        const next = page.getByTestId('animator-next-button');
+        const previous = page.getByTestId('animator-previous-button');
+        const series = () =>
+            page.evaluate(() => {
+                const app = (window as any).app;
+                return {
+                    index: app.timeSeriesStore.currentIndex,
+                    epochs: app.timeSeriesStore.elements.map(
+                        (element: any) => ({
+                            file: element.frame.filename,
+                            date: element.isoUtc.slice(0, 10),
+                            reference:
+                                element.frame.spatialReference?.filename ??
+                                null,
+                        }),
+                    ),
+                };
+            });
+        const epochs = files.map((file, index) => ({
+            file,
+            date: dates[index],
+            reference: index === 2 ? null : files[2],
+        }));
+        await expect.poll(series).toEqual({ index: 0, epochs });
+        await expect(mode).toBeChecked();
+        await next.click();
+
+        const checkProfiles = await workspaceProfileCheck(page, info, 150, 150);
+        const checkEpoch = async (index: number, value: number) => {
+            await expect.poll(series).toEqual({ index, epochs });
+            await expect(
+                page.getByTestId('image-view-header-title'),
+            ).toContainText(files[index]);
+            await expect
+                .poll(() => pixel(page, 150, 150, true))
+                .toBeCloseTo(value, 5);
+            await expect
+                .poll(async () => (await renderedPixelRgb(page, 150, 150))[3])
+                .toBe(255);
+        };
+        return async (stage) => {
+            await expect(mode).toBeChecked();
+            await expect(slider).toBeVisible();
+            await checkEpoch(1, 1.8255513);
+            await checkProfiles(stage);
+            if (stage === 'restored') {
+                await next.click();
+                await checkEpoch(2, 3.5052781);
+                await attachWorkspacePng(
+                    info,
+                    'restored-next-epoch',
+                    page.getByTestId('viewer-div'),
+                );
+                await previous.click();
+                await checkEpoch(1, 1.8255513);
+            }
+        };
+    });
+});
